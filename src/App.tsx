@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
+import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { HeroMarketplace } from './components/HeroMarketplace';
 import { TaskCard } from './components/TaskCard';
@@ -29,6 +30,9 @@ import { TaskHistoryView } from './components/TaskHistoryView';
 import { PackagesModal } from './components/PackagesModal';
 import { DailyStreakModal } from './components/DailyStreakModal';
 import { ReferralDashboard } from './components/ReferralDashboard';
+import { PublisherModal } from './components/PublisherModal';
+import { PrivacyTermsModal } from './components/PrivacyTermsModal';
+import { AdSenseBanner } from './components/AdSenseBanner';
 import { Task } from './types/tasks';
 import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users } from 'lucide-react';
 
@@ -44,7 +48,13 @@ const MainAppContent: React.FC = () => {
     setPackagesModalOpen,
     streakModalOpen,
     setStreakModalOpen,
-    userStats
+    userStats,
+    publisherModalOpen,
+    setPublisherModalOpen,
+    privacyTermsModalOpen,
+    setPrivacyTermsModalOpen,
+    privacyTermsTab,
+    openPrivacyTerms
   } = useTasks();
 
   // Marketplace filter states
@@ -270,6 +280,12 @@ const MainAppContent: React.FC = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Google AdSense Contextual Placement */}
+                <AdSenseBanner
+                  className="mt-8"
+                  onOpenPublisherHub={() => setPublisherModalOpen(true)}
+                />
               </div>
             </div>
           )}
@@ -415,6 +431,20 @@ const MainAppContent: React.FC = () => {
         />
       )}
 
+      {/* Google Publishing Hub (Search Console & AdSense) */}
+      <PublisherModal
+        isOpen={publisherModalOpen}
+        onClose={() => setPublisherModalOpen(false)}
+        onOpenPrivacyTerms={openPrivacyTerms}
+      />
+
+      {/* AdSense Policy Compliant Legal & Privacy Modal */}
+      <PrivacyTermsModal
+        isOpen={privacyTermsModalOpen}
+        initialTab={privacyTermsTab}
+        onClose={() => setPrivacyTermsModalOpen(false)}
+      />
+
       {/* Gemini AI Floating Assistant */}
       <GeminiChatbot />
 
@@ -426,8 +456,10 @@ const MainAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <TaskProvider>
-      <MainAppContent />
-    </TaskProvider>
+    <AuthProvider>
+      <TaskProvider>
+        <MainAppContent />
+      </TaskProvider>
+    </AuthProvider>
   );
 }

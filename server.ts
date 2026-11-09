@@ -2,6 +2,11 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { getOrCreateUser } from './src/db/users.ts';
+import { db } from './src/db/index.ts';
+import { completedTasks, referrals, payouts } from './src/db/schema.ts';
+import { eq, desc } from 'drizzle-orm';
 
 dotenv.config();
 
@@ -22,6 +27,169 @@ if (apiKey) {
     },
   });
 }
+
+// Publisher & Search Engine Configuration
+let publisherConfig = {
+  searchConsoleToken: 'gideon-search-console-verification-token',
+  adsensePublisherId: 'pub-XXXXXXXXXXXXXXXX',
+  adsenseClientId: 'ca-pub-XXXXXXXXXXXXXXXX',
+  canonicalUrl: 'https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app'
+};
+
+// --- Google Search Console & AdSense Routes ---
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /api/',
+    '',
+    'User-agent: Googlebot',
+    'Allow: /',
+    '',
+    'User-agent: Mediapartners-Google',
+    'Allow: /',
+    '',
+    `Sitemap: ${publisherConfig.canonicalUrl}/sitemap.xml`
+  ].join('\n') + '\n');
+});
+
+app.get('/sitemap.xml', (_req, res) => {
+  const base = publisherConfig.canonicalUrl;
+  const today = new Date().toISOString().split('T')[0];
+  res.type('application/xml').send([
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '  <url>',
+    `    <loc>${base}/</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>daily</changefreq>',
+    '    <priority>1.0</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#tasks</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>daily</changefreq>',
+    '    <priority>0.9</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#packages</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>weekly</changefreq>',
+    '    <priority>0.8</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#referrals</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>weekly</changefreq>',
+    '    <priority>0.8</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#meme-studio</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>daily</changefreq>',
+    '    <priority>0.7</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#privacy</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>monthly</changefreq>',
+    '    <priority>0.5</priority>',
+    '  </url>',
+    '  <url>',
+    `    <loc>${base}/#terms</loc>`,
+    `    <lastmod>${today}</lastmod>`,
+    '    <changefreq>monthly</changefreq>',
+    '    <priority>0.5</priority>',
+    '  </url>',
+    '</urlset>'
+  ].join('\n') + '\n');
+});
+
+app.get('/ads.txt', (_req, res) => {
+  const pubId = publisherConfig.adsensePublisherId.replace(/^ca-/, '');
+  res.type('text/plain').send([
+    '# Google AdSense Publisher Authorization file',
+    `google.com, ${pubId}, DIRECT, f08c47fec0942fa0`
+  ].join('\n') + '\n');
+});
+
+app.get('/api/publisher-config', (_req, res) => {
+  res.json(publisherConfig);
+});
+
+app.post('/api/publisher-config', (req, res) => {
+  const { searchConsoleToken, adsensePublisherId, adsenseClientId } = req.body;
+  if (searchConsoleToken) publisherConfig.searchConsoleToken = String(searchConsoleToken).trim();
+  if (adsensePublisherId) publisherConfig.adsensePublisherId = String(adsensePublisherId).trim();
+  if (adsenseClientId) publisherConfig.adsenseClientId = String(adsenseClientId).trim();
+  res.json({ success: true, config: publisherConfig });
+});
+
+// --- Cloud SQL PostgreSQL & Firebase Auth Endpoints ---
+
+// 1. Synchronize User Profile to Cloud SQL
+app.post('/api/auth/sync', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    const email = req.user?.email || req.body?.email || '';
+    const displayName = req.body?.displayName || req.user?.name || '';
+    if (!uid) {
+      return res.status(400).json({ error: 'Missing UID' });
+    }
+    const userRecord = await getOrCreateUser(uid, email, displayName);
+    res.json(userRecord);
+  } catch (error: any) {
+    console.error('Error syncing user:', error);
+    res.status(500).json({ error: 'Failed to sync user profile' });
+  }
+});
+
+// 2. Fetch User Completed Tasks from Cloud SQL
+app.get('/api/user/tasks', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    const records = await db
+      .select()
+      .from(completedTasks)
+      .where(eq(completedTasks.userUid, uid))
+      .orderBy(desc(completedTasks.completedAt));
+    res.json(records);
+  } catch (error: any) {
+    console.error('Error fetching tasks from Cloud SQL:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+// 3. Save Completed Task to Cloud SQL
+app.post('/api/user/tasks', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    const { taskId, taskTitle, category, reward, status, accuracyScore, transactionRef } = req.body;
+
+    await getOrCreateUser(uid, req.user?.email || '', req.user?.name || '');
+
+    const record = await db
+      .insert(completedTasks)
+      .values({
+        userUid: uid,
+        taskId: taskId || `task-${Date.now()}`,
+        taskTitle: taskTitle || 'Completed Task',
+        category: category || 'micro',
+        reward: typeof reward === 'number' ? reward : 0.50,
+        status: status || 'Approved',
+        accuracyScore: typeof accuracyScore === 'number' ? accuracyScore : 100.0,
+        transactionRef: transactionRef || `TXN-${Math.floor(100000 + Math.random() * 900000)}`
+      })
+      .returning();
+
+    res.json(record[0]);
+  } catch (error: any) {
+    console.error('Error saving task to Cloud SQL:', error);
+    res.status(500).json({ error: 'Failed to save completed task' });
+  }
+});
 
 // 1. Multi-turn Chatbot with Google Search Grounding
 app.post('/api/chat', async (req, res) => {
@@ -332,6 +500,9 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static('dist'));
+    app.get('*', (_req, res) => {
+      res.sendFile('index.html', { root: 'dist' });
+    });
   }
 
   const PORT = 3000;

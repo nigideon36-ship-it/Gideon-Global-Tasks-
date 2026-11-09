@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Task, PayoutRecord, MemeItem, LeaderboardUser, TaskHistoryRecord, TaskPackage, ReferralRecord, ReferralStats } from '../types/tasks';
 import { INITIAL_TASKS, INITIAL_MEMES, INITIAL_LEADERBOARD } from '../data/mockTasks';
 import confetti from 'canvas-confetti';
+import { auth } from '../lib/firebase';
 
 export interface UserStatsType {
   balance: number;
@@ -252,6 +253,12 @@ interface TaskContextType {
   addMeme: (meme: Omit<MemeItem, 'id' | 'createdAt' | 'upvotes' | 'tipsEarned'>) => void;
   notification: string | null;
   clearNotification: () => void;
+  publisherModalOpen: boolean;
+  setPublisherModalOpen: (open: boolean) => void;
+  privacyTermsModalOpen: boolean;
+  setPrivacyTermsModalOpen: (open: boolean) => void;
+  privacyTermsTab: 'privacy' | 'terms';
+  openPrivacyTerms: (tab?: 'privacy' | 'terms') => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -386,7 +393,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [packagesModalOpen, setPackagesModalOpen] = useState(false);
   const [streakModalOpen, setStreakModalOpen] = useState(false);
   const [postTaskModalOpen, setPostTaskModalOpen] = useState(false);
+  const [publisherModalOpen, setPublisherModalOpen] = useState(false);
+  const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState(false);
+  const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
   const [notification, setNotification] = useState<string | null>(null);
+
+  const openPrivacyTerms = (tab: 'privacy' | 'terms' = 'privacy') => {
+    setPrivacyTermsTab(tab);
+    setPrivacyTermsModalOpen(true);
+  };
 
   useEffect(() => {
     try {
@@ -443,6 +458,46 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error saving referral stats', e);
     }
   }, [referralStats]);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (currentUser) {
+        try {
+          const token = await currentUser.getIdToken();
+          const res = await fetch('/api/user/tasks', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            const dbTasks = await res.json();
+            if (Array.isArray(dbTasks) && dbTasks.length > 0) {
+              setTaskHistory((prev) => {
+                const existingRefs = new Set(prev.map(p => p.transactionRef));
+                const newItems: TaskHistoryRecord[] = dbTasks
+                  .filter((d: any) => !existingRefs.has(d.transactionRef))
+                  .map((d: any) => ({
+                    id: `db-${d.id}`,
+                    taskId: d.taskId,
+                    taskTitle: d.taskTitle,
+                    category: d.category,
+                    reward: Number(d.reward),
+                    status: d.status,
+                    completedAt: d.completedAt ? new Date(d.completedAt).toLocaleDateString() : 'Recent',
+                    accuracyScore: Number(d.accuracyScore),
+                    transactionRef: d.transactionRef
+                  }));
+                return [...newItems, ...prev];
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch user tasks from Cloud SQL:', err);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -574,6 +629,28 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : t
       )
     );
+
+    // Persist completed task record to Cloud SQL if user is authenticated
+    if (auth.currentUser) {
+      auth.currentUser.getIdToken().then((token) => {
+        fetch('/api/user/tasks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            taskId,
+            taskTitle: summaryTitle,
+            category: taskCategory,
+            reward: totalAward,
+            status: 'Approved',
+            accuracyScore: 99.4,
+            transactionRef: newHistoryRecord.transactionRef
+          })
+        }).catch((err) => console.warn('Cloud SQL task record sync deferred:', err));
+      }).catch((err) => console.warn('Could not get auth token for Cloud SQL sync:', err));
+    }
 
     try {
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
@@ -817,7 +894,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tipMeme,
         addMeme,
         notification,
-        clearNotification
+        clearNotification,
+        publisherModalOpen,
+        setPublisherModalOpen,
+        privacyTermsModalOpen,
+        setPrivacyTermsModalOpen,
+        privacyTermsTab,
+        openPrivacyTerms
       }}
     >
       {children}
