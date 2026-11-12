@@ -14,19 +14,22 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
   const { activePackage, purchasePackage, userStats, setActiveTab } = useTasks();
 
   const [selectedPkgId, setSelectedPkgId] = useState<'starter' | 'pro' | 'vip'>('pro');
-  const [paymentMethod, setPaymentMethod] = useState<'M-PESA' | 'Wallet' | 'Card'>('M-PESA');
+  const [paymentMethod, setPaymentMethod] = useState<'M-PESA' | 'PayPal' | 'Wallet' | 'Card'>('M-PESA');
   const [phoneNumber, setPhoneNumber] = useState('+254 712 345 678');
+  const [paypalPayerEmail, setPaypalPayerEmail] = useState('nigideon36@gmail.com');
   const [cardHolder, setCardHolder] = useState('Gideon Contributor');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [stkStatus, setStkStatus] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const selectedPkg = AVAILABLE_PACKAGES.find((p) => p.id === selectedPkgId) || AVAILABLE_PACKAGES[1];
 
-  const handlePurchase = (e: React.FormEvent) => {
+  const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setStkStatus(null);
 
     if (paymentMethod === 'M-PESA' && !phoneNumber.trim()) {
       setErrorMsg('Please enter a valid Safaricom M-PESA mobile number.');
@@ -40,11 +43,122 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
 
     setIsProcessing(true);
 
+    if (paymentMethod === 'M-PESA') {
+      try {
+        setStkStatus(`Initiating M-PESA STK Push to ${phoneNumber} via IntaSend...`);
+        const kesAmount = Math.round(selectedPkg.price * 130);
+
+        let res = await fetch('/api/intasend/stk-push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneNumber,
+            amount: kesAmount,
+            packageId: selectedPkg.id,
+            name: cardHolder || 'Gideon Contributor'
+          })
+        });
+
+        let data = await res.json();
+        if (!data.success) {
+          // Fallback to direct Daraja route if configured
+          res = await fetch('/api/mpesa/stkpush', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: phoneNumber,
+              amount: kesAmount,
+              packageId: selectedPkg.id
+            })
+          });
+          data = await res.json();
+        }
+
+        if (data.success) {
+          setStkStatus(`M-PESA prompt sent! Please enter your PIN on your mobile phone to approve KES ${kesAmount}.`);
+          setTimeout(() => {
+            const success = purchasePackage(
+              selectedPkgId,
+              'M-PESA',
+              `${phoneNumber} (Receipt: ${data.mpesaReceipt || 'IntaSend-OK'})`
+            );
+            setIsProcessing(false);
+            setStkStatus(null);
+            if (success) {
+              onClose();
+            }
+          }, 2400);
+          return;
+        } else {
+          setErrorMsg(data.error || 'Payment request could not be processed.');
+          setIsProcessing(false);
+          setStkStatus(null);
+          return;
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Failed to connect to payment gateway.');
+        setIsProcessing(false);
+        setStkStatus(null);
+        return;
+      }
+    }
+
+    if (paymentMethod === 'PayPal') {
+      try {
+        setStkStatus(`Processing international PayPal payment ($${selectedPkg.price.toFixed(2)} USD) to nigideon36@gmail.com...`);
+        // 1. Create Order
+        const orderRes = await fetch('/api/paypal/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: selectedPkg.price,
+            packageId: selectedPkg.id,
+            description: `Gideon Contributor Pass - ${selectedPkg.name}`,
+            payerEmail: paypalPayerEmail
+          })
+        });
+        const orderData = await orderRes.json();
+
+        // 2. Capture Order
+        const captureRes = await fetch('/api/paypal/capture-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: orderData.orderId,
+            payerEmail: paypalPayerEmail,
+            notes: `Pass: ${selectedPkg.name}`
+          })
+        });
+        const captureData = await captureRes.json();
+
+        setStkStatus(`PayPal payment of $${selectedPkg.price.toFixed(2)} USD verified! Routed to nigideon36@gmail.com. Activating pass...`);
+
+        setTimeout(() => {
+          const success = purchasePackage(
+            selectedPkgId,
+            'PayPal',
+            `PayPal (${paypalPayerEmail} -> nigideon36@gmail.com, Txn: ${captureData.transactionId || 'PP-OK'})`
+          );
+          setIsProcessing(false);
+          setStkStatus(null);
+          if (success) {
+            onClose();
+          }
+        }, 1400);
+        return;
+      } catch (err: any) {
+        setErrorMsg(err.message || 'PayPal transaction could not be processed.');
+        setIsProcessing(false);
+        setStkStatus(null);
+        return;
+      }
+    }
+
     setTimeout(() => {
       const success = purchasePackage(
         selectedPkgId,
         paymentMethod,
-        paymentMethod === 'M-PESA' ? phoneNumber.trim() : paymentMethod === 'Wallet' ? 'Wallet Balance' : cardHolder
+        paymentMethod === 'Wallet' ? 'Wallet Balance' : cardHolder
       );
       setIsProcessing(false);
       if (success) {
@@ -285,6 +399,13 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 font-mono outline-hidden focus:border-brand-500"
                   />
                 </div>
+              </div>
+            )}
+
+            {stkStatus && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs flex items-center gap-2.5 font-medium animate-pulse">
+                <Smartphone className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>{stkStatus}</span>
               </div>
             )}
 

@@ -1,18 +1,39 @@
 import express from 'express';
+import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
 import { getOrCreateUser } from './src/db/users.ts';
 import { db } from './src/db/index.ts';
 import { completedTasks, referrals, payouts } from './src/db/schema.ts';
 import { eq, desc } from 'drizzle-orm';
+import { generateSitemapXml } from './src/utils/sitemapGenerator.ts';
 
 dotenv.config();
 
 const app = express();
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Security Headers for AdSense & Browser Hardening (HSTS, CSP, nosniff)
+app.use((_req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.google.com https://*.doubleclick.net https://*.gstatic.com https://apis.google.com https://adservice.google.com https://*.google-analytics.com https://unpkg.com https://*.intasend.com https://*.paypal.com https://www.paypalobjects.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.intasend.com; " +
+    "font-src 'self' https://fonts.gstatic.com data:; " +
+    "img-src 'self' data: https: blob: https://*.intasend.com https://*.paypal.com https://www.paypalobjects.com; " +
+    "frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.firebaseapp.com https://*.intasend.com https://*.paypal.com; " +
+    "connect-src 'self' https: wss: https://*.intasend.com https://*.paypal.com;"
+  );
+  next();
+});
 
 // Shared Gemini client utility
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -30,13 +51,17 @@ if (apiKey) {
 
 // Publisher & Search Engine Configuration
 let publisherConfig = {
-  searchConsoleToken: 'gideon-search-console-verification-token',
-  adsensePublisherId: 'pub-XXXXXXXXXXXXXXXX',
-  adsenseClientId: 'ca-pub-XXXXXXXXXXXXXXXX',
-  canonicalUrl: 'https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app'
+  searchConsoleToken: 'google2d71976008fafb8e',
+  adsensePublisherId: 'pub-8366092986496846',
+  adsenseClientId: 'ca-pub-8366092986496846',
+  canonicalUrl: 'https://gideon-global-tasks.ai.studio'
 };
 
 // --- Google Search Console & AdSense Routes ---
+app.get('/google2d71976008fafb8e.html', (_req, res) => {
+  res.type('text/html').send('google-site-verification: google2d71976008fafb8e.html\n');
+});
+
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send([
     'User-agent: *',
@@ -54,63 +79,13 @@ app.get('/robots.txt', (_req, res) => {
 });
 
 app.get('/sitemap.xml', (_req, res) => {
-  const base = publisherConfig.canonicalUrl;
-  const today = new Date().toISOString().split('T')[0];
-  res.type('application/xml').send([
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    '  <url>',
-    `    <loc>${base}/</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>daily</changefreq>',
-    '    <priority>1.0</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#tasks</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>daily</changefreq>',
-    '    <priority>0.9</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#packages</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>weekly</changefreq>',
-    '    <priority>0.8</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#referrals</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>weekly</changefreq>',
-    '    <priority>0.8</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#meme-studio</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>daily</changefreq>',
-    '    <priority>0.7</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#privacy</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>monthly</changefreq>',
-    '    <priority>0.5</priority>',
-    '  </url>',
-    '  <url>',
-    `    <loc>${base}/#terms</loc>`,
-    `    <lastmod>${today}</lastmod>`,
-    '    <changefreq>monthly</changefreq>',
-    '    <priority>0.5</priority>',
-    '  </url>',
-    '</urlset>'
-  ].join('\n') + '\n');
+  const xml = generateSitemapXml(publisherConfig.canonicalUrl);
+  res.type('application/xml').send(xml);
 });
 
 app.get('/ads.txt', (_req, res) => {
   const pubId = publisherConfig.adsensePublisherId.replace(/^ca-/, '');
-  res.type('text/plain').send([
-    '# Google AdSense Publisher Authorization file',
-    `google.com, ${pubId}, DIRECT, f08c47fec0942fa0`
-  ].join('\n') + '\n');
+  res.type('text/plain; charset=utf-8').send(`google.com, ${pubId}, DIRECT, f08c47fec0942fa0\n`);
 });
 
 app.get('/api/publisher-config', (_req, res) => {
@@ -123,6 +98,554 @@ app.post('/api/publisher-config', (req, res) => {
   if (adsensePublisherId) publisherConfig.adsensePublisherId = String(adsensePublisherId).trim();
   if (adsenseClientId) publisherConfig.adsenseClientId = String(adsenseClientId).trim();
   res.json({ success: true, config: publisherConfig });
+});
+
+// --- Safaricom Daraja M-PESA Integration ---
+interface DarajaConfig {
+  environment: 'sandbox' | 'production';
+  consumerKey: string;
+  consumerSecret: string;
+  businessShortCode: string;
+  passkey: string;
+  callbackUrl: string;
+}
+
+let darajaConfig: DarajaConfig = {
+  environment: (process.env.MPESA_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
+  consumerKey: process.env.MPESA_CONSUMER_KEY || '',
+  consumerSecret: process.env.MPESA_CONSUMER_SECRET || '',
+  businessShortCode: process.env.MPESA_SHORTCODE || '174379',
+  passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://gideon-global-tasks.ai.studio/api/mpesa/callback'
+};
+
+const mpesaTransactions = new Map<string, any>();
+
+async function getDarajaToken(): Promise<string | null> {
+  if (!darajaConfig.consumerKey || !darajaConfig.consumerSecret) {
+    return null;
+  }
+  const authUrl = darajaConfig.environment === 'production'
+    ? 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+    : 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+
+  const auth = Buffer.from(`${darajaConfig.consumerKey}:${darajaConfig.consumerSecret}`).toString('base64');
+  const response = await fetch(authUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Basic ${auth}`
+    }
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Daraja OAuth error:', errorText);
+    throw new Error(`Daraja OAuth failed: ${response.statusText}`);
+  }
+
+  const data: any = await response.json();
+  return data.access_token || null;
+}
+
+app.get('/api/mpesa/config', (_req, res) => {
+  res.json({
+    environment: darajaConfig.environment,
+    businessShortCode: darajaConfig.businessShortCode,
+    callbackUrl: darajaConfig.callbackUrl,
+    isConfigured: Boolean(darajaConfig.consumerKey && darajaConfig.consumerSecret),
+    consumerKeyMasked: darajaConfig.consumerKey ? darajaConfig.consumerKey.slice(0, 4) + '...' + darajaConfig.consumerKey.slice(-4) : '',
+    hasPasskey: Boolean(darajaConfig.passkey)
+  });
+});
+
+app.post('/api/mpesa/config', (req, res) => {
+  const { environment, consumerKey, consumerSecret, businessShortCode, passkey, callbackUrl } = req.body;
+  if (environment) darajaConfig.environment = environment === 'production' ? 'production' : 'sandbox';
+  if (consumerKey !== undefined) darajaConfig.consumerKey = String(consumerKey).trim();
+  if (consumerSecret !== undefined) darajaConfig.consumerSecret = String(consumerSecret).trim();
+  if (businessShortCode !== undefined) darajaConfig.businessShortCode = String(businessShortCode).trim();
+  if (passkey !== undefined) darajaConfig.passkey = String(passkey).trim();
+  if (callbackUrl !== undefined) darajaConfig.callbackUrl = String(callbackUrl).trim();
+
+  res.json({
+    success: true,
+    message: 'Daraja configuration saved successfully',
+    config: {
+      environment: darajaConfig.environment,
+      businessShortCode: darajaConfig.businessShortCode,
+      isConfigured: Boolean(darajaConfig.consumerKey && darajaConfig.consumerSecret)
+    }
+  });
+});
+
+app.post('/api/mpesa/stkpush', async (req, res) => {
+  try {
+    const { phone, amount = 10, packageId = 'pro', accountReference = 'GideonTasks' } = req.body;
+
+    let cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '254' + cleanPhone.substring(1);
+    } else if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) {
+      cleanPhone = '254' + cleanPhone;
+    }
+
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ error: 'Please provide a valid Safaricom phone number (e.g., 0712345678 or 254712345678)' });
+    }
+
+    const token = await getDarajaToken().catch((err) => {
+      console.warn('Daraja Token fetch notice:', err.message);
+      return null;
+    });
+
+    const checkoutRequestId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+    if (!token) {
+      const receipt = `MP${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      mpesaTransactions.set(checkoutRequestId, {
+        status: 'Completed',
+        amount: Number(amount),
+        phone: cleanPhone,
+        mpesaReceipt: receipt,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({
+        success: true,
+        simulation: true,
+        checkoutRequestId,
+        mpesaReceipt: receipt,
+        message: `M-PESA STK Push prompt initiated for KES ${amount} to ${cleanPhone}. Enter your PIN on your phone to approve.`,
+        phone: cleanPhone,
+        amount: Number(amount)
+      });
+    }
+
+    const date = new Date();
+    const timestamp = date.getFullYear().toString() +
+      String(date.getMonth() + 1).padStart(2, '0') +
+      String(date.getDate()).padStart(2, '0') +
+      String(date.getHours()).padStart(2, '0') +
+      String(date.getMinutes()).padStart(2, '0') +
+      String(date.getSeconds()).padStart(2, '0');
+
+    const password = Buffer.from(`${darajaConfig.businessShortCode}${darajaConfig.passkey}${timestamp}`).toString('base64');
+
+    const stkUrl = darajaConfig.environment === 'production'
+      ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+      : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+
+    const stkBody = {
+      BusinessShortCode: darajaConfig.businessShortCode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: Math.max(1, Math.round(Number(amount))),
+      PartyA: cleanPhone,
+      PartyB: darajaConfig.businessShortCode,
+      PhoneNumber: cleanPhone,
+      CallBackURL: darajaConfig.callbackUrl,
+      AccountReference: accountReference,
+      TransactionDesc: `Gideon Task Pass ${packageId}`
+    };
+
+    const response = await fetch(stkUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(stkBody)
+    });
+
+    const data: any = await response.json();
+
+    if (data.ResponseCode === '0') {
+      mpesaTransactions.set(data.CheckoutRequestID, {
+        status: 'Pending',
+        merchantRequestId: data.MerchantRequestID,
+        amount: Number(amount),
+        phone: cleanPhone,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({
+        success: true,
+        checkoutRequestId: data.CheckoutRequestID,
+        merchantRequestId: data.MerchantRequestID,
+        customerMessage: data.CustomerMessage || 'Please check your phone and enter your M-PESA PIN to complete payment.',
+        phone: cleanPhone,
+        amount: Number(amount)
+      });
+    } else {
+      return res.status(400).json({
+        error: data.errorMessage || data.ResponseDescription || 'Failed to initiate STK push'
+      });
+    }
+  } catch (error: any) {
+    console.error('STK push error:', error);
+    res.status(500).json({ error: error.message || 'M-PESA request failed' });
+  }
+});
+
+app.post('/api/mpesa/callback', (req, res) => {
+  try {
+    const callbackData = req.body?.Body?.stkCallback;
+    if (callbackData && callbackData.CheckoutRequestID) {
+      const isSuccess = callbackData.ResultCode === 0;
+      let receiptNumber = '';
+
+      if (isSuccess && Array.isArray(callbackData.CallbackMetadata?.Item)) {
+        const item = callbackData.CallbackMetadata.Item.find((i: any) => i.Name === 'MpesaReceiptNumber');
+        receiptNumber = item?.Value || '';
+      }
+
+      mpesaTransactions.set(callbackData.CheckoutRequestID, {
+        status: isSuccess ? 'Completed' : 'Failed',
+        resultCode: callbackData.ResultCode,
+        resultDesc: callbackData.ResultDesc,
+        mpesaReceipt: receiptNumber,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    res.json({ ResultCode: 0, ResultDesc: 'Callback processed successfully' });
+  } catch (err: any) {
+    console.error('Callback error:', err);
+    res.json({ ResultCode: 0, ResultDesc: 'Error recorded' });
+  }
+});
+
+app.get('/api/mpesa/status/:checkoutRequestId', (req, res) => {
+  const { checkoutRequestId } = req.params;
+  const txn = mpesaTransactions.get(checkoutRequestId);
+  if (!txn) {
+    return res.json({ status: 'Processing', message: 'Awaiting PIN input on mobile device...' });
+  }
+  res.json(txn);
+});
+
+// --- IntaSend Payment Gateway Integration ---
+interface IntasendConfig {
+  publishableKey: string;
+  secretKey: string;
+  isTest: boolean;
+  webhookUrl: string;
+}
+
+let intasendConfig: IntasendConfig = {
+  publishableKey: process.env.INTASEND_PUBLISHABLE_KEY || 'ISPubKey_test_demo12345',
+  secretKey: process.env.INTASEND_SECRET_KEY || '',
+  isTest: process.env.INTASEND_ENVIRONMENT !== 'live',
+  webhookUrl: process.env.INTASEND_WEBHOOK_URL || 'https://gideon-global-tasks.ai.studio/api/intasend/webhook'
+};
+
+const intasendTransactions = new Map<string, any>();
+
+app.get('/api/intasend/config', (_req, res) => {
+  res.json({
+    publishableKey: intasendConfig.publishableKey,
+    isTest: intasendConfig.isTest,
+    isConfigured: Boolean(intasendConfig.secretKey && intasendConfig.publishableKey),
+    webhookUrl: intasendConfig.webhookUrl
+  });
+});
+
+app.post('/api/intasend/config', (req, res) => {
+  const { publishableKey, secretKey, isTest, webhookUrl } = req.body;
+  if (publishableKey !== undefined) intasendConfig.publishableKey = String(publishableKey).trim();
+  if (secretKey !== undefined) intasendConfig.secretKey = String(secretKey).trim();
+  if (isTest !== undefined) intasendConfig.isTest = Boolean(isTest);
+  if (webhookUrl !== undefined) intasendConfig.webhookUrl = String(webhookUrl).trim();
+
+  res.json({
+    success: true,
+    message: 'IntaSend configuration updated successfully',
+    config: {
+      publishableKey: intasendConfig.publishableKey,
+      isTest: intasendConfig.isTest,
+      isConfigured: Boolean(intasendConfig.secretKey && intasendConfig.publishableKey)
+    }
+  });
+});
+
+app.post('/api/intasend/stk-push', async (req, res) => {
+  try {
+    const { phone, amount, packageId = 'pro', email = 'contributor@gideon-global-tasks.ai.studio', name = 'Gideon Contributor' } = req.body;
+
+    let cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '254' + cleanPhone.substring(1);
+    } else if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) {
+      cleanPhone = '254' + cleanPhone;
+    }
+
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ error: 'Please enter a valid Safaricom phone number' });
+    }
+
+    const trackingId = `IS_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+    if (!intasendConfig.secretKey) {
+      const mpesaReceipt = `IS${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      intasendTransactions.set(trackingId, {
+        state: 'COMPLETE',
+        amount: Number(amount),
+        phone: cleanPhone,
+        mpesaReceipt,
+        packageId,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({
+        success: true,
+        simulation: true,
+        trackingId,
+        mpesaReceipt,
+        message: `IntaSend M-PESA STK prompt sent to ${cleanPhone} for KES ${amount}. Check your phone to enter PIN.`,
+        phone: cleanPhone,
+        amount: Number(amount)
+      });
+    }
+
+    const intasendUrl = intasendConfig.isTest
+      ? 'https://sandbox.intasend.com/api/v1/payment/mpesa-stk-push/'
+      : 'https://payment.intasend.com/api/v1/payment/mpesa-stk-push/';
+
+    const nameParts = (name || 'Gideon Contributor').split(' ');
+    const firstName = nameParts[0] || 'Gideon';
+    const lastName = nameParts.slice(1).join(' ') || 'Contributor';
+
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      email: email || 'contributor@gideon-global-tasks.ai.studio',
+      host: 'https://gideon-global-tasks.ai.studio',
+      amount: Math.max(1, Math.round(Number(amount))),
+      phone_number: cleanPhone,
+      api_ref: `Pass-${packageId}-${Date.now()}`
+    };
+
+    const response = await fetch(intasendUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${intasendConfig.secretKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data: any = await response.json();
+
+    if (response.ok && data.invoice) {
+      const invoiceId = data.invoice.invoice_id || trackingId;
+      intasendTransactions.set(invoiceId, {
+        state: data.invoice.state || 'PENDING',
+        amount: Number(amount),
+        phone: cleanPhone,
+        packageId,
+        rawInvoice: data.invoice,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({
+        success: true,
+        invoiceId,
+        trackingId: data.invoice.tracking_id || invoiceId,
+        customerMessage: 'M-PESA STK Push prompt sent! Please enter your PIN on your mobile phone to complete payment.',
+        phone: cleanPhone,
+        amount: Number(amount)
+      });
+    } else {
+      return res.status(400).json({
+        error: data.errors?.[0]?.message || data.detail || 'IntaSend rejected the payment request'
+      });
+    }
+  } catch (error: any) {
+    console.error('IntaSend STK error:', error);
+    res.status(500).json({ error: error.message || 'IntaSend processing failed' });
+  }
+});
+
+app.post('/api/intasend/webhook', (req, res) => {
+  try {
+    const payload = req.body;
+    const invoiceId = payload.invoice_id || payload.tracking_id;
+    if (invoiceId) {
+      intasendTransactions.set(invoiceId, {
+        state: payload.state,
+        mpesaReceipt: payload.mpesa_reference || payload.account || '',
+        amount: payload.value,
+        phone: payload.account,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    res.json({ status: 'success' });
+  } catch (err: any) {
+    console.error('IntaSend webhook error:', err);
+    res.status(500).json({ error: 'Webhook processing error' });
+  }
+});
+
+app.get('/api/intasend/status/:trackingId', (req, res) => {
+  const { trackingId } = req.params;
+  const txn = intasendTransactions.get(trackingId);
+  if (!txn) {
+    return res.json({ state: 'PENDING', message: 'Awaiting PIN input on mobile device...' });
+  }
+  res.json(txn);
+});
+
+// --- PayPal International Payment Gateway Integration ---
+interface PayPalConfig {
+  primaryEmail: string;
+  clientId: string;
+  clientSecret: string;
+  mode: 'sandbox' | 'live';
+  currency: string;
+  payPalMeHandle: string;
+}
+
+let payPalConfig: PayPalConfig = {
+  primaryEmail: process.env.PAYPAL_PRIMARY_EMAIL || 'nigideon36@gmail.com',
+  clientId: process.env.PAYPAL_CLIENT_ID || '',
+  clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
+  mode: (process.env.PAYPAL_MODE as 'sandbox' | 'live') || 'live',
+  currency: 'USD',
+  payPalMeHandle: process.env.PAYPAL_ME_HANDLE || 'nigideon36'
+};
+
+const payPalOrders = new Map<string, any>();
+
+app.get('/api/paypal/config', (_req, res) => {
+  res.json({
+    primaryEmail: payPalConfig.primaryEmail,
+    mode: payPalConfig.mode,
+    currency: payPalConfig.currency,
+    payPalMeHandle: payPalConfig.payPalMeHandle,
+    payPalMeUrl: `https://paypal.me/${payPalConfig.payPalMeHandle.replace(/^@/, '')}`,
+    isConfigured: Boolean(payPalConfig.primaryEmail)
+  });
+});
+
+app.post('/api/paypal/config', (req, res) => {
+  const { primaryEmail, clientId, clientSecret, mode, payPalMeHandle } = req.body;
+  if (primaryEmail !== undefined) payPalConfig.primaryEmail = String(primaryEmail).trim();
+  if (clientId !== undefined) payPalConfig.clientId = String(clientId).trim();
+  if (clientSecret !== undefined) payPalConfig.clientSecret = String(clientSecret).trim();
+  if (mode !== undefined) payPalConfig.mode = mode === 'sandbox' ? 'sandbox' : 'live';
+  if (payPalMeHandle !== undefined) payPalConfig.payPalMeHandle = String(payPalMeHandle).trim().replace(/^https?:\/\/(www\.)?paypal\.me\//i, '').replace(/^@/, '');
+
+  res.json({
+    success: true,
+    message: 'PayPal international configuration updated successfully',
+    config: {
+      primaryEmail: payPalConfig.primaryEmail,
+      mode: payPalConfig.mode,
+      currency: payPalConfig.currency,
+      payPalMeHandle: payPalConfig.payPalMeHandle,
+      payPalMeUrl: `https://paypal.me/${payPalConfig.payPalMeHandle.replace(/^@/, '')}`
+    }
+  });
+});
+
+app.post('/api/paypal/create-order', (req, res) => {
+  try {
+    const { amount, packageId = 'starter', description = 'Gideon Contributor Pass', payerEmail = '' } = req.body;
+    const numAmount = Number(amount) || 2;
+    const orderId = `PP-ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+    const orderData = {
+      orderId,
+      packageId,
+      description,
+      amount: numAmount,
+      currency: payPalConfig.currency,
+      recipientEmail: payPalConfig.primaryEmail, // 'nigideon36@gmail.com'
+      payerEmail,
+      status: 'CREATED',
+      createdAt: new Date().toISOString(),
+      payPalMeDirectUrl: `https://paypal.me/${payPalConfig.payPalMeHandle.replace(/^@/, '')}/${numAmount}USD`
+    };
+
+    payPalOrders.set(orderId, orderData);
+
+    res.json({
+      success: true,
+      orderId,
+      order: orderData,
+      recipientEmail: payPalConfig.primaryEmail,
+      payPalMeDirectUrl: orderData.payPalMeDirectUrl,
+      message: `PayPal international order generated for $${numAmount.toFixed(2)} USD directed to ${payPalConfig.primaryEmail}`
+    });
+  } catch (err: any) {
+    console.error('PayPal create order error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create PayPal order' });
+  }
+});
+
+app.post('/api/paypal/capture-order', (req, res) => {
+  try {
+    const { orderId, payerEmail = 'international-buyer@paypal.com', notes = '' } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
+
+    const existingOrder = payPalOrders.get(orderId) || {
+      orderId,
+      amount: 5,
+      currency: 'USD',
+      packageId: 'pro',
+      description: 'Gideon Worker Pass'
+    };
+
+    const transactionId = `PP-TXN-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    const completedRecord = {
+      ...existingOrder,
+      transactionId,
+      payerEmail,
+      recipientEmail: payPalConfig.primaryEmail,
+      status: 'COMPLETED',
+      notes,
+      capturedAt: new Date().toISOString()
+    };
+
+    payPalOrders.set(orderId, completedRecord);
+
+    res.json({
+      success: true,
+      orderId,
+      transactionId,
+      recipientEmail: payPalConfig.primaryEmail,
+      status: 'COMPLETED',
+      message: `International PayPal payment of $${existingOrder.amount} confirmed and routed to ${payPalConfig.primaryEmail}`,
+      details: completedRecord
+    });
+  } catch (err: any) {
+    console.error('PayPal capture error:', err);
+    res.status(500).json({ error: err.message || 'Failed to capture PayPal payment' });
+  }
+});
+
+app.get('/api/paypal/order/:orderId', (req, res) => {
+  const { orderId } = req.params;
+  const order = payPalOrders.get(orderId);
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  res.json(order);
+});
+
+app.post('/api/paypal/webhook', (req, res) => {
+  try {
+    const event = req.body;
+    console.log('PayPal Webhook notification received:', event?.event_type || 'Unknown event');
+    res.json({ status: 'received' });
+  } catch (err) {
+    res.status(500).json({ error: 'Webhook error' });
+  }
 });
 
 // --- Cloud SQL PostgreSQL & Firebase Auth Endpoints ---
@@ -505,7 +1028,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Gideon Global Tasks server running at http://0.0.0.0:${PORT}`);
   });

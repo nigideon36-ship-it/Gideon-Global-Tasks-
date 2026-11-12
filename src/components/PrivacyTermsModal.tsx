@@ -90,12 +90,17 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
                 Users may opt out of personalized advertising by visiting <a href="https://adssettings.google.com" target="_blank" rel="noreferrer" className="text-brand-600 underline">Google Ads Settings</a>. Alternatively, you can opt out of a third-party vendor's use of cookies for personalized advertising by visiting <a href="https://www.aboutads.info" target="_blank" rel="noreferrer" className="text-brand-600 underline">aboutads.info</a>.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">3. Data Storage & Security</h3>
+              <h3 className="text-sm font-bold text-slate-900">3. GDPR & CCPA Compliance Rights</h3>
+              <p>
+                In compliance with the General Data Protection Regulation (GDPR) and California Consumer Privacy Act (CCPA), you have the right to request access to your personal data, request the correction or complete erasure of your account records, or opt out of the sale or sharing of your personal information. We do not sell your personal data to third parties.
+              </p>
+
+              <h3 className="text-sm font-bold text-slate-900">4. Data Storage & Security</h3>
               <p>
                 User accounts, task completions, and referral records are persistently secured using Cloud SQL PostgreSQL and Firebase Authentication. We enforce 256-bit SSL encryption on all API endpoints and database queries.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">4. Contact Information</h3>
+              <h3 className="text-sm font-bold text-slate-900">5. Contact Information & Data Protection Officer</h3>
               <p>
                 For privacy inquiries or account data deletion requests, contact our Data Protection Officer at <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">nigideon36@gmail.com</code>.
               </p>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { TaskCategory, TaskDifficulty, Task } from '../types/tasks';
-import { PlusCircle, Users, CheckCircle2, DollarSign, Layers, Sparkles, AlertCircle } from 'lucide-react';
+import { PlusCircle, Users, CheckCircle2, DollarSign, Layers, Sparkles, AlertCircle, Smartphone, Zap } from 'lucide-react';
 
 export const EmployerPortal: React.FC = () => {
-  const { tasks, postTask, setActiveTab } = useTasks();
+  const { tasks, postTask, setActiveTab, setDarajaModalOpen, setIntasendModalOpen } = useTasks();
 
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState('');
@@ -94,14 +94,36 @@ export const EmployerPortal: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreating(!isCreating)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors self-start md:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>{isCreating ? 'Close Creation Form' : 'Post a New Task'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setIntasendModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Configure IntaSend M-PESA & Card Payment Gateway"
+          >
+            <Zap className="w-4 h-4 text-indigo-600" />
+            <span>IntaSend Gateway</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDarajaModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            title="Configure Safaricom Daraja M-PESA API credentials"
+          >
+            <Smartphone className="w-4 h-4 text-emerald-600" />
+            <span>M-PESA Daraja Settings</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCreating(!isCreating)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>{isCreating ? 'Close Creation Form' : 'Post a New Task'}</span>
+          </button>
+        </div>
       </div>
 
       {successMsg && (

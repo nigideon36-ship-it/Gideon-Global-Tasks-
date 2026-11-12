@@ -211,7 +211,15 @@ export type PlatformTab =
   | 'leaderboard'
   | 'employer'
   | 'wallet'
-  | 'packages';
+  | 'packages'
+  | 'about'
+  | 'contact'
+  | 'guides'
+  | 'faq'
+  | 'privacy'
+  | 'terms'
+  | 'disclaimer'
+  | 'sitemap';
 
 export type ThemeColor = 'emerald' | 'cobalt' | 'violet' | 'amber' | 'rose';
 
@@ -226,7 +234,7 @@ interface TaskContextType {
   activePackage: TaskPackage | null;
   packagesModalOpen: boolean;
   setPackagesModalOpen: (open: boolean) => void;
-  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Card' | 'Wallet', accountOrPhone: string) => boolean;
+  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'PayPal' | 'Card' | 'Wallet', accountOrPhone: string) => boolean;
   streakModalOpen: boolean;
   setStreakModalOpen: (open: boolean) => void;
   advanceDailyStreak: () => void;
@@ -255,6 +263,12 @@ interface TaskContextType {
   clearNotification: () => void;
   publisherModalOpen: boolean;
   setPublisherModalOpen: (open: boolean) => void;
+  darajaModalOpen: boolean;
+  setDarajaModalOpen: (open: boolean) => void;
+  intasendModalOpen: boolean;
+  setIntasendModalOpen: (open: boolean) => void;
+  paypalModalOpen: boolean;
+  setPaypalModalOpen: (open: boolean) => void;
   privacyTermsModalOpen: boolean;
   setPrivacyTermsModalOpen: (open: boolean) => void;
   privacyTermsTab: 'privacy' | 'terms';
@@ -335,9 +349,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activePackage, setActivePackage] = useState<TaskPackage | null>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PACKAGE);
-      return saved ? JSON.parse(saved) : AVAILABLE_PACKAGES[1]; // default to Pro
+      return saved ? JSON.parse(saved) : AVAILABLE_PACKAGES[2]; // default to VIP Taskmaster
     } catch {
-      return AVAILABLE_PACKAGES[1];
+      return AVAILABLE_PACKAGES[2];
     }
   });
 
@@ -386,7 +400,54 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [themeColor]);
 
   const [leaderboard] = useState<LeaderboardUser[]>(INITIAL_LEADERBOARD);
-  const [activeTab, setActiveTab] = useState<PlatformTab>('tasks');
+  
+  const getTabFromLocation = (): PlatformTab => {
+    if (typeof window === 'undefined') return 'tasks';
+    const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+    const hash = window.location.hash.replace(/^#+/, '').toLowerCase();
+    const target = path || hash;
+    if (target === 'about') return 'about';
+    if (target === 'contact') return 'contact';
+    if (target === 'guides') return 'guides';
+    if (target === 'faq') return 'faq';
+    if (target === 'privacy' || target === 'privacy-policy') return 'privacy';
+    if (target === 'terms' || target === 'terms-of-service') return 'terms';
+    if (target === 'disclaimer') return 'disclaimer';
+    if (target === 'sitemap') return 'sitemap';
+    if (target === 'task-history') return 'task-history';
+    if (target === 'referrals') return 'referrals';
+    if (target === 'packages') return 'packages';
+    if (target === 'meme-studio') return 'meme-studio';
+    if (target === 'ai-media') return 'ai-media';
+    if (target === 'three-globe') return 'three-globe';
+    if (target === 'game') return 'game';
+    if (target === 'maps-explorer') return 'maps-explorer';
+    if (target === 'leaderboard') return 'leaderboard';
+    if (target === 'employer') return 'employer';
+    return 'tasks';
+  };
+
+  const [activeTab, setActiveTabRaw] = useState<PlatformTab>(getTabFromLocation);
+
+  const setActiveTab = (tab: PlatformTab) => {
+    setActiveTabRaw(tab);
+    if (typeof window !== 'undefined') {
+      const newPath = tab === 'tasks' ? '/' : `/${tab}`;
+      if (window.location.pathname !== newPath) {
+        window.history.pushState({ tab }, '', newPath);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTabRaw(getTabFromLocation());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [workerMode, setWorkerMode] = useState<'worker' | 'requester'>('worker');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
@@ -394,6 +455,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [streakModalOpen, setStreakModalOpen] = useState(false);
   const [postTaskModalOpen, setPostTaskModalOpen] = useState(false);
   const [publisherModalOpen, setPublisherModalOpen] = useState(false);
+  const [darajaModalOpen, setDarajaModalOpen] = useState(false);
+  const [intasendModalOpen, setIntasendModalOpen] = useState(false);
+  const [paypalModalOpen, setPaypalModalOpen] = useState(false);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState(false);
   const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
   const [notification, setNotification] = useState<string | null>(null);
@@ -564,7 +628,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     processStreakAdvancement(nextDate);
   };
 
-  const purchasePackage = (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Card' | 'Wallet', accountOrPhone: string): boolean => {
+  const purchasePackage = (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'PayPal' | 'Card' | 'Wallet', accountOrPhone: string): boolean => {
     const pkg = AVAILABLE_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) return false;
 
@@ -897,6 +961,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearNotification,
         publisherModalOpen,
         setPublisherModalOpen,
+        darajaModalOpen,
+        setDarajaModalOpen,
+        intasendModalOpen,
+        setIntasendModalOpen,
+        paypalModalOpen,
+        setPaypalModalOpen,
         privacyTermsModalOpen,
         setPrivacyTermsModalOpen,
         privacyTermsTab,

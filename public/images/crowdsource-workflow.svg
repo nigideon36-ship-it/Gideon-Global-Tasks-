@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" width="800" height="360">
+  <defs>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f8fafc" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="360" rx="20" fill="#f1f5f9" />
+  
+  <!-- Step 1 -->
+  <g transform="translate(40, 50)">
+    <rect width="210" height="260" rx="16" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="2" />
+    <circle cx="45" cy="45" r="22" fill="#ecfdf5" />
+    <text x="45" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="#059669" text-anchor="middle">01</text>
+    <text x="30" y="110" font-family="system-ui, sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Task Dispatch</text>
+    <text x="30" y="145" font-family="system-ui, sans-serif" font-size="13" fill="#64748b" width="150">
+      <tspan x="30" dy="0">Global enterprise and</tspan>
+      <tspan x="30" dy="20">AI research datasets</tspan>
+      <tspan x="30" dy="20">partitioned into micro</tspan>
+      <tspan x="30" dy="20">work units and surveys.</tspan>
+    </text>
+  </g>
+
+  <!-- Arrow 1 -->
+  <path d="M265 180 L285 180" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow)" />
+
+  <!-- Step 2 -->
+  <g transform="translate(295, 50)">
+    <rect width="210" height="260" rx="16" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="2" />
+    <circle cx="45" cy="45" r="22" fill="#eff6ff" />
+    <text x="45" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="#2563eb" text-anchor="middle">02</text>
+    <text x="30" y="110" font-family="system-ui, sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Human Annotation</text>
+    <text x="30" y="145" font-family="system-ui, sans-serif" font-size="13" fill="#64748b">
+      <tspan x="30" dy="0">Contributors perform</tspan>
+      <tspan x="30" dy="20">multimodal keying,</tspan>
+      <tspan x="30" dy="20">bounding boxes, audits,</tspan>
+      <tspan x="30" dy="20">and survey responses.</tspan>
+    </text>
+  </g>
+
+  <!-- Arrow 2 -->
+  <path d="M520 180 L540 180" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Step 3 -->
+  <g transform="translate(550, 50)">
+    <rect width="210" height="260" rx="16" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="2" />
+    <circle cx="45" cy="45" r="22" fill="#fef2f2" />
+    <text x="45" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="#dc2626" text-anchor="middle">03</text>
+    <text x="30" y="110" font-family="system-ui, sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Verified Payout</text>
+    <text x="30" y="145" font-family="system-ui, sans-serif" font-size="13" fill="#64748b">
+      <tspan x="30" dy="0">Automated consensus</tspan>
+      <tspan x="30" dy="20">audit clears payouts to</tspan>
+      <tspan x="30" dy="20">M-PESA &amp; Wise upon</tspan>
+      <tspan x="30" dy="20">reaching $100 milestone.</tspan>
+    </text>
+  </g>
+</svg>

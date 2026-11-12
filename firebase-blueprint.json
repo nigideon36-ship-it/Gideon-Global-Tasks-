@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User contributor profile and earnings account",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "balance": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "CompletedTask": {
+      "title": "CompletedTask",
+      "description": "Log of completed micro tasks, surveys, and annotations",
+      "type": "object",
+      "properties": {
+        "userUid": { "type": "string" },
+        "taskId": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "category": { "type": "string" },
+        "reward": { "type": "number" },
+        "status": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["userUid", "taskId", "reward"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/completed_tasks/{taskId}": {
+      "schema": "CompletedTask",
+      "description": "Completed tasks log"
+    }
+  }
+}

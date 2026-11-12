@@ -18,8 +18,8 @@ export const AdSenseBanner: React.FC<AdSenseBannerProps> = ({
     adsenseClientId: string;
     isCustom: boolean;
   }>({
-    adsenseClientId: 'ca-pub-XXXXXXXXXXXXXXXX',
-    isCustom: false
+    adsenseClientId: 'ca-pub-8366092986496846',
+    isCustom: true
   });
 
   useEffect(() => {

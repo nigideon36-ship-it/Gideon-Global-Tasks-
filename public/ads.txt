@@ -1,7 +1,1 @@
-# Google AdSense Publisher Authorization file
-# Format: <Field #1>, <Field #2>, <Field #3>, <Field #4>
-# Field #1: Domain name of the advertising system
-# Field #2: Exchange publisher ID (replace pub-XXXXXXXXXXXXXXXX with your AdSense publisher ID)
-# Field #3: Account type (DIRECT or RESELLER)
-# Field #4: Certification authority ID (Google's is f08c47fec0942fa0)
-google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+google.com, pub-8366092986496846, DIRECT, f08c47fec0942fa0

@@ -31,8 +31,20 @@ import { PackagesModal } from './components/PackagesModal';
 import { DailyStreakModal } from './components/DailyStreakModal';
 import { ReferralDashboard } from './components/ReferralDashboard';
 import { PublisherModal } from './components/PublisherModal';
+import { DarajaMpesaModal } from './components/DarajaMpesaModal';
+import { IntasendModal } from './components/IntasendModal';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
 import { AdSenseBanner } from './components/AdSenseBanner';
+import { PlatformOverviewLanding } from './components/PlatformOverviewLanding';
+import { AboutUsView } from './components/AboutUsView';
+import { ContactUsView } from './components/ContactUsView';
+import { GuidesView } from './components/GuidesView';
+import { FAQView } from './components/FAQView';
+import { PrivacyPolicyView } from './components/PrivacyPolicyView';
+import { TermsOfServiceView } from './components/TermsOfServiceView';
+import { DisclaimerView } from './components/DisclaimerView';
+import { HTMLSitemapView } from './components/HTMLSitemapView';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { Task } from './types/tasks';
 import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users } from 'lucide-react';
 
@@ -51,6 +63,10 @@ const MainAppContent: React.FC = () => {
     userStats,
     publisherModalOpen,
     setPublisherModalOpen,
+    darajaModalOpen,
+    setDarajaModalOpen,
+    intasendModalOpen,
+    setIntasendModalOpen,
     privacyTermsModalOpen,
     setPrivacyTermsModalOpen,
     privacyTermsTab,
@@ -286,6 +302,9 @@ const MainAppContent: React.FC = () => {
                   className="mt-8"
                   onOpenPublisherHub={() => setPublisherModalOpen(true)}
                 />
+
+                {/* Public Platform Overview & SEO Landing Content */}
+                <PlatformOverviewLanding />
               </div>
             </div>
           )}
@@ -372,6 +391,30 @@ const MainAppContent: React.FC = () => {
 
           {/* 9. EMPLOYER PORTAL */}
           {activeTab === 'employer' && <EmployerPortal />}
+
+          {/* 10. ABOUT US & CORPORATE GOVERNANCE */}
+          {activeTab === 'about' && <AboutUsView />}
+
+          {/* 11. CONTACT US & DEDICATED SUPPORT */}
+          {activeTab === 'contact' && <ContactUsView />}
+
+          {/* 12. IN-DEPTH CONTRIBUTOR GUIDES & KNOWLEDGE BASE */}
+          {activeTab === 'guides' && <GuidesView />}
+
+          {/* 13. FREQUENTLY ASKED QUESTIONS */}
+          {activeTab === 'faq' && <FAQView />}
+
+          {/* 14. DEDICATED PRIVACY POLICY PAGE (ADSENSE & GDPR) */}
+          {activeTab === 'privacy' && <PrivacyPolicyView />}
+
+          {/* 15. DEDICATED TERMS OF SERVICE PAGE */}
+          {activeTab === 'terms' && <TermsOfServiceView />}
+
+          {/* 16. DEDICATED EARNINGS & ADVERTISING DISCLAIMER PAGE */}
+          {activeTab === 'disclaimer' && <DisclaimerView />}
+
+          {/* 17. DEDICATED HTML SITEMAP & DIRECTORY */}
+          {activeTab === 'sitemap' && <HTMLSitemapView />}
         </main>
       </div>
 
@@ -438,6 +481,18 @@ const MainAppContent: React.FC = () => {
         onOpenPrivacyTerms={openPrivacyTerms}
       />
 
+      {/* Safaricom Daraja M-PESA Management Modal */}
+      <DarajaMpesaModal
+        isOpen={darajaModalOpen}
+        onClose={() => setDarajaModalOpen(false)}
+      />
+
+      {/* IntaSend M-PESA & Card Gateway Modal */}
+      <IntasendModal
+        isOpen={intasendModalOpen}
+        onClose={() => setIntasendModalOpen(false)}
+      />
+
       {/* AdSense Policy Compliant Legal & Privacy Modal */}
       <PrivacyTermsModal
         isOpen={privacyTermsModalOpen}
@@ -447,6 +502,9 @@ const MainAppContent: React.FC = () => {
 
       {/* Gemini AI Floating Assistant */}
       <GeminiChatbot />
+
+      {/* Floating GDPR & AdSense Cookie Consent Banner */}
+      <CookieConsentBanner />
 
       {/* Toast notifications */}
       <NotificationToast />

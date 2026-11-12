@@ -20,7 +20,9 @@ interface PublisherModalProps {
   onOpenPrivacyTerms?: (tab: 'privacy' | 'terms') => void;
 }
 
-const PUBLIC_URL = 'https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app';
+const PUBLIC_URL = typeof window !== 'undefined' && window.location.hostname.includes('gideon-global-tasks.ai.studio')
+  ? 'https://gideon-global-tasks.ai.studio'
+  : 'https://gideon-global-tasks.ai.studio';
 
 export const PublisherModal: React.FC<PublisherModalProps> = ({
   isOpen,
@@ -31,8 +33,8 @@ export const PublisherModal: React.FC<PublisherModalProps> = ({
   const [copiedSitemap, setCopiedSitemap] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'console' | 'adsense'>('console');
 
-  const [searchToken, setSearchToken] = useState('gideon-search-console-verification-token');
-  const [adsensePubId, setAdsensePubId] = useState('pub-XXXXXXXXXXXXXXXX');
+  const [searchToken, setSearchToken] = useState('google2d71976008fafb8e');
+  const [adsensePubId, setAdsensePubId] = useState('pub-8366092986496846');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
