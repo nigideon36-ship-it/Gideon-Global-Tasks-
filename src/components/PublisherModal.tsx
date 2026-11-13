@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface PublisherModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const PublisherModal: React.FC<PublisherModalProps> = ({
   onClose,
   onOpenPrivacyTerms
 }) => {
+  const { idToken } = useAuth();
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSitemap, setCopiedSitemap] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'console' | 'adsense'>('console');
@@ -70,7 +72,10 @@ export const PublisherModal: React.FC<PublisherModalProps> = ({
 
       const res = await fetch('/api/publisher-config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify({
           searchConsoleToken: searchToken.trim(),
           adsensePublisherId: cleanPub,

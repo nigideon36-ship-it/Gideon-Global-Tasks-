@@ -3,7 +3,7 @@ import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
+import { requireAuth, requireOwner, type AuthRequest } from './src/middleware/auth.ts';
 import { getOrCreateUser } from './src/db/users.ts';
 import { db } from './src/db/index.ts';
 import { completedTasks, referrals, payouts } from './src/db/schema.ts';
@@ -30,7 +30,7 @@ app.use((_req, res, next) => {
     "font-src 'self' https://fonts.gstatic.com data:; " +
     "img-src 'self' data: https: blob: https://*.intasend.com https://*.paypal.com https://www.paypalobjects.com; " +
     "frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.firebaseapp.com https://*.intasend.com https://*.paypal.com; " +
-    "connect-src 'self' https: wss: https://*.intasend.com https://*.paypal.com;"
+    "connect-src 'self' https: wss: https://firestore.googleapis.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.intasend.com https://*.paypal.com;"
   );
   next();
 });
@@ -92,7 +92,7 @@ app.get('/api/publisher-config', (_req, res) => {
   res.json(publisherConfig);
 });
 
-app.post('/api/publisher-config', (req, res) => {
+app.post('/api/publisher-config', requireOwner, (req, res) => {
   const { searchConsoleToken, adsensePublisherId, adsenseClientId } = req.body;
   if (searchConsoleToken) publisherConfig.searchConsoleToken = String(searchConsoleToken).trim();
   if (adsensePublisherId) publisherConfig.adsensePublisherId = String(adsensePublisherId).trim();
@@ -147,7 +147,7 @@ async function getDarajaToken(): Promise<string | null> {
   return data.access_token || null;
 }
 
-app.get('/api/mpesa/config', (_req, res) => {
+app.get('/api/mpesa/config', requireOwner, (_req, res) => {
   res.json({
     environment: darajaConfig.environment,
     businessShortCode: darajaConfig.businessShortCode,
@@ -158,7 +158,7 @@ app.get('/api/mpesa/config', (_req, res) => {
   });
 });
 
-app.post('/api/mpesa/config', (req, res) => {
+app.post('/api/mpesa/config', requireOwner, (req, res) => {
   const { environment, consumerKey, consumerSecret, businessShortCode, passkey, callbackUrl } = req.body;
   if (environment) darajaConfig.environment = environment === 'production' ? 'production' : 'sandbox';
   if (consumerKey !== undefined) darajaConfig.consumerKey = String(consumerKey).trim();
@@ -342,7 +342,7 @@ let intasendConfig: IntasendConfig = {
 
 const intasendTransactions = new Map<string, any>();
 
-app.get('/api/intasend/config', (_req, res) => {
+app.get('/api/intasend/config', requireOwner, (_req, res) => {
   res.json({
     publishableKey: intasendConfig.publishableKey,
     isTest: intasendConfig.isTest,
@@ -351,7 +351,7 @@ app.get('/api/intasend/config', (_req, res) => {
   });
 });
 
-app.post('/api/intasend/config', (req, res) => {
+app.post('/api/intasend/config', requireOwner, (req, res) => {
   const { publishableKey, secretKey, isTest, webhookUrl } = req.body;
   if (publishableKey !== undefined) intasendConfig.publishableKey = String(publishableKey).trim();
   if (secretKey !== undefined) intasendConfig.secretKey = String(secretKey).trim();
@@ -529,7 +529,7 @@ app.get('/api/paypal/config', (_req, res) => {
   });
 });
 
-app.post('/api/paypal/config', (req, res) => {
+app.post('/api/paypal/config', requireOwner, (req, res) => {
   const { primaryEmail, clientId, clientSecret, mode, payPalMeHandle } = req.body;
   if (primaryEmail !== undefined) payPalConfig.primaryEmail = String(primaryEmail).trim();
   if (clientId !== undefined) payPalConfig.clientId = String(clientId).trim();

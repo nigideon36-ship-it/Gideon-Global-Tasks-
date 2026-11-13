@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { TaskCategory, TaskDifficulty, Task } from '../types/tasks';
-import { PlusCircle, Users, CheckCircle2, DollarSign, Layers, Sparkles, AlertCircle, Smartphone, Zap } from 'lucide-react';
+import { PlusCircle, Users, CheckCircle2, DollarSign, Layers, Sparkles, AlertCircle, Smartphone, Zap, Lock, Globe } from 'lucide-react';
 
 export const EmployerPortal: React.FC = () => {
-  const { tasks, postTask, setActiveTab, setDarajaModalOpen, setIntasendModalOpen } = useTasks();
+  const { tasks, postTask, setActiveTab, setDarajaModalOpen, setIntasendModalOpen, setPaypalModalOpen, setPublisherModalOpen } = useTasks();
+  const { user, isOwner, signInWithGoogle } = useAuth();
 
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState('');
@@ -77,6 +79,47 @@ export const EmployerPortal: React.FC = () => {
     setIsCreating(false);
   };
 
+  if (!isOwner) {
+    return (
+      <div className="max-w-xl mx-auto my-12 p-8 bg-white rounded-3xl border border-slate-200 shadow-lg text-center space-y-5">
+        <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-extrabold text-slate-900">
+            Owner Authorization Required
+          </h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Only the verified platform owner (<strong className="font-mono text-slate-900">{OWNER_EMAIL}</strong>) has authority to access the Owner Portal, edit website settings, manage AdSense, or configure payment gateways.
+          </p>
+          {user && (
+            <p className="text-[11px] text-rose-700 font-mono bg-rose-50 px-3 py-1.5 rounded-lg inline-block">
+              Signed in as: {user.email} (Customer Account)
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          {!user && (
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              Sign In as Owner ({OWNER_EMAIL})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('tasks')}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            Go to Tasks Marketplace
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-10">
       {/* Top Banner */}
@@ -84,17 +127,37 @@ export const EmployerPortal: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 mb-1">
             <Users className="w-3.5 h-3.5" />
-            <span>Employer & Requester Console</span>
+            <span>Owner &amp; Administrator Console ({OWNER_EMAIL})</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Crowdsource at Global Scale
+            Platform &amp; Campaign Management
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Deploy paid surveys, human-in-the-loop AI data annotation, data entry, copywriting, and micro tasks to thousands of vetted workers across 140+ countries.
+            Manage AdSense, PayPal international receipts, IntaSend &amp; Daraja M-PESA gateways, and publish vetted tasks to customers worldwide.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setPublisherModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Manage Google AdSense & Search Console"
+          >
+            <Globe className="w-4 h-4 text-brand-600" />
+            <span>AdSense &amp; SEO</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPaypalModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-[#003087] border border-blue-300 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Configure International PayPal Payments"
+          >
+            <DollarSign className="w-4 h-4 text-[#003087]" />
+            <span>PayPal Intl</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIntasendModalOpen(true)}
@@ -112,7 +175,7 @@ export const EmployerPortal: React.FC = () => {
             title="Configure Safaricom Daraja M-PESA API credentials"
           >
             <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>M-PESA Daraja Settings</span>
+            <span>M-PESA Daraja</span>
           </button>
 
           <button

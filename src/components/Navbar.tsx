@@ -1,12 +1,12 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
-import { Wallet, Globe, Sparkles, Flame, LogIn, LogOut, User as UserIcon, ShieldCheck, Smartphone, Zap } from 'lucide-react';
+import { Wallet, Globe, Sparkles, Flame, LogIn, LogOut, User as UserIcon, ShieldCheck, Smartphone, Zap, DollarSign } from 'lucide-react';
 import { ThemeColorPicker } from './ThemeColorPicker';
 
 export const Navbar: React.FC = () => {
-  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen, setDarajaModalOpen, setIntasendModalOpen } = useTasks();
-  const { user, signInWithGoogle, signOutUser } = useAuth();
+  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen, setDarajaModalOpen, setIntasendModalOpen, setPaypalModalOpen } = useTasks();
+  const { user, isOwner, signInWithGoogle, signOutUser } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -171,39 +171,52 @@ export const Navbar: React.FC = () => {
               </svg>
             </a>
           </div>
-          <button
-            type="button"
-            onClick={() => setPublisherModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-            title="Publish to Google Search Console & AdSense"
-          >
-            <Globe className="w-3.5 h-3.5 text-brand-600" />
-            <span className="hidden xl:inline">Publish to Google</span>
-          </button>
+          {/* Owner-Only Website Management & Payment Gateway Controls */}
+          {isOwner && (
+            <>
+              <button
+                type="button"
+                onClick={() => setPublisherModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                title="Owner Only: Manage Google AdSense & Search Console"
+              >
+                <Globe className="w-3.5 h-3.5 text-brand-600" />
+                <span className="hidden xl:inline">AdSense & SEO</span>
+              </button>
 
-          {/* M-PESA Daraja Settings Trigger */}
-          <button
-            type="button"
-            onClick={() => setDarajaModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
-            title="Configure Safaricom Daraja M-PESA API, Shortcode, and STK Push"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden md:inline">Daraja</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setDarajaModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+                title="Owner Only: Configure Safaricom Daraja M-PESA API"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden md:inline">Daraja</span>
+              </button>
 
-          {/* IntaSend Payment Gateway Trigger (No Paybill needed!) */}
-          <button
-            type="button"
-            onClick={() => setIntasendModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-            title="IntaSend Payment Gateway: Accept M-PESA & Card without registered Till or Paybill!"
-          >
-            <Zap className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden md:inline">IntaSend</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setIntasendModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                title="Owner Only: IntaSend Payment Gateway"
+              >
+                <Zap className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden md:inline">IntaSend</span>
+              </button>
 
-          <ThemeColorPicker />
+              <button
+                type="button"
+                onClick={() => setPaypalModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                title="Owner Only: PayPal International Gateway (nigideon36@gmail.com)"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-[#003087]" />
+                <span className="hidden md:inline">PayPal</span>
+              </button>
+
+              <ThemeColorPicker />
+            </>
+          )}
 
           <button
             type="button"
@@ -218,7 +231,7 @@ export const Navbar: React.FC = () => {
 
           <button
             onClick={() => setWalletOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors whitespace-nowrap shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors whitespace-nowrap shadow-sm cursor-pointer"
           >
             <Wallet className="w-3.5 h-3.5 text-emerald-400" />
             <span className="tabular-nums font-mono">${userStats.balance.toFixed(2)}</span>
@@ -226,16 +239,18 @@ export const Navbar: React.FC = () => {
             <span>Withdraw</span>
           </button>
 
-          {/* Owner Portal & Admin Controls */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('employer')}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
-            title="Owner Portal: Create & Manage Tasks, Escrow, and Campaigns"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Owner Portal</span>
-          </button>
+          {/* Owner Portal & Admin Controls — Strictly restricted to nigideon36@gmail.com */}
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('employer')}
+              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+              title="Owner Portal: Full Site & Campaign Authority"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Owner Portal</span>
+            </button>
+          )}
 
           {/* User Sign In / Profile */}
           {user ? (
@@ -256,8 +271,10 @@ export const Navbar: React.FC = () => {
                   <span className="text-xs font-medium text-slate-700 max-w-[100px] truncate leading-tight">
                     {user.displayName || user.email?.split('@')[0]}
                   </span>
-                  {user.email === 'nigideon36@gmail.com' && (
+                  {isOwner ? (
                     <span className="text-[10px] font-bold text-emerald-700 font-mono">Owner</span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-500 font-mono">Customer</span>
                   )}
                 </div>
               </div>
@@ -276,8 +293,8 @@ export const Navbar: React.FC = () => {
               onClick={signInWithGoogle}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer"
             >
-              <LogIn className="w-3.5 h-3.5 text-slate-500" />
-              <span>Sign In</span>
+              <LogIn className="w-3.5 h-3.5 text-brand-600" />
+              <span>Register / Sign In</span>
             </button>
           )}
         </div>

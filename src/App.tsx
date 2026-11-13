@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { HeroMarketplace } from './components/HeroMarketplace';
 import { TaskCard } from './components/TaskCard';
@@ -33,6 +33,7 @@ import { ReferralDashboard } from './components/ReferralDashboard';
 import { PublisherModal } from './components/PublisherModal';
 import { DarajaMpesaModal } from './components/DarajaMpesaModal';
 import { IntasendModal } from './components/IntasendModal';
+import { PayPalModal } from './components/PayPalModal';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
 import { AdSenseBanner } from './components/AdSenseBanner';
 import { PlatformOverviewLanding } from './components/PlatformOverviewLanding';
@@ -49,6 +50,7 @@ import { Task } from './types/tasks';
 import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
+  const { isOwner } = useAuth();
   const {
     tasks,
     activeTab,
@@ -67,6 +69,8 @@ const MainAppContent: React.FC = () => {
     setDarajaModalOpen,
     intasendModalOpen,
     setIntasendModalOpen,
+    paypalModalOpen,
+    setPaypalModalOpen,
     privacyTermsModalOpen,
     setPrivacyTermsModalOpen,
     privacyTermsTab,
@@ -300,7 +304,7 @@ const MainAppContent: React.FC = () => {
                 {/* Google AdSense Contextual Placement */}
                 <AdSenseBanner
                   className="mt-8"
-                  onOpenPublisherHub={() => setPublisherModalOpen(true)}
+                  onOpenPublisherHub={isOwner ? () => setPublisherModalOpen(true) : undefined}
                 />
 
                 {/* Public Platform Overview & SEO Landing Content */}
@@ -474,24 +478,31 @@ const MainAppContent: React.FC = () => {
         />
       )}
 
-      {/* Google Publishing Hub (Search Console & AdSense) */}
-      <PublisherModal
-        isOpen={publisherModalOpen}
-        onClose={() => setPublisherModalOpen(false)}
-        onOpenPrivacyTerms={openPrivacyTerms}
-      />
+      {/* Owner-Only Administration & Payment Modals (Strictly nigideon36@gmail.com) */}
+      {isOwner && (
+        <>
+          <PublisherModal
+            isOpen={publisherModalOpen}
+            onClose={() => setPublisherModalOpen(false)}
+            onOpenPrivacyTerms={openPrivacyTerms}
+          />
 
-      {/* Safaricom Daraja M-PESA Management Modal */}
-      <DarajaMpesaModal
-        isOpen={darajaModalOpen}
-        onClose={() => setDarajaModalOpen(false)}
-      />
+          <DarajaMpesaModal
+            isOpen={darajaModalOpen}
+            onClose={() => setDarajaModalOpen(false)}
+          />
 
-      {/* IntaSend M-PESA & Card Gateway Modal */}
-      <IntasendModal
-        isOpen={intasendModalOpen}
-        onClose={() => setIntasendModalOpen(false)}
-      />
+          <IntasendModal
+            isOpen={intasendModalOpen}
+            onClose={() => setIntasendModalOpen(false)}
+          />
+
+          <PayPalModal
+            isOpen={paypalModalOpen}
+            onClose={() => setPaypalModalOpen(false)}
+          />
+        </>
+      )}
 
       {/* AdSense Policy Compliant Legal & Privacy Modal */}
       <PrivacyTermsModal

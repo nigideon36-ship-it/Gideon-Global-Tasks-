@@ -1,9 +1,11 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useAuth } from '../context/AuthContext';
 import { Globe, ShieldCheck, Mail, BookOpen, HelpCircle, CheckCircle2, ArrowRight, FileText, Cookie } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { setActiveTab, setWalletOpen, setPublisherModalOpen, openPrivacyTerms } = useTasks();
+  const { isOwner } = useAuth();
 
   return (
     <footer className="mt-20 border-t border-slate-200 bg-white text-slate-500 py-12 text-xs">
@@ -142,18 +144,20 @@ export const Footer: React.FC = () => {
                   Wallet & Cash Out ($100 Min)
                 </button>
               </li>
-              <li>
-                <a
-                  href="/employer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveTab('employer');
-                  }}
-                  className="hover:text-brand-600 transition-colors"
-                >
-                  Employer Requester Portal
-                </a>
-              </li>
+              {isOwner && (
+                <li>
+                  <a
+                    href="/employer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveTab('employer');
+                    }}
+                    className="hover:text-brand-600 transition-colors"
+                  >
+                    Owner &amp; Requester Portal
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
 

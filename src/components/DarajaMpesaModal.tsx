@@ -15,6 +15,7 @@ import {
   ExternalLink,
   RefreshCw
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface DarajaMpesaModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface DarajaMpesaModalProps {
 }
 
 export const DarajaMpesaModal: React.FC<DarajaMpesaModalProps> = ({ isOpen, onClose }) => {
+  const { idToken } = useAuth();
   const [activeTab, setActiveTab] = useState<'credentials' | 'test' | 'guide'>('credentials');
 
   // Form state
@@ -44,9 +46,11 @@ export const DarajaMpesaModal: React.FC<DarajaMpesaModalProps> = ({ isOpen, onCl
   const [copiedCallback, setCopiedCallback] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !idToken) return;
 
-    fetch('/api/mpesa/config')
+    fetch('/api/mpesa/config', {
+      headers: { Authorization: `Bearer ${idToken}` }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.environment) setEnvironment(data.environment);
@@ -54,7 +58,7 @@ export const DarajaMpesaModal: React.FC<DarajaMpesaModalProps> = ({ isOpen, onCl
         if (data.callbackUrl) setCallbackUrl(data.callbackUrl);
       })
       .catch(() => {});
-  }, [isOpen]);
+  }, [isOpen, idToken]);
 
   if (!isOpen) return null;
 
@@ -67,7 +71,10 @@ export const DarajaMpesaModal: React.FC<DarajaMpesaModalProps> = ({ isOpen, onCl
     try {
       const res = await fetch('/api/mpesa/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify({
           environment,
           consumerKey,

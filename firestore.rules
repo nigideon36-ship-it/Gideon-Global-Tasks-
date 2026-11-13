@@ -1,28 +1,191 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny all
+    // 1. Global Safety Net: default deny everything
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Helper primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
     }
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    // Bootstrapped Platform Owner (ONLY nigideon36@gmail.com with verified Google email)
+    function isPlatformOwner() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'nigideon36@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprints
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'balance', 'streakDays', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'balance', 'streakDays', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['customer', 'owner']
+        && data.balance is number && data.balance >= 0
+        && data.streakDays is number && data.streakDays >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCompletedTask(data) {
+      return data.keys().hasAll(['userUid', 'taskId', 'taskTitle', 'category', 'reward', 'status', 'completedAt'])
+        && data.keys().hasOnly(['userUid', 'taskId', 'taskTitle', 'category', 'reward', 'status', 'completedAt'])
+        && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.taskId is string && data.taskId.size() >= 1 && data.taskId.size() <= 128
+        && data.taskTitle is string && data.taskTitle.size() >= 1 && data.taskTitle.size() <= 200
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 64
+        && data.reward is number && data.reward >= 0
+        && data.status in ['Approved', 'Pending', 'Rejected']
+        && data.completedAt is timestamp;
+    }
+
+    function isValidWithdrawal(data) {
+      return data.keys().hasAll(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
+        && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.amount is number && data.amount >= 100
+        && data.method in ['M-PESA', 'PayPal', 'Wise', 'Crypto USDT', 'Bank Wire', 'Amazon Gift Card']
+        && data.details is string && data.details.size() >= 3 && data.details.size() <= 200
+        && data.status in ['Pending', 'Completed', 'Rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMarketplaceTask(data) {
+      return data.keys().hasAll(['title', 'category', 'description', 'reward', 'totalSpots', 'spotsRemaining', 'ownerUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'category', 'description', 'reward', 'totalSpots', 'spotsRemaining', 'ownerUid', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 64
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 2000
+        && data.reward is number && data.reward >= 0
+        && data.totalSpots is number && data.totalSpots >= 1
+        && data.spotsRemaining is number && data.spotsRemaining >= 0
+        && data.ownerUid is string && data.ownerUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlatformSetting(data) {
+      return data.keys().hasAll(['updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['adsensePublisherId', 'adsenseClientId', 'paypalEmail', 'themeColor', 'updatedBy', 'updatedAt'])
+        && (!('adsensePublisherId' in data) || (data.adsensePublisherId is string && data.adsensePublisherId.size() <= 64))
+        && (!('adsenseClientId' in data) || (data.adsenseClientId is string && data.adsenseClientId.size() <= 64))
+        && (!('paypalEmail' in data) || (data.paypalEmail is string && data.paypalEmail.size() <= 200))
+        && (!('themeColor' in data) || (data.themeColor is string && data.themeColor.size() <= 32))
+        && data.updatedBy is string && data.updatedBy.size() <= 200
+        && data.updatedAt is timestamp;
+    }
+
+    // Users collection: PII strictly isolated to document owner or Platform Owner
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow get: if isValidId(userId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == userId)
+      );
+      allow list: if isPlatformOwner();
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && request.auth.uid == userId
+        && isValidUser(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().email == request.auth.token.email
+        && (isPlatformOwner() || (incoming().role == 'customer' && incoming().balance == 0));
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUser(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isPlatformOwner() || (
+            request.auth.uid == userId
+            && incoming().role == existing().role
+            && incoming().balance == existing().balance
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isPlatformOwner();
     }
 
+    // Completed Tasks: Customers can create and read their own completed tasks only; only Owner can edit/delete
     match /completed_tasks/{taskId} {
-      allow read: if isSignedIn() && resource.data.userUid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userUid == request.auth.uid;
+      allow get: if isValidId(taskId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
+      );
+      allow list: if isPlatformOwner() || (isVerifiedUser() && resource.data.userUid == request.auth.uid);
+      allow create: if isValidId(taskId)
+        && isVerifiedUser()
+        && isValidCompletedTask(incoming())
+        && incoming().userUid == request.auth.uid
+        && incoming().completedAt == request.time;
+      allow update, delete: if isValidId(taskId) && isPlatformOwner();
+    }
+
+    // Withdrawals: Customers can submit Pending withdrawal requests (>= $100) and read their own; only Owner can approve/modify
+    match /withdrawals/{withdrawalId} {
+      allow get: if isValidId(withdrawalId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
+      );
+      allow list: if isPlatformOwner() || (isVerifiedUser() && resource.data.userUid == request.auth.uid);
+      allow create: if isValidId(withdrawalId)
+        && isVerifiedUser()
+        && isValidWithdrawal(incoming())
+        && incoming().userUid == request.auth.uid
+        && incoming().status == 'Pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update, delete: if isValidId(withdrawalId) && isPlatformOwner();
+    }
+
+    // Marketplace Tasks: Publicly readable, ONLY Platform Owner (nigideon36@gmail.com) can create, edit, or delete
+    match /tasks/{taskId} {
+      allow get: if isValidId(taskId);
+      allow list: if true;
+      allow create: if isValidId(taskId)
+        && isPlatformOwner()
+        && isValidMarketplaceTask(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(taskId)
+        && isPlatformOwner()
+        && isValidMarketplaceTask(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(taskId) && isPlatformOwner();
+    }
+
+    // Platform Settings (AdSense, Site Theme, Gateway metadata): Publicly readable, ONLY Platform Owner can edit
+    match /platform_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if true;
+      allow create, update: if isValidId(settingId)
+        && isPlatformOwner()
+        && isValidPlatformSetting(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(settingId) && isPlatformOwner();
     }
   }
 }

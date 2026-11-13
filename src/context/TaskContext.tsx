@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Task, PayoutRecord, MemeItem, LeaderboardUser, TaskHistoryRecord, TaskPackage, ReferralRecord, ReferralStats } from '../types/tasks';
 import { INITIAL_TASKS, INITIAL_MEMES, INITIAL_LEADERBOARD } from '../data/mockTasks';
 import confetti from 'canvas-confetti';
-import { auth } from '../lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, OperationType, handleFirestoreError, isPermissionError } from '../lib/firebase';
+import { OWNER_EMAIL } from './AuthContext';
 
 export interface UserStatsType {
   balance: number;
@@ -694,8 +696,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    // Persist completed task record to Cloud SQL if user is authenticated
+    // Persist completed task record to Cloud SQL and Firestore if user is authenticated
     if (auth.currentUser) {
+      const currentUid = auth.currentUser.uid;
+      if (auth.currentUser.emailVerified) {
+        const fsTaskId = `ct_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        const fsPath = `completed_tasks/${fsTaskId}`;
+        setDoc(doc(db, 'completed_tasks', fsTaskId), {
+          userUid: currentUid.slice(0, 128),
+          taskId: String(taskId).slice(0, 128),
+          taskTitle: String(summaryTitle).slice(0, 200),
+          category: String(taskCategory).slice(0, 64),
+          reward: totalAward,
+          status: 'Approved',
+          completedAt: serverTimestamp()
+        }).catch((err) => {
+          if (isPermissionError(err)) {
+            try {
+              handleFirestoreError(err, OperationType.CREATE, fsPath);
+            } catch (logged) {
+              console.warn('Firestore completed task permission check:', logged);
+            }
+          } else {
+            console.warn('Firestore completed task sync deferred (network):', (err as any)?.message || err);
+          }
+        });
+      }
+
       auth.currentUser.getIdToken().then((token) => {
         fetch('/api/user/tasks', {
           method: 'POST',
@@ -755,6 +782,30 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       payoutHistory: [newRecord, ...prev.payoutHistory]
     }));
 
+    if (auth.currentUser?.emailVerified) {
+      const wId = `wd_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      const wPath = `withdrawals/${wId}`;
+      setDoc(doc(db, 'withdrawals', wId), {
+        userUid: auth.currentUser.uid.slice(0, 128),
+        amount: Number(amount),
+        method,
+        details: String(details).slice(0, 200),
+        status: 'Pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }).catch((err) => {
+        if (isPermissionError(err)) {
+          try {
+            handleFirestoreError(err, OperationType.CREATE, wPath);
+          } catch (logged) {
+            console.warn('Firestore withdrawal permission check:', logged);
+          }
+        } else {
+          console.warn('Firestore withdrawal sync deferred (network):', (err as any)?.message || err);
+        }
+      });
+    }
+
     showNotification(
       `Withdrawal of $${amount.toFixed(2)} via ${method} initiated! ${isMpesa ? `(M-PESA confirmation code: ${mpesaReceipt})` : 'Processing queued.'}`
     );
@@ -762,6 +813,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const postTask = (newTaskData: Omit<Task, 'id' | 'createdAt' | 'spotsRemaining'>) => {
+    const currentEmail = auth.currentUser?.email?.toLowerCase();
+    if (currentEmail !== OWNER_EMAIL || !auth.currentUser?.emailVerified) {
+      showNotification(`Forbidden: Only ${OWNER_EMAIL} has authority to create or edit website tasks.`);
+      return;
+    }
+
     const created: Task = {
       ...newTaskData,
       id: `task-custom-${Date.now()}`,

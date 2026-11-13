@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { AVAILABLE_PACKAGES } from '../context/TaskContext';
+import { useAuth } from '../context/AuthContext';
 import { TaskPackage } from '../types/tasks';
-import { X, Check, ShieldCheck, Zap, Sparkles, Phone, CreditCard, Wallet, Smartphone, AlertCircle, Users } from 'lucide-react';
+import { X, Check, ShieldCheck, Zap, Sparkles, Phone, CreditCard, Wallet, Smartphone, AlertCircle, Users, Globe, Mail, ExternalLink } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -12,15 +13,35 @@ interface Props {
 
 export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCategory }) => {
   const { activePackage, purchasePackage, userStats, setActiveTab } = useTasks();
+  const { user } = useAuth();
 
   const [selectedPkgId, setSelectedPkgId] = useState<'starter' | 'pro' | 'vip'>('pro');
   const [paymentMethod, setPaymentMethod] = useState<'M-PESA' | 'PayPal' | 'Wallet' | 'Card'>('M-PESA');
   const [phoneNumber, setPhoneNumber] = useState('+254 712 345 678');
-  const [paypalPayerEmail, setPaypalPayerEmail] = useState('nigideon36@gmail.com');
+  const [paypalPayerEmail, setPaypalPayerEmail] = useState(user?.email || '');
+  const [paypalRecipientEmail, setPaypalRecipientEmail] = useState('nigideon36@gmail.com');
+  const [paypalMeHandle, setPaypalMeHandle] = useState('nigideon36');
   const [cardHolder, setCardHolder] = useState('Gideon Contributor');
   const [isProcessing, setIsProcessing] = useState(false);
   const [stkStatus, setStkStatus] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email && !paypalPayerEmail) {
+      setPaypalPayerEmail(user.email);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('/api/paypal/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.primaryEmail) setPaypalRecipientEmail(data.primaryEmail);
+        if (data.payPalMeHandle) setPaypalMeHandle(data.payPalMeHandle);
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -33,6 +54,11 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
 
     if (paymentMethod === 'M-PESA' && !phoneNumber.trim()) {
       setErrorMsg('Please enter a valid Safaricom M-PESA mobile number.');
+      return;
+    }
+
+    if (paymentMethod === 'PayPal' && !paypalPayerEmail.trim().includes('@')) {
+      setErrorMsg('Please enter your valid PayPal account email address.');
       return;
     }
 
@@ -105,7 +131,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
 
     if (paymentMethod === 'PayPal') {
       try {
-        setStkStatus(`Processing international PayPal payment ($${selectedPkg.price.toFixed(2)} USD) to nigideon36@gmail.com...`);
+        setStkStatus(`Processing international PayPal payment ($${selectedPkg.price.toFixed(2)} USD) to ${paypalRecipientEmail}...`);
         // 1. Create Order
         const orderRes = await fetch('/api/paypal/create-order', {
           method: 'POST',
@@ -114,10 +140,13 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             amount: selectedPkg.price,
             packageId: selectedPkg.id,
             description: `Gideon Contributor Pass - ${selectedPkg.name}`,
-            payerEmail: paypalPayerEmail
+            payerEmail: paypalPayerEmail.trim()
           })
         });
         const orderData = await orderRes.json();
+        if (!orderRes.ok || !orderData.success) {
+          throw new Error(orderData.error || 'Could not initiate PayPal order.');
+        }
 
         // 2. Capture Order
         const captureRes = await fetch('/api/paypal/capture-order', {
@@ -125,19 +154,22 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: orderData.orderId,
-            payerEmail: paypalPayerEmail,
+            payerEmail: paypalPayerEmail.trim(),
             notes: `Pass: ${selectedPkg.name}`
           })
         });
         const captureData = await captureRes.json();
+        if (!captureRes.ok || !captureData.success) {
+          throw new Error(captureData.error || 'Could not verify PayPal order.');
+        }
 
-        setStkStatus(`PayPal payment of $${selectedPkg.price.toFixed(2)} USD verified! Routed to nigideon36@gmail.com. Activating pass...`);
+        setStkStatus(`PayPal payment of $${selectedPkg.price.toFixed(2)} USD verified! Routed to ${paypalRecipientEmail}. Activating pass...`);
 
         setTimeout(() => {
           const success = purchasePackage(
             selectedPkgId,
             'PayPal',
-            `PayPal (${paypalPayerEmail} -> nigideon36@gmail.com, Txn: ${captureData.transactionId || 'PP-OK'})`
+            `PayPal (${paypalPayerEmail.trim()} -> ${paypalRecipientEmail}, Txn: ${captureData.transactionId || 'PP-OK'})`
           );
           setIsProcessing(false);
           setStkStatus(null);
@@ -298,44 +330,57 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             </div>
 
             {/* Payment Method Tabs */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('M-PESA')}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
                   paymentMethod === 'M-PESA'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <Smartphone className="w-4 h-4 text-emerald-600" />
-                <span>M-PESA (STK Push)</span>
+                <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>M-PESA (Kenya)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('PayPal')}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+                  paymentMethod === 'PayPal'
+                    ? 'border-[#003087] bg-blue-50 text-[#003087] shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Globe className="w-4 h-4 text-[#003087] shrink-0" />
+                <span>PayPal (Intl USD)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentMethod('Wallet')}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
                   paymentMethod === 'Wallet'
                     ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <Wallet className="w-4 h-4 text-brand-600" />
-                <span>Wallet Balance (${userStats.balance.toFixed(2)})</span>
+                <Wallet className="w-4 h-4 text-brand-600 shrink-0" />
+                <span>Wallet (${userStats.balance.toFixed(2)})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentMethod('Card')}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
                   paymentMethod === 'Card'
                     ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <CreditCard className="w-4 h-4 text-slate-600" />
-                <span>Debit / Credit Card</span>
+                <CreditCard className="w-4 h-4 text-slate-600 shrink-0" />
+                <span>Debit / Card</span>
               </button>
             </div>
 
@@ -361,6 +406,52 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                 <p className="text-[11px] text-slate-500">
                   You will receive an automated M-PESA STK prompt on your mobile phone to enter your PIN.
                 </p>
+              </div>
+            )}
+
+            {paymentMethod === 'PayPal' && (
+              <div className="space-y-3 p-4 bg-white rounded-xl border border-blue-200">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span className="flex items-center gap-1.5 text-[#003087] font-bold">
+                    <Globe className="w-4 h-4" />
+                    International PayPal Checkout (USD)
+                  </span>
+                  <span className="font-mono text-[#003087] font-bold">
+                    ${selectedPkg.price.toFixed(2)} USD
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-lg text-[11px] text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span>
+                    PayPal Recipient: <strong className="font-mono text-[#003087]">{paypalRecipientEmail}</strong>
+                  </span>
+                  <a
+                    href={`https://paypal.me/${paypalMeHandle.replace(/^@/, '')}/${selectedPkg.price}USD`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[#003087] font-bold hover:underline"
+                  >
+                    <span>Open PayPal.Me (${selectedPkg.price})</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Your PayPal Account Email (for payment receipt):
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="email"
+                      value={paypalPayerEmail}
+                      onChange={(e) => setPaypalPayerEmail(e.target.value)}
+                      placeholder="your-email@example.com"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono focus:border-[#003087] outline-hidden"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

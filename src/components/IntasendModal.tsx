@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Wallet
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface IntasendModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface IntasendModalProps {
 }
 
 export const IntasendModal: React.FC<IntasendModalProps> = ({ isOpen, onClose }) => {
+  const { idToken } = useAuth();
   const [activeTab, setActiveTab] = useState<'credentials' | 'test' | 'guide'>('credentials');
 
   // Form state
@@ -43,9 +45,11 @@ export const IntasendModal: React.FC<IntasendModalProps> = ({ isOpen, onClose })
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !idToken) return;
 
-    fetch('/api/intasend/config')
+    fetch('/api/intasend/config', {
+      headers: { Authorization: `Bearer ${idToken}` }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.publishableKey) setPublishableKey(data.publishableKey);
@@ -53,7 +57,7 @@ export const IntasendModal: React.FC<IntasendModalProps> = ({ isOpen, onClose })
         if (data.webhookUrl) setWebhookUrl(data.webhookUrl);
       })
       .catch(() => {});
-  }, [isOpen]);
+  }, [isOpen, idToken]);
 
   if (!isOpen) return null;
 
@@ -66,7 +70,10 @@ export const IntasendModal: React.FC<IntasendModalProps> = ({ isOpen, onClose })
     try {
       const res = await fetch('/api/intasend/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify({
           publishableKey,
           secretKey,

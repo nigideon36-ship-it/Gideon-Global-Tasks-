@@ -1,9 +1,11 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useAuth } from '../context/AuthContext';
 import { Map, ArrowLeft, ExternalLink, Globe, BookOpen, ShieldCheck, HelpCircle, FileText } from 'lucide-react';
 
 export const HTMLSitemapView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { isOwner } = useAuth();
 
   return (
     <article className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-200 text-slate-800">
@@ -98,19 +100,21 @@ export const HTMLSitemapView: React.FC = () => {
               </a>
               <span className="text-slate-400 block text-[11px]">Category gating tiers and allowance quotas.</span>
             </li>
-            <li>
-              <a
-                href="/employer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveTab('employer');
-                }}
-                className="text-brand-600 hover:text-brand-700 font-medium underline"
-              >
-                Employer & Requester Portal
-              </a>
-              <span className="text-slate-400 block text-[11px]">Enterprise task publishing and dataset escrow management.</span>
-            </li>
+            {isOwner && (
+              <li>
+                <a
+                  href="/employer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('employer');
+                  }}
+                  className="text-brand-600 hover:text-brand-700 font-medium underline"
+                >
+                  Owner &amp; Requester Portal
+                </a>
+                <span className="text-slate-400 block text-[11px]">Owner-only task publishing and site management.</span>
+              </li>
+            )}
           </ul>
         </div>
 
