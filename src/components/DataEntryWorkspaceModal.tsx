@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Task } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
 import { X, ZoomIn, ZoomOut, Check, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
+import receiptSampleScan from '../assets/images/receipt_sample_scan_1794041823242.jpg';
 
 interface Props {
   task: Task;
@@ -128,7 +129,7 @@ export const DataEntryWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
 
             <div className="overflow-auto w-full h-full max-h-[64vh] flex items-center justify-center p-2">
               <img
-                src={config?.documentUrl || '/src/assets/images/receipt_sample_scan_1794041823242.jpg'}
+                src={config?.documentUrl || receiptSampleScan}
                 alt="Scanned Receipt Document"
                 className="rounded-lg shadow-2xl transition-transform duration-200 origin-center max-w-full"
                 style={{ transform: `scale(${zoomLevel / 100})` }}

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Task, BoundingBox } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
 import { X, Trash2, Crosshair, CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
+import annotationStreetSample from '../assets/images/annotation_sample_street_1794041822257.jpg';
 
 interface Props {
   task: Task;
@@ -249,7 +250,7 @@ export const AnnotationWorkspaceModal: React.FC<Props> = ({ task, onClose }) => 
                   className="relative rounded-lg overflow-hidden border border-slate-700 cursor-crosshair shadow-2xl max-h-[60vh] w-full flex items-center justify-center bg-black"
                 >
                   <img
-                    src={annoConfig?.imageUrl || '/src/assets/images/annotation_sample_street_1794041822257.jpg'}
+                    src={annoConfig?.imageUrl || annotationStreetSample}
                     alt="Street Camera Capture for AI Annotation"
                     className="w-full h-auto object-contain pointer-events-none select-none max-h-[60vh]"
                     draggable={false}

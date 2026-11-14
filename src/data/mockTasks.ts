@@ -1,4 +1,6 @@
 import { Task, LeaderboardUser, MemeItem } from '../types/tasks';
+import annotationStreetSample from '../assets/images/annotation_sample_street_1794041822257.jpg';
+import receiptSampleScan from '../assets/images/receipt_sample_scan_1794041823242.jpg';
 
 export const INITIAL_TASKS: Task[] = [
   // 1. DATA ANNOTATION
@@ -26,7 +28,7 @@ export const INITIAL_TASKS: Task[] = [
     annotationConfig: [
       {
         type: 'bounding-box',
-        imageUrl: '/src/assets/images/annotation_sample_street_1794041822257.jpg',
+        imageUrl: annotationStreetSample,
         targetLabels: ['Vehicle', 'Pedestrian', 'Bicycle', 'Traffic Sign'],
         expectedCount: 3,
         instructions: 'Label vehicles and crosswalk pedestrians with tight bounding boundaries.'
@@ -57,7 +59,7 @@ export const INITIAL_TASKS: Task[] = [
       'Double-check the total amount due against the printed subtotal.'
     ],
     dataEntryConfig: {
-      documentUrl: '/src/assets/images/receipt_sample_scan_1794041823242.jpg',
+      documentUrl: receiptSampleScan,
       documentType: 'receipt',
       fields: [
         {
@@ -297,8 +299,8 @@ export const INITIAL_TASKS: Task[] = [
       {
         id: 's2_q1',
         type: 'single-choice',
-        question: 'Which payment rail do you primarily use to receive global freelance earnings?',
-        options: ['PayPal', 'Wise / Direct Local Bank Deposit', 'USDT / Crypto stablecoins', 'Payoneer', 'Bank Wire Transfer'],
+        question: 'Which payment rail do you primarily use across East Africa to receive online task earnings?',
+        options: ['M-PESA (Kenya / Tanzania)', 'Airtel Money / MTN MoMo', 'East Africa Direct Bank Deposit', 'Wise Transfer', 'USDT / Crypto stablecoins'],
         required: true
       },
       {
@@ -411,9 +413,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 2,
-    name: 'Elena Rostova',
-    country: 'Germany',
-    countryCode: 'DE',
+    name: 'Grace Namukasa',
+    country: 'Uganda',
+    countryCode: 'UG',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 412,
     earnings: 1094.20,
@@ -422,9 +424,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 3,
-    name: 'Mateo Silva',
-    country: 'Brazil',
-    countryCode: 'BR',
+    name: 'Juma Bakari',
+    country: 'Tanzania',
+    countryCode: 'TZ',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 385,
     earnings: 968.75,
@@ -433,9 +435,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 4,
-    name: 'Amina Bello',
-    country: 'Nigeria',
-    countryCode: 'NG',
+    name: 'Aline Uwase',
+    country: 'Rwanda',
+    countryCode: 'RW',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 341,
     earnings: 892.40,
@@ -444,9 +446,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 5,
-    name: 'Rajesh Sharma',
-    country: 'India',
-    countryCode: 'IN',
+    name: 'Dawit Bekele',
+    country: 'Ethiopia',
+    countryCode: 'ET',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 329,
     earnings: 840.10,
@@ -455,9 +457,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 6,
-    name: 'Chloe Tremblay',
-    country: 'Canada',
-    countryCode: 'CA',
+    name: 'Clarisse Ndayishimiye',
+    country: 'Burundi',
+    countryCode: 'BI',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 298,
     earnings: 785.50,
@@ -466,9 +468,9 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   },
   {
     rank: 7,
-    name: 'Aris Santos',
-    country: 'Philippines',
-    countryCode: 'PH',
+    name: 'Hassan Farah',
+    country: 'Somalia',
+    countryCode: 'SO',
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&auto=format&fit=crop&q=80',
     tasksCompleted: 274,
     earnings: 712.30,
@@ -481,8 +483,8 @@ export const INITIAL_MEMES: MemeItem[] = [
   {
     id: 'meme-1',
     title: 'When the AI training dataset has 10,000 edge cases',
-    author: 'CodeJester',
-    authorCountry: 'Nigeria',
+    author: 'KampalaCoder',
+    authorCountry: 'Uganda',
     imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
     upvotes: 142,
     tipsEarned: 14.20,
@@ -503,8 +505,8 @@ export const INITIAL_MEMES: MemeItem[] = [
   {
     id: 'meme-3',
     title: 'Client: "It should only take 5 minutes" ... 4 hours later in data entry',
-    author: 'SammySpreadsheets',
-    authorCountry: 'USA',
+    author: 'BongoDataPro',
+    authorCountry: 'Tanzania',
     imageUrl: 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=600&auto=format&fit=crop&q=80',
     upvotes: 84,
     tipsEarned: 8.40,

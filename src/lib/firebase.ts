@@ -3,6 +3,9 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import {
   initializeFirestore,
   getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel,
   doc,
   getDocFromServer,
   type Firestore
@@ -12,12 +15,21 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
+// Suppress transient SDK offline/10s WebChannel timeout spam on slow 3G connections;
+// permission and application errors are explicitly surfaced via handleFirestoreError.
+setLogLevel('silent');
+
 let dbInstance: Firestore;
 try {
   dbInstance = initializeFirestore(
     app,
     {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
+      experimentalLongPollingOptions: { timeoutSeconds: 8 },
+      ignoreUndefinedProperties: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
     },
     firebaseConfig.firestoreDatabaseId
   );
@@ -91,6 +103,9 @@ export function handleFirestoreError(
 }
 
 async function testConnection() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -101,5 +116,10 @@ async function testConnection() {
 }
 
 if (typeof window !== 'undefined') {
-  testConnection();
+  const scheduleCheck = () => window.setTimeout(() => { void testConnection(); }, 800);
+  if (document.readyState === 'complete') {
+    scheduleCheck();
+  } else {
+    window.addEventListener('load', scheduleCheck, { once: true });
+  }
 }

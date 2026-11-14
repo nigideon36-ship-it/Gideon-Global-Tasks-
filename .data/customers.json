@@ -1,0 +1,16 @@
+[
+  {
+    "uid": "cust_e82db32b2bb6c9042dc7",
+    "phone": "+254712345678",
+    "countryCode": "KE",
+    "email": "testworker@example.com",
+    "displayName": "Test Worker",
+    "passwordHash": "1976821ae5e579c40792d9e22b49c928:e48d9b03c8e9f95bbca0e9a77e7af4a6416fb178539242462a8e9547cb9a8fbca42f4df36316b9a8f562ede3b6921bf99098653aaa01248792bdb02dc1d92f04",
+    "twoFactorEnabled": true,
+    "twoFactorMethod": "sms",
+    "phoneVerified": true,
+    "createdAt": "2026-11-14T06:01:12.494Z",
+    "updatedAt": "2026-11-14T06:01:13.168Z",
+    "pendingTotpSecret": "CM7SNPUGVZ6BRUDX2QHRINXQFQEMXRS2"
+  }
+]

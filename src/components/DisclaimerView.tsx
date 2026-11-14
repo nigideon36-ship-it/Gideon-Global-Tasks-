@@ -52,7 +52,7 @@ export const DisclaimerView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">2. Withdrawal Milestones & Currency Processing</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Withdrawals are unlocked once a contributor reaches the approved balance threshold of <strong>$100.00 USD</strong>. While Gideon Global Tasks does not charge platform cash-out fees on approved $100+ withdrawals, foreign exchange conversion rates applied by intermediary telecommunications operators (e.g., Safaricom M-PESA) or international banking partners (e.g., Wise) are determined by market rates at the time of transfer.
+          Withdrawals are unlocked once a contributor reaches the approved balance threshold of <strong>$20.00 USD</strong>. While Gideon Global Tasks does not charge platform cash-out fees on approved $20+ withdrawals, foreign exchange conversion rates applied by intermediary telecommunications operators (e.g., Safaricom M-PESA) or international banking partners (e.g., Wise) are determined by market rates at the time of transfer.
         </p>
       </section>
 

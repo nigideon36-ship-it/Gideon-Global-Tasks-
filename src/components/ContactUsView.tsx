@@ -117,7 +117,7 @@ export const ContactUsView: React.FC = () => {
               <span>Looking for Quick Answers?</span>
             </h4>
             <p className="text-slate-500 text-[11px] leading-relaxed">
-              Before submitting a ticket, check our detailed FAQ covering minimum withdrawal limits ($100), pass tiers ($2–$10), and daily streak bonuses.
+              Before submitting a ticket, check our detailed FAQ covering minimum withdrawal limits ($20), pass tiers (KES 50–KES 200), and daily streak bonuses.
             </p>
             <button
               onClick={() => setActiveTab('faq')}

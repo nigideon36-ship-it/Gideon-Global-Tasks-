@@ -1,30 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { isEastAfricaPhone } from '../lib/eastAfrica';
 import { PayoutRecord } from '../types/tasks';
-import { X, Wallet, ArrowUpRight, ShieldCheck, CheckCircle2, AlertCircle, Clock, Smartphone, Zap, Check } from 'lucide-react';
+import { X, Wallet, ArrowUpRight, ShieldCheck, CheckCircle2, AlertCircle, Clock, Zap } from 'lucide-react';
 
 export const WalletModal: React.FC = () => {
   const { userStats, walletOpen, setWalletOpen, requestPayout, activePackage, setPackagesModalOpen } = useTasks();
+  const { selectedCountry } = useRegion();
 
   const [payoutMethod, setPayoutMethod] = useState<PayoutRecord['method']>('M-PESA');
-  const [amount, setAmount] = useState<string>('100.00');
-  const [accountDetails, setAccountDetails] = useState<string>('+254 712 345 678');
+  const [amount, setAmount] = useState<string>('20.00');
+  const [accountDetails, setAccountDetails] = useState<string>(selectedCountry.samplePhone);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') {
+      setAccountDetails(selectedCountry.samplePhone);
+    }
+  }, [selectedCountry.code, payoutMethod]);
 
   if (!walletOpen) return null;
 
   const numAmount = parseFloat(amount) || 0;
-  const isEligible = numAmount >= 100 && numAmount <= userStats.balance;
-  const progressTo100 = Math.min(100, Math.round((userStats.balance / 100) * 100));
+  const isEligible = numAmount >= 20 && numAmount <= userStats.balance;
+  const progressTo20 = Math.min(100, Math.round((userStats.balance / 20) * 100));
 
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (numAmount < 100) {
-      setErrorMsg('Withdrawals start from $100.00. Continue completing tasks to reach the $100 cash-out milestone.');
+    if (numAmount < 20) {
+      setErrorMsg('Withdrawals start from $20.00. Continue completing tasks to reach the $20 cash-out milestone.');
       return;
     }
 
@@ -35,9 +44,19 @@ export const WalletModal: React.FC = () => {
 
     if (!accountDetails.trim()) {
       setErrorMsg(
-        payoutMethod === 'M-PESA'
-          ? 'Please enter your Safaricom M-PESA mobile number.'
-          : 'Please enter your recipient account email or wallet address.'
+        payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
+          ? `Please enter your ${selectedCountry.name} mobile money number (${selectedCountry.dialCode}...).`
+          : 'Please enter your recipient bank account or wallet details.'
+      );
+      return;
+    }
+
+    if (
+      (payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') &&
+      !isEastAfricaPhone(accountDetails)
+    ) {
+      setErrorMsg(
+        `East Africa Only: Mobile money withdrawals require a valid East Africa prefix (${selectedCountry.dialCode}...).`
       );
       return;
     }
@@ -47,7 +66,7 @@ export const WalletModal: React.FC = () => {
       setSuccessMsg(
         `$${numAmount.toFixed(2)} payout initiated via ${payoutMethod}! Funds scheduled for instant priority disbursement.`
       );
-      setAmount('100.00');
+      setAmount('20.00');
     }
   };
 
@@ -67,7 +86,7 @@ export const WalletModal: React.FC = () => {
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span>Pass: <strong className="text-brand-600">{activePackage?.name || 'Active Pass'}</strong></span>
                 <span aria-hidden="true">·</span>
-                <span>Minimum Withdrawal: <strong className="text-slate-900 font-mono">$100.00</strong></span>
+                <span>Minimum Withdrawal: <strong className="text-slate-900 font-mono">$20.00</strong></span>
               </div>
             </div>
           </div>
@@ -88,7 +107,7 @@ export const WalletModal: React.FC = () => {
               <div>
                 <span className="font-bold text-brand-950">Active Worker Pass: {activePackage?.name || 'Pro Contributor'} (${activePackage?.price || 5})</span>
                 <p className="text-slate-600 text-[11px]">
-                  {activePackage?.taskAllowance} · 0% fee on withdrawals starting from $100.00.
+                  {activePackage?.taskAllowance} · 0% fee on withdrawals starting from $20.00.
                 </p>
               </div>
             </div>
@@ -100,7 +119,7 @@ export const WalletModal: React.FC = () => {
               }}
               className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold whitespace-nowrap shadow-xs"
             >
-              Change Pass ($2, $5, $10)
+              Change Pass (KES 50, 100, 200)
             </button>
           </div>
 
@@ -114,9 +133,9 @@ export const WalletModal: React.FC = () => {
                 ${userStats.balance.toFixed(2)}
               </div>
               <div className="text-[11px] text-slate-400 mt-1">
-                {userStats.balance >= 100
-                  ? 'Eligible for $100+ withdrawal'
-                  : `$${(100 - userStats.balance).toFixed(2)} needed for $100 goal`}
+                {userStats.balance >= 20
+                  ? 'Eligible for $20+ withdrawal'
+                  : `$${(20 - userStats.balance).toFixed(2)} needed for $20 goal`}
               </div>
             </div>
 
@@ -145,20 +164,20 @@ export const WalletModal: React.FC = () => {
             </div>
           </div>
 
-          {/* $100 Withdrawal Milestone Progress Meter */}
+          {/* $20 Withdrawal Milestone Progress Meter */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="flex items-center justify-between text-xs font-medium text-slate-700 mb-1.5">
-              <span>$100.00 Minimum Withdrawal Milestone</span>
+              <span>$20.00 Minimum Withdrawal Milestone</span>
               <span className="font-mono font-bold text-slate-900 tabular-nums">
-                ${userStats.balance.toFixed(2)} / $100.00 ({progressTo100}%)
+                ${userStats.balance.toFixed(2)} / $20.00 ({progressTo20}%)
               </span>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all duration-300 ${
-                  userStats.balance >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'
+                  userStats.balance >= 20 ? 'bg-emerald-500' : 'bg-indigo-600'
                 }`}
-                style={{ width: `${progressTo100}%` }}
+                style={{ width: `${progressTo20}%` }}
               />
             </div>
           </div>
@@ -167,7 +186,7 @@ export const WalletModal: React.FC = () => {
           <form onSubmit={handleWithdraw} className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Request Payout (Minimum $100.00)
+                Request Payout (Minimum $20.00)
               </h3>
               <span className="text-xs font-mono font-semibold text-emerald-600">
                 0% Fee Applied
@@ -179,8 +198,8 @@ export const WalletModal: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 mb-2">
                 Select Destination Rail:
               </label>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {(['M-PESA', 'Wise', 'PayPal', 'Crypto USDT', 'Bank Wire', 'Amazon Gift Card'] as const).map((method) => {
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {(['M-PESA', 'Airtel / MTN MoMo', 'East Africa Bank', 'Wise', 'Crypto USDT'] as const).map((method) => {
                   const isSelected = payoutMethod === method;
                   return (
                     <button
@@ -205,14 +224,14 @@ export const WalletModal: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Amount in USD ($) — Minimum $100.00
+                  Amount in USD ($) — Minimum $20.00
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-mono">$</span>
                   <input
                     type="number"
                     step="5"
-                    min="100"
+                    min="20"
                     max={userStats.balance}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -220,8 +239,8 @@ export const WalletModal: React.FC = () => {
                   />
                 </div>
                 <div className="flex justify-between items-center mt-1 text-[11px] text-slate-500">
-                  <span>Threshold: $100.00</span>
-                  {userStats.balance >= 100 && (
+                  <span>Threshold: $20.00</span>
+                  {userStats.balance >= 20 && (
                     <button
                       type="button"
                       onClick={() => setAmount(userStats.balance.toFixed(2))}
@@ -235,30 +254,32 @@ export const WalletModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {payoutMethod === 'M-PESA'
-                    ? 'Safaricom M-PESA Number'
+                  {payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
+                    ? `${selectedCountry.name} Mobile Money Number (${selectedCountry.dialCode})`
                     : payoutMethod === 'Crypto USDT'
                     ? 'USDT Address (TRC-20)'
-                    : payoutMethod === 'Bank Wire'
-                    ? 'IBAN / Routing & Account #'
-                    : 'Recipient Email Address'}
+                    : payoutMethod === 'East Africa Bank'
+                    ? 'Bank Name & Account / SWIFT'
+                    : 'Wise Recipient Email'}
                 </label>
                 <input
                   type="text"
                   value={accountDetails}
                   onChange={(e) => setAccountDetails(e.target.value)}
                   placeholder={
-                    payoutMethod === 'M-PESA'
-                      ? '+254 7XX XXX XXX'
+                    payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
+                      ? selectedCountry.samplePhone
                       : payoutMethod === 'Crypto USDT'
                       ? 'e.g. TLq8x...39Fk'
+                      : payoutMethod === 'East Africa Bank'
+                      ? 'e.g. Equity / KCB / Stanbic Account #'
                       : 'e.g. name@domain.com'
                   }
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-mono focus:border-indigo-500 outline-hidden"
                 />
-                {payoutMethod === 'M-PESA' && (
+                {(payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') && (
                   <div className="text-[11px] text-emerald-700 font-mono mt-1">
-                    Estimated M-PESA Payout: KES {(numAmount * 130).toLocaleString()} (Instant B2C transfer)
+                    Estimated Payout: ~{Math.round(numAmount * selectedCountry.approxRatePerUsd).toLocaleString()} {selectedCountry.currency} (East Africa Instant B2C)
                   </div>
                 )}
               </div>
@@ -293,7 +314,7 @@ export const WalletModal: React.FC = () => {
                     : 'bg-slate-300 cursor-not-allowed'
                 }`}
               >
-                <span>Confirm $100+ Withdrawal</span>
+                <span>Confirm $20+ Withdrawal</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -301,9 +322,14 @@ export const WalletModal: React.FC = () => {
 
           {/* Payout History Ledger */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Recent Payout History
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Recent Payout History
+              </h3>
+              <span className="text-[11px] text-slate-500">
+                Owner approval (<strong className="font-mono text-slate-700">nigideon36@gmail.com</strong>) required to disburse Processing payouts
+              </span>
+            </div>
             <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
@@ -336,11 +362,15 @@ export const WalletModal: React.FC = () => {
                           className={`font-semibold inline-flex items-center gap-1 ${
                             rec.status === 'Completed'
                               ? 'text-emerald-600'
+                              : rec.status === 'Rejected'
+                              ? 'text-rose-600'
                               : 'text-amber-600'
                           }`}
                         >
                           {rec.status === 'Completed' ? (
                             <CheckCircle2 className="w-3 h-3" />
+                          ) : rec.status === 'Rejected' ? (
+                            <AlertCircle className="w-3 h-3" />
                           ) : (
                             <Clock className="w-3 h-3" />
                           )}

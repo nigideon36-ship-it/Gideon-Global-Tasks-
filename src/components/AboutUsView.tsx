@@ -15,10 +15,10 @@ export const AboutUsView: React.FC = () => {
             <span>About Gideon Global Tasks</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight">
-            Pioneering Fair, Borderless Crowdsourcing & AI Ground Truth.
+            Pioneering Fair East African Crowdsourcing &amp; AI Ground Truth.
           </h1>
           <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-            Founded to bridge the digital divide, Gideon Global Tasks connects frontier artificial intelligence labs, market researchers, and tech enterprises with verified, skilled human contributors across 45+ countries for high-precision data annotation, consumer surveys, content creation, and micro tasks.
+            Built to accelerate the digital economy across East Africa, Gideon Global Tasks connects frontier artificial intelligence labs and market researchers with verified contributors across Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia.
           </p>
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
@@ -49,13 +49,13 @@ export const AboutUsView: React.FC = () => {
             Every day, enterprise artificial intelligence models require millions of human-verified data points—ranging from 2D bounding boxes on urban crosswalks to receipt digitizations and subjective sentiment ratings. Traditional platforms lock out international workers with exorbitant transaction fees, arbitrary account bans, and payment delays.
           </p>
           <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-            Gideon Global Tasks was architected from the ground up to solve this imbalance. By integrating native mobile micropayments through <strong>M-PESA</strong> and international bank disbursements via <strong>Wise</strong>, we ensure contributors from Nairobi to Manila and São Paulo receive reliable, instant compensation with a guaranteed 0% fee escrow starting from $100.
+            Gideon Global Tasks was architected from the ground up to serve East Africa cleanly without unreliable international PayPal hurdles. By integrating native mobile micropayments through <strong>M-PESA</strong>, <strong>Airtel / MTN MoMo</strong>, and <strong>Paystack East Africa Cards</strong>, contributors across Nairobi, Kampala, Dar es Salaam, Kigali, and Addis Ababa receive dependable payouts starting from $20.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-              <span className="text-2xl font-bold text-brand-600 font-mono">45+</span>
-              <p className="text-xs font-semibold text-slate-900 mt-1">Countries Represented</p>
-              <p className="text-[11px] text-slate-500">Diverse linguistic and geographical workforce.</p>
+              <span className="text-2xl font-bold text-brand-600 font-mono">8 Nations</span>
+              <p className="text-xs font-semibold text-slate-900 mt-1">East Africa Exclusive</p>
+              <p className="text-[11px] text-slate-500">KE, UG, TZ, RW, BI, SS, ET &amp; SO.</p>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
               <span className="text-2xl font-bold text-emerald-600 font-mono">99.4%</span>

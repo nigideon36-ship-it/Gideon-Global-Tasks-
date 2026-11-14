@@ -11,23 +11,23 @@ interface FAQItem {
 const FAQS: FAQItem[] = [
   {
     category: 'general',
-    question: 'What is Gideon Global Tasks and how does the platform operate?',
-    answer: 'Gideon Global Tasks is a borderless crowdsourcing network that connects global contributors with verified micro tasks, consumer market research surveys, artificial intelligence computer vision annotation, receipt and invoice OCR digitization, and creative copywriting. Contributors complete tasks from anywhere in the world and earn direct cash micropayments that disburse once they reach the $100.00 milestone.'
+    question: 'What is Gideon Global Tasks and who can access the platform?',
+    answer: 'Gideon Global Tasks is an East Africa-exclusive crowdsourcing network connecting verified contributors in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia with paid surveys, AI computer vision annotation, receipt OCR digitization, and micro tasks. Access outside East Africa is restricted to protect local mobile money quality and payout reliability.'
   },
   {
     category: 'passes',
-    question: 'Why are worker passes ($2, $5, $10) required to complete tasks?',
-    answer: 'Worker passes fund platform compute, anti-bot biometric verification, and dedicated cloud annotation workspaces. By requiring a nominal pass—Starter ($2 for 25 tasks/day), Pro ($5 for 75 tasks/day), or VIP ($10 for unlimited tasks)—we filter out automated spam scripts and fraudulent submissions. This ensures that 100% of the bounty funds deposited by enterprise requesters go directly into contributor balances with 0% platform take-rates.'
+    question: 'Why are worker passes (KES 50, KES 100, KES 200) required to complete tasks?',
+    answer: 'Worker passes fund platform compute, anti-bot biometric verification, and dedicated cloud annotation workspaces. By requiring a nominal pass—Starter (KES 50 for 25 tasks/day), Pro (KES 100 for 75 tasks/day), or VIP (KES 200 for unlimited tasks), automatically converted into your local East African currency—we filter out automated spam scripts and fraudulent submissions while 100% of task bounties go directly to contributors.'
   },
   {
     category: 'payouts',
-    question: 'Why is the minimum withdrawal threshold set at $100.00?',
-    answer: 'International payment gateways and mobile money networks charge substantial fixed transaction fees on small transfers. By aggregating payouts starting at $100.00, Gideon Global Tasks guarantees a 0% fee policy for workers on M-PESA and Wise disbursements. Users can easily track their balance and completed tasks in the Task History Ledger as they work toward the milestone.'
+    question: 'Why is the minimum withdrawal threshold set at $20.00?',
+    answer: 'Payment gateways and mobile money networks charge fixed transaction fees on small transfers. By aggregating payouts starting at $20.00, Gideon Global Tasks guarantees a 0% fee policy for East African workers on M-PESA, Airtel / MTN MoMo, and East Africa Bank disbursements.'
   },
   {
     category: 'payouts',
-    question: 'Which withdrawal and payment methods are supported?',
-    answer: 'We natively support M-PESA mobile money (with instant STK verification codes across Kenya and East Africa), Wise multi-currency international bank transfers (available in 80+ countries), standard debit/credit cards, and internal wallet re-investments.'
+    question: 'Which withdrawal and payment methods are supported in East Africa?',
+    answer: 'We natively support Safaricom M-PESA STK Push (via IntaSend & Daraja), Airtel Money / MTN MoMo, East Africa Visa & Mastercard local billing, East Africa Direct Bank transfers, Wise, Crypto USDT, and internal wallet re-investments. International PayPal checkout has been retired in favor of fast East African mobile money.'
   },
   {
     category: 'passes',
@@ -37,7 +37,7 @@ const FAQS: FAQItem[] = [
   {
     category: 'general',
     question: 'How does the 20% Referral Commission program work?',
-    answer: 'Every contributor receives a unique referral code and tracking link. When new users join via your link and activate any worker pass ($2 Starter, $5 Pro, or $10 VIP), you automatically receive an instant 20% cash commission credited directly to your withdrawable wallet balance (e.g., $1.00 on a $5 pass, $2.00 on a $10 pass).'
+    answer: 'Every contributor receives a unique referral code and tracking link. When new users join via your link and activate any worker pass (KES 50 Starter, KES 100 Pro, or KES 200 VIP), you automatically receive an instant 20% cash commission credited directly to your withdrawable wallet balance (e.g., KES 20 / ~$0.15 on a KES 100 pass, KES 40 / ~$0.31 on a KES 200 pass).'
   },
   {
     category: 'quality',
@@ -102,7 +102,7 @@ export const FAQView: React.FC = () => {
             filter === 'passes' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Worker Passes ($2–$10)
+          Worker Passes (KES 50–200)
         </button>
         <button
           onClick={() => setFilter('payouts')}
@@ -110,7 +110,7 @@ export const FAQView: React.FC = () => {
             filter === 'payouts' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Payouts & M-PESA ($100+)
+          Payouts & M-PESA ($20+)
         </button>
         <button
           onClick={() => setFilter('quality')}

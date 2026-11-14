@@ -8,13 +8,13 @@ export const Footer: React.FC = () => {
   const { isOwner } = useAuth();
 
   return (
-    <footer className="mt-20 border-t border-slate-200 bg-white text-slate-500 py-12 text-xs">
+    <footer className="mt-20 border-t border-blue-400/40 bg-blue-900 text-blue-100 py-12 text-xs">
       <div className="max-w-7xl mx-auto px-6">
         {/* Main 4-Column Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-10 border-b border-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-10 border-b border-blue-700/70">
           {/* Column 1: Brand & Operational Mission */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+            <div className="flex items-center gap-2 font-bold text-white text-sm">
               <img
                 src="/images/gideon-logo.svg"
                 alt="Gideon Global Tasks official verified emblem and platform logo"
@@ -24,30 +24,30 @@ export const Footer: React.FC = () => {
               />
               <span>Gideon Global Tasks</span>
             </div>
-            <p className="text-slate-500 text-xs leading-relaxed">
-              Global crowdsourcing and artificial intelligence data annotation platform. Providing ethical micropayments for consumer surveys, CV bounding boxes, receipt extraction, and micro tasks.
+            <p className="text-blue-100/90 text-xs leading-relaxed">
+              East Africa exclusive crowdsourcing and artificial intelligence data annotation platform across Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia.
             </p>
-            <div className="space-y-1.5 pt-1 text-[11px] text-slate-600">
+            <div className="space-y-1.5 pt-1 text-[11px] text-blue-100">
               <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                <a href="mailto:nigideon36@gmail.com" className="hover:text-slate-900 font-mono">
+                <Mail className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+                <a href="mailto:nigideon36@gmail.com" className="hover:text-white font-mono">
                   nigideon36@gmail.com
                 </a>
               </div>
-              <div className="flex items-center gap-2 text-emerald-700">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>M-PESA &amp; Wise Disbursal Rails Active</span>
+              <div className="flex items-center gap-2 text-emerald-300">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                <span>East Africa Exclusive · M-PESA &amp; Mobile Money Active</span>
               </div>
             </div>
 
             {/* Social Trust Links */}
-            <div className="pt-2 flex items-center gap-3 text-slate-400">
+            <div className="pt-2 flex items-center gap-3 text-blue-200">
               <a
                 href="https://twitter.com/gideonglobal"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="X / Twitter"
-                className="hover:text-slate-700 transition-colors"
+                className="hover:text-white transition-colors"
                 title="Follow Gideon Global on X"
               >
                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@ export const Footer: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="GitHub"
-                className="hover:text-slate-700 transition-colors"
+                className="hover:text-white transition-colors"
                 title="GitHub Open Source Tools"
               >
                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -71,7 +71,7 @@ export const Footer: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="LinkedIn"
-                className="hover:text-slate-700 transition-colors"
+                className="hover:text-white transition-colors"
                 title="LinkedIn Enterprise Profile"
               >
                 <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -83,10 +83,10 @@ export const Footer: React.FC = () => {
 
           {/* Column 2: Platform Workspaces & Passes */}
           <div className="space-y-3">
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+            <h4 className="font-bold text-white text-xs uppercase tracking-wider">
               Platform & Workspaces
             </h4>
-            <ul className="space-y-2 text-slate-600">
+            <ul className="space-y-2 text-blue-100">
               <li>
                 <a
                   href="/"
@@ -94,7 +94,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('tasks');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Tasks Marketplace
                 </a>
@@ -106,9 +106,9 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('packages');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
-                  Worker Passes ($2, $5, $10)
+                  Worker Passes (KES 50, 100, 200)
                 </a>
               </li>
               <li>
@@ -118,7 +118,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('referrals');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Referral Partner Program (Earn 20%)
                 </a>
@@ -130,7 +130,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('task-history');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Task History Ledger
                 </a>
@@ -139,9 +139,9 @@ export const Footer: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setWalletOpen(true)}
-                  className="hover:text-brand-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Wallet & Cash Out ($100 Min)
+                  Wallet & Cash Out ($20 Min)
                 </button>
               </li>
               {isOwner && (
@@ -152,7 +152,7 @@ export const Footer: React.FC = () => {
                       e.preventDefault();
                       setActiveTab('employer');
                     }}
-                    className="hover:text-brand-600 transition-colors"
+                    className="hover:text-white transition-colors"
                   >
                     Owner &amp; Requester Portal
                   </a>
@@ -163,10 +163,10 @@ export const Footer: React.FC = () => {
 
           {/* Column 3: Knowledge Base & Editorial Guides */}
           <div className="space-y-3">
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+            <h4 className="font-bold text-white text-xs uppercase tracking-wider">
               Guides & Education
             </h4>
-            <ul className="space-y-2 text-slate-600">
+            <ul className="space-y-2 text-blue-100">
               <li>
                 <a
                   href="/guides"
@@ -174,9 +174,9 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('guides');
                   }}
-                  className="hover:text-brand-600 transition-colors flex items-center gap-1.5"
+                  className="hover:text-white transition-colors flex items-center gap-1.5"
                 >
-                  <BookOpen className="w-3 h-3 text-slate-400" />
+                  <BookOpen className="w-3 h-3 text-sky-300" />
                   <span>Contributor Training Guides</span>
                 </a>
               </li>
@@ -187,7 +187,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('guides');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   AI Computer Vision Manual (2026)
                 </a>
@@ -199,7 +199,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('guides');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Market Research & Surveys
                 </a>
@@ -211,7 +211,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('guides');
                   }}
-                  className="hover:text-brand-600 transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Receipt & Invoice OCR Guide
                 </a>
@@ -223,9 +223,9 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('faq');
                   }}
-                  className="hover:text-brand-600 transition-colors flex items-center gap-1.5"
+                  className="hover:text-white transition-colors flex items-center gap-1.5"
                 >
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
+                  <HelpCircle className="w-3 h-3 text-sky-300" />
                   <span>Platform FAQ & Answers</span>
                 </a>
               </li>
@@ -234,10 +234,10 @@ export const Footer: React.FC = () => {
 
           {/* Column 4: Mandatory Compliance & Corporate Governance */}
           <div className="space-y-3">
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+            <h4 className="font-bold text-white text-xs uppercase tracking-wider">
               Company & Compliance
             </h4>
-            <ul className="space-y-2 text-slate-600">
+            <ul className="space-y-2 text-blue-100">
               <li>
                 <a
                   href="/about"
@@ -245,7 +245,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('about');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors"
+                  className="hover:text-white font-medium transition-colors"
                 >
                   About Us & Governance
                 </a>
@@ -257,7 +257,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('contact');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors"
+                  className="hover:text-white font-medium transition-colors"
                 >
                   Contact Support Desk
                 </a>
@@ -269,7 +269,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('privacy');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors"
+                  className="hover:text-white font-medium transition-colors"
                 >
                   Privacy Policy (AdSense & GDPR)
                 </a>
@@ -281,7 +281,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('terms');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors"
+                  className="hover:text-white font-medium transition-colors"
                 >
                   Terms of Service & Rules
                 </a>
@@ -293,7 +293,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('disclaimer');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors"
+                  className="hover:text-white font-medium transition-colors"
                 >
                   Earnings & Legal Disclaimer
                 </a>
@@ -305,7 +305,7 @@ export const Footer: React.FC = () => {
                     e.preventDefault();
                     setActiveTab('sitemap');
                   }}
-                  className="hover:text-brand-600 font-medium transition-colors flex items-center gap-1"
+                  className="hover:text-white font-medium transition-colors flex items-center gap-1"
                 >
                   <FileText className="w-3 h-3" />
                   <span>HTML Sitemap Directory</span>
@@ -320,7 +320,7 @@ export const Footer: React.FC = () => {
                       window.location.reload();
                     } catch {}
                   }}
-                  className="text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1 text-[11px] cursor-pointer"
+                  className="text-blue-200 hover:text-white transition-colors flex items-center gap-1 text-[11px] cursor-pointer"
                 >
                   <Cookie className="w-3 h-3" />
                   <span>Reset Cookie Preferences</span>
@@ -331,26 +331,26 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Bar: Copyright & Verified Files */}
-        <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
+        <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-blue-200">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
             <span>© {new Date().getFullYear()} Gideon Global Tasks Inc. All rights reserved.</span>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <a href="/google2d71976008fafb8e.html" target="_blank" className="hover:text-slate-600 underline">Search Console Verification</a>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <a href="/ads.txt" target="_blank" className="hover:text-slate-600 underline">ads.txt</a>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <a href="/sitemap.xml" target="_blank" className="hover:text-slate-600 underline">sitemap.xml</a>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <a href="/robots.txt" target="_blank" className="hover:text-slate-600 underline">robots.txt</a>
+            <span aria-hidden="true" className="text-blue-400">·</span>
+            <a href="/google2d71976008fafb8e.html" target="_blank" className="hover:text-white underline">Search Console Verification</a>
+            <span aria-hidden="true" className="text-blue-400">·</span>
+            <a href="/ads.txt" target="_blank" className="hover:text-white underline">ads.txt</a>
+            <span aria-hidden="true" className="text-blue-400">·</span>
+            <a href="/sitemap.xml" target="_blank" className="hover:text-white underline">sitemap.xml</a>
+            <span aria-hidden="true" className="text-blue-400">·</span>
+            <a href="/robots.txt" target="_blank" className="hover:text-white underline">robots.txt</a>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 text-slate-500 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="flex items-center gap-1.5 text-white font-medium">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
               <span>256-Bit Escrow Security</span>
             </span>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <span className="text-slate-400 font-mono">Domain: gideon-global-tasks.ai.studio</span>
+            <span aria-hidden="true" className="text-blue-400">·</span>
+            <span className="text-blue-200 font-mono">Domain: gideon-global-tasks.ai.studio</span>
           </div>
         </div>
       </div>

@@ -117,7 +117,7 @@ export const PrivacyPolicyView: React.FC = () => {
           We process personal data under the General Data Protection Regulation (GDPR) and international privacy laws based on the following grounds:
         </p>
         <ul className="list-disc pl-5 text-xs md:text-sm text-slate-600 space-y-1.5">
-          <li><strong>Performance of Contract:</strong> To administer your contributor account, track task history, enforce quality scores, and disburse earned micropayments starting from the $100.00 milestone.</li>
+          <li><strong>Performance of Contract:</strong> To administer your contributor account, track task history, enforce quality scores, and disburse earned micropayments starting from the $20.00 milestone.</li>
           <li><strong>Legitimate Interests:</strong> To prevent bot spam, secure platform APIs, improve machine learning dataset quality, and analyze platform telemetry.</li>
           <li><strong>Consent:</strong> For non-essential analytics and targeted Google AdSense advertising. You may withdraw cookie consent at any time via our Cookie Consent interface.</li>
           <li><strong>Compliance with Legal Obligations:</strong> To maintain verifiable transaction ledgers for anti-money laundering (AML) and financial accounting.</li>

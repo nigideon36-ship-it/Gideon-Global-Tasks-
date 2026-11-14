@@ -249,7 +249,7 @@ export const HTMLSitemapView: React.FC = () => {
               >
                 Terms of Service & Rules
               </a>
-              <span className="text-slate-400 block text-[11px]">Contributor agreements, quality rules, and $100 payout milestones.</span>
+              <span className="text-slate-400 block text-[11px]">Contributor agreements, quality rules, and $20 payout milestones.</span>
             </li>
             <li>
               <a

@@ -1,16 +1,35 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
-import { Wallet, Globe, Sparkles, Flame, LogIn, LogOut, User as UserIcon, ShieldCheck, Smartphone, Zap, DollarSign } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
+import { Wallet, Globe, Flame, LogIn, LogOut, ShieldCheck, Smartphone, Zap, MapPin, Lock } from 'lucide-react';
 import { ThemeColorPicker } from './ThemeColorPicker';
 
 export const Navbar: React.FC = () => {
-  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen, setDarajaModalOpen, setIntasendModalOpen, setPaypalModalOpen } = useTasks();
-  const { user, isOwner, signInWithGoogle, signOutUser } = useAuth();
+  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen, setDarajaModalOpen, setIntasendModalOpen, setPaystackModalOpen } = useTasks();
+  const {
+    user,
+    customerProfile,
+    isOwner,
+    isAuthenticated,
+    setAuthModalOpen,
+    setSecurityModalOpen,
+    signOutUser
+  } = useAuth();
+  const { selectedCountry, setSelectorOpen } = useRegion();
+
+  const displayIdentity =
+    user?.displayName ||
+    customerProfile?.displayName ||
+    customerProfile?.phone ||
+    user?.email?.split('@')[0] ||
+    'Member';
+
+  const twoFactorActive = Boolean(customerProfile?.twoFactorEnabled);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-6 py-3.5">
+    <header className="sticky top-0 z-40 bg-blue-900/95 backdrop-blur-md border-b border-blue-500/40 text-white shadow-sm">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 md:px-6 py-3">
         {/* Zone 1: Single text element wordmark */}
         <a
           href="/"
@@ -18,20 +37,20 @@ export const Navbar: React.FC = () => {
             e.preventDefault();
             setActiveTab('tasks');
           }}
-          className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 text-sm sm:text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
         >
           <img
             src="/images/gideon-logo.svg"
             alt="Gideon Global Tasks official verified emblem and platform logo"
-            className="w-8 h-8 rounded-lg shadow-2xs"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shadow-2xs shrink-0"
             width="32"
             height="32"
           />
-          <span>Gideon Global Tasks</span>
+          <span className="truncate max-w-[125px] sm:max-w-none">Gideon Global Tasks</span>
         </a>
 
         {/* Zone 2: Semantic anchor navigation links */}
-        <nav className="hidden lg:flex items-center gap-5 text-xs xl:text-sm font-medium text-slate-600">
+        <nav className="hidden lg:flex items-center gap-5 text-xs xl:text-sm font-medium text-blue-100">
           <a
             href="/"
             onClick={(e) => {
@@ -39,7 +58,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('tasks');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'tasks' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'tasks' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Tasks
@@ -51,7 +70,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('guides');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'guides' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'guides' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Guides
@@ -63,7 +82,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('faq');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'faq' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'faq' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             FAQ
@@ -75,7 +94,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('task-history');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'task-history' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'task-history' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Ledger
@@ -87,7 +106,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('referrals');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'referrals' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'referrals' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Referrals (20%)
@@ -99,7 +118,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('packages');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'packages' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'packages' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Worker Passes
@@ -111,7 +130,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('about');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'about' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'about' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             About
@@ -123,7 +142,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('contact');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'contact' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'contact' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Contact
@@ -135,7 +154,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('privacy');
             }}
             className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'privacy' ? 'text-brand-600 font-semibold' : 'hover:text-slate-900'
+              activeTab === 'privacy' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
             Privacy
@@ -143,15 +162,15 @@ export const Navbar: React.FC = () => {
         </nav>
 
         {/* Zone 3: Actions & Social Signals */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Social Trust Links */}
-          <div className="hidden xl:flex items-center gap-2 text-slate-400 border-r border-slate-200 pr-2">
+          <div className="hidden xl:flex items-center gap-2 text-blue-200 border-r border-blue-700 pr-2">
             <a
               href="https://x.com"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Follow Gideon Global on X / Twitter"
-              className="p-1 hover:text-slate-700 transition-colors"
+              className="p-1 hover:text-white transition-colors"
               title="X / Twitter"
             >
               <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -163,7 +182,7 @@ export const Navbar: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="View Open Source Tools on GitHub"
-              className="p-1 hover:text-slate-700 transition-colors"
+              className="p-1 hover:text-white transition-colors"
               title="GitHub"
             >
               <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -177,10 +196,10 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPublisherModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-white/95 hover:bg-white border border-blue-200 rounded-lg transition-colors cursor-pointer"
                 title="Owner Only: Manage Google AdSense & Search Console"
               >
-                <Globe className="w-3.5 h-3.5 text-brand-600" />
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
                 <span className="hidden xl:inline">AdSense & SEO</span>
               </button>
 
@@ -196,6 +215,16 @@ export const Navbar: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => setPaystackModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-[#0576A0] bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                title="Owner Only: Paystack M-PESA STK Push & Card Gateway (No Paybill/Till)"
+              >
+                <Zap className="w-3.5 h-3.5 text-[#09A5DB]" />
+                <span className="hidden md:inline">Paystack</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIntasendModalOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
                 title="Owner Only: IntaSend Payment Gateway"
@@ -204,39 +233,40 @@ export const Navbar: React.FC = () => {
                 <span className="hidden md:inline">IntaSend</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPaypalModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-[#003087] bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                title="Owner Only: PayPal International Gateway (nigideon36@gmail.com)"
-              >
-                <DollarSign className="w-3.5 h-3.5 text-[#003087]" />
-                <span className="hidden md:inline">PayPal</span>
-              </button>
-
               <ThemeColorPicker />
             </>
           )}
 
           <button
             type="button"
+            onClick={() => setSelectorOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 border border-blue-400/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            title="East Africa Access Region (KE, UG, TZ, RW, BI, SS, ET, SO)"
+          >
+            <MapPin className="w-3.5 h-3.5 text-sky-300" />
+            <span className="font-mono">{selectedCountry.code}</span>
+            <span className="hidden xl:inline text-[11px] text-blue-100">· East Africa</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setStreakModalOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-amber-200 bg-blue-800 hover:bg-blue-700 border border-amber-400/40 rounded-lg transition-colors cursor-pointer"
             title="Daily Contributor Streak"
           >
-            <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+            <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
             <span className="font-mono">{userStats.streakDays}d</span>
-            <span className="text-[10px] text-amber-600 font-semibold">{userStats.streakDays >= 7 ? '+20%' : '+10%'}</span>
+            <span className="text-[10px] text-amber-300 font-semibold">{userStats.streakDays >= 7 ? '+20%' : '+10%'}</span>
           </button>
 
           <button
             onClick={() => setWalletOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors whitespace-nowrap shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-blue-950 bg-white hover:bg-blue-50 rounded-lg transition-colors whitespace-nowrap shadow-sm cursor-pointer"
           >
-            <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="tabular-nums font-mono">${userStats.balance.toFixed(2)}</span>
-            <span className="text-slate-400">·</span>
-            <span>Withdraw</span>
+            <Wallet className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="tabular-nums font-mono font-bold">${userStats.balance.toFixed(2)}</span>
+            <span className="hidden sm:inline text-blue-400">·</span>
+            <span className="hidden sm:inline">Withdraw</span>
           </button>
 
           {/* Owner Portal & Admin Controls — Strictly restricted to nigideon36@gmail.com */}
@@ -244,37 +274,53 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('employer')}
-              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
               title="Owner Portal: Full Site & Campaign Authority"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
               <span className="hidden sm:inline">Owner Portal</span>
             </button>
           )}
 
-          {/* User Sign In / Profile */}
-          {user ? (
-            <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
+          {/* User Sign In / Mobile Profile + 2FA Controls */}
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 pl-2 border-l border-blue-700">
+              <button
+                type="button"
+                onClick={() => setSecurityModalOpen(true)}
+                title="Manage Two-Factor Authentication (SMS or Authenticator App)"
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+                  twoFactorActive
+                    ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/50 hover:bg-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-200 border-amber-400/50 hover:bg-amber-500/30'
+                }`}
+              >
+                <Lock className="w-3 h-3" />
+                <span>{twoFactorActive ? '2FA On' : 'Enable 2FA'}</span>
+              </button>
+
               <div className="flex items-center gap-1.5">
-                {user.photoURL ? (
+                {user?.photoURL ? (
                   <img
                     src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    className="w-7 h-7 rounded-full object-cover border border-slate-300"
+                    alt={displayIdentity}
+                    className="w-7 h-7 rounded-full object-cover border border-blue-300"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-300">
-                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                  <div className="w-7 h-7 rounded-full bg-blue-700 text-white font-bold text-xs flex items-center justify-center border border-blue-400">
+                    {displayIdentity.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="hidden xl:flex flex-col">
-                  <span className="text-xs font-medium text-slate-700 max-w-[100px] truncate leading-tight">
-                    {user.displayName || user.email?.split('@')[0]}
+                  <span className="text-xs font-medium text-white max-w-[110px] truncate leading-tight">
+                    {displayIdentity}
                   </span>
                   {isOwner ? (
-                    <span className="text-[10px] font-bold text-emerald-700 font-mono">Owner</span>
+                    <span className="text-[10px] font-bold text-emerald-300 font-mono">Owner</span>
                   ) : (
-                    <span className="text-[10px] font-medium text-slate-500 font-mono">Customer</span>
+                    <span className="text-[10px] font-medium text-blue-200 font-mono">
+                      {customerProfile?.phone || 'Customer'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -282,7 +328,7 @@ export const Navbar: React.FC = () => {
                 type="button"
                 onClick={signOutUser}
                 title="Sign Out"
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-blue-200 hover:text-white hover:bg-blue-800 rounded-lg transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -290,10 +336,10 @@ export const Navbar: React.FC = () => {
           ) : (
             <button
               type="button"
-              onClick={signInWithGoogle}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+              onClick={() => setAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-bold text-blue-950 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer"
             >
-              <LogIn className="w-3.5 h-3.5 text-brand-600" />
+              <LogIn className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>Register / Sign In</span>
             </button>
           )}

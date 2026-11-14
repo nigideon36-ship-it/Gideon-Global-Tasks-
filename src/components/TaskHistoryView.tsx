@@ -152,10 +152,10 @@ export const TaskHistoryView: React.FC = () => {
             Withdrawal Threshold
           </span>
           <div className="text-2xl font-bold font-mono text-slate-800 tabular-nums">
-            $100.00
+            $20.00
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            Starting from $100 via M-PESA & Wise
+            Starting from $20 via M-PESA & Mobile Money
           </div>
         </div>
       </div>

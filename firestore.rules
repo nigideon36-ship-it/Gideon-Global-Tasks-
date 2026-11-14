@@ -65,8 +65,8 @@ service cloud.firestore {
       return data.keys().hasAll(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
         && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
-        && data.amount is number && data.amount >= 100
-        && data.method in ['M-PESA', 'PayPal', 'Wise', 'Crypto USDT', 'Bank Wire', 'Amazon Gift Card']
+        && data.amount is number && data.amount >= 20
+        && data.method in ['M-PESA', 'Airtel / MTN MoMo', 'East Africa Bank', 'Wise', 'Crypto USDT']
         && data.details is string && data.details.size() >= 3 && data.details.size() <= 200
         && data.status in ['Pending', 'Completed', 'Rejected']
         && data.createdAt is timestamp
@@ -144,7 +144,7 @@ service cloud.firestore {
       allow update, delete: if isValidId(taskId) && isPlatformOwner();
     }
 
-    // Withdrawals: Customers can submit Pending withdrawal requests (>= $100) and read their own; only Owner can approve/modify
+    // Withdrawals: Customers can submit Pending withdrawal requests (>= $20) and read their own; only Owner can approve/modify
     match /withdrawals/{withdrawalId} {
       allow get: if isValidId(withdrawalId) && (
         isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)

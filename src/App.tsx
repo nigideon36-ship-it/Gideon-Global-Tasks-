@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { RegionProvider } from './context/RegionContext';
 import { Navbar } from './components/Navbar';
 import { HeroMarketplace } from './components/HeroMarketplace';
 import { TaskCard } from './components/TaskCard';
@@ -16,24 +17,28 @@ import { WritingWorkspaceModal } from './components/WritingWorkspaceModal';
 import { MicroTaskWorkspaceModal } from './components/MicroTaskWorkspaceModal';
 import { MemeStudioView } from './components/MemeStudioView';
 import { LeaderboardView } from './components/LeaderboardView';
-import { EmployerPortal } from './components/EmployerPortal';
 import { WalletModal } from './components/WalletModal';
 import { NotificationToast } from './components/NotificationToast';
 import { Footer } from './components/Footer';
 import { GeminiChatbot } from './components/GeminiChatbot';
-import { AudioTranscriber } from './components/AudioTranscriber';
-import { AIMediaStudio } from './components/AIMediaStudio';
-import { ThreeGlobeHub } from './components/ThreeGlobeHub';
-import { TaskRushGame } from './components/TaskRushGame';
-import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { TaskHistoryView } from './components/TaskHistoryView';
+import { EmployerPortal } from './components/EmployerPortal';
+
+const AudioTranscriber = lazy(() => import('./components/AudioTranscriber').then(m => ({ default: m.AudioTranscriber })));
+const AIMediaStudio = lazy(() => import('./components/AIMediaStudio').then(m => ({ default: m.AIMediaStudio })));
+const ThreeGlobeHub = lazy(() => import('./components/ThreeGlobeHub').then(m => ({ default: m.ThreeGlobeHub })));
+const TaskRushGame = lazy(() => import('./components/TaskRushGame').then(m => ({ default: m.TaskRushGame })));
+const GoogleMapsExplorer = lazy(() => import('./components/GoogleMapsExplorer').then(m => ({ default: m.GoogleMapsExplorer })));
 import { PackagesModal } from './components/PackagesModal';
 import { DailyStreakModal } from './components/DailyStreakModal';
 import { ReferralDashboard } from './components/ReferralDashboard';
 import { PublisherModal } from './components/PublisherModal';
 import { DarajaMpesaModal } from './components/DarajaMpesaModal';
 import { IntasendModal } from './components/IntasendModal';
-import { PayPalModal } from './components/PayPalModal';
+import { PaystackModal } from './components/PaystackModal';
+import { RegionGateModal } from './components/RegionGateModal';
+import { AuthModal } from './components/AuthModal';
+import { TwoFactorModal } from './components/TwoFactorModal';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
 import { AdSenseBanner } from './components/AdSenseBanner';
 import { PlatformOverviewLanding } from './components/PlatformOverviewLanding';
@@ -69,8 +74,8 @@ const MainAppContent: React.FC = () => {
     setDarajaModalOpen,
     intasendModalOpen,
     setIntasendModalOpen,
-    paypalModalOpen,
-    setPaypalModalOpen,
+    paystackModalOpen,
+    setPaystackModalOpen,
     privacyTermsModalOpen,
     setPrivacyTermsModalOpen,
     privacyTermsTab,
@@ -132,24 +137,24 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between selection:bg-brand-600 selection:text-white">
+    <div className="min-h-screen bg-blue-700 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 flex flex-col justify-between selection:bg-blue-300 selection:text-blue-950">
       <div>
         <Navbar />
 
         <main className="max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-8">
           {/* Active Package Banner & Task History Prompt */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-slate-900 to-brand-950 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md transition-colors">
+          <div className="mb-6 p-4 bg-blue-950 bg-gradient-to-r from-blue-950 to-blue-900 border border-blue-400/30 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md transition-colors">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center font-bold shrink-0 transition-colors">
-                <Zap className="w-4 h-4 text-emerald-400" />
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold shrink-0 transition-colors">
+                <Zap className="w-4 h-4 text-sky-200" />
               </div>
               <div>
                 <div className="text-xs font-bold text-white flex items-center gap-2">
-                  <span>Pass Tier: {activePackage?.name || 'Active Contributor'} (${activePackage?.price || 5})</span>
-                  <span className="text-emerald-400 font-mono text-[11px] font-semibold">· M-PESA & Wise Verified</span>
+                  <span>Pass Tier: {activePackage?.name || 'Active Contributor'} (KES {activePackage?.priceKes || 200})</span>
+                  <span className="text-sky-300 font-mono text-[11px] font-semibold">· East Africa Exclusive · M-PESA &amp; Mobile Money</span>
                 </div>
-                <div className="text-[11px] text-slate-300">
-                  {activePackage?.taskAllowance} · Minimum withdrawal: <strong className="text-white font-mono">$100.00</strong>
+                <div className="text-[11px] text-blue-100">
+                  {activePackage?.taskAllowance} · Minimum withdrawal: <strong className="text-white font-mono">$20.00</strong>
                 </div>
               </div>
             </div>
@@ -158,16 +163,16 @@ const MainAppContent: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setStreakModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 rounded-lg text-xs font-bold transition-colors cursor-pointer"
               >
-                <Flame className="w-3.5 h-3.5 fill-current text-amber-400" />
+                <Flame className="w-3.5 h-3.5 fill-current text-amber-300" />
                 <span>{userStats.streakDays}-Day Streak ({userStats.streakDays >= 7 ? '+20%' : '+10%'})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('task-history')}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-800 hover:bg-blue-700 text-blue-100 border border-blue-500/40 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 <History className="w-3.5 h-3.5" />
                 <span>View Task History</span>
@@ -179,10 +184,10 @@ const MainAppContent: React.FC = () => {
                   setRequiredCategoryPrompt(undefined);
                   setPackagesModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-blue-50 text-blue-950 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Worker Passes ($2, $5, $10)</span>
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>Worker Passes (KES 50, 100, 200)</span>
               </button>
             </div>
           </div>
@@ -224,7 +229,7 @@ const MainAppContent: React.FC = () => {
                     onClick={() => setActiveTab('packages')}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors"
                   >
-                    Contributor Passes ($2, $5, $10) →
+                    Contributor Passes (KES 50, 100, 200) →
                   </button>
                   <button
                     onClick={() => setActiveTab('ai-media')}
@@ -261,9 +266,9 @@ const MainAppContent: React.FC = () => {
 
               {/* Task Cards Grid */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                  <span>Showing {filteredTasks.length} Available Global Tasks</span>
-                  <span className="font-mono">Withdrawals start from $100.00</span>
+                <div className="flex items-center justify-between text-xs text-blue-100 font-medium">
+                  <span>Showing {filteredTasks.length} Available East Africa Tasks</span>
+                  <span className="font-mono">Withdrawals start from $20.00</span>
                 </div>
 
                 {filteredTasks.length === 0 ? (
@@ -314,10 +319,18 @@ const MainAppContent: React.FC = () => {
           )}
 
           {/* 2. TASK HISTORY VIEW */}
-          {activeTab === 'task-history' && <TaskHistoryView />}
+          {activeTab === 'task-history' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <TaskHistoryView />
+            </div>
+          )}
 
           {/* 3. REFERRAL PARTNER DASHBOARD */}
-          {activeTab === 'referrals' && <ReferralDashboard />}
+          {activeTab === 'referrals' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <ReferralDashboard />
+            </div>
+          )}
 
           {/* 4. TASK PACKAGES VIEW */}
           {activeTab === 'packages' && (
@@ -331,21 +344,29 @@ const MainAppContent: React.FC = () => {
           )}
 
           {/* 4. MEME STUDIO */}
-          {activeTab === 'meme-studio' && <MemeStudioView />}
+          {activeTab === 'meme-studio' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <MemeStudioView />
+            </div>
+          )}
 
           {/* 5. AI MEDIA & VOICE */}
           {activeTab === 'ai-media' && (
-            <div className="space-y-10">
-              <AIMediaStudio />
-              <div className="max-w-7xl mx-auto px-4 md:px-0">
-                <AudioTranscriber />
-              </div>
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading AI Media Studio...</div>}>
+                <div className="space-y-10">
+                  <AIMediaStudio />
+                  <div className="max-w-7xl mx-auto px-4 md:px-0">
+                    <AudioTranscriber />
+                  </div>
+                </div>
+              </Suspense>
             </div>
           )}
 
           {/* 6. THREE.JS 3D GLOBE & GAME */}
           {(activeTab === 'three-globe' || activeTab === 'game') && (
-            <div className="space-y-6">
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900 space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-slate-200">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">
@@ -383,42 +404,90 @@ const MainAppContent: React.FC = () => {
                 </div>
               </div>
 
-              {interactiveMode === 'globe' ? <ThreeGlobeHub /> : <TaskRushGame />}
+              <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading interactive 3D workspace...</div>}>
+                {interactiveMode === 'globe' ? <ThreeGlobeHub /> : <TaskRushGame />}
+              </Suspense>
             </div>
           )}
 
           {/* 7. GOOGLE MAPS EXPLORER */}
-          {activeTab === 'maps-explorer' && <GoogleMapsExplorer />}
+          {activeTab === 'maps-explorer' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading Maps Explorer...</div>}>
+                <GoogleMapsExplorer />
+              </Suspense>
+            </div>
+          )}
 
           {/* 8. LEADERBOARD */}
-          {activeTab === 'leaderboard' && <LeaderboardView />}
+          {activeTab === 'leaderboard' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <LeaderboardView />
+            </div>
+          )}
 
           {/* 9. EMPLOYER PORTAL */}
-          {activeTab === 'employer' && <EmployerPortal />}
+          {activeTab === 'employer' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <EmployerPortal />
+            </div>
+          )}
 
           {/* 10. ABOUT US & CORPORATE GOVERNANCE */}
-          {activeTab === 'about' && <AboutUsView />}
+          {activeTab === 'about' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <AboutUsView />
+            </div>
+          )}
 
           {/* 11. CONTACT US & DEDICATED SUPPORT */}
-          {activeTab === 'contact' && <ContactUsView />}
+          {activeTab === 'contact' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <ContactUsView />
+            </div>
+          )}
 
           {/* 12. IN-DEPTH CONTRIBUTOR GUIDES & KNOWLEDGE BASE */}
-          {activeTab === 'guides' && <GuidesView />}
+          {activeTab === 'guides' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <GuidesView />
+            </div>
+          )}
 
           {/* 13. FREQUENTLY ASKED QUESTIONS */}
-          {activeTab === 'faq' && <FAQView />}
+          {activeTab === 'faq' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <FAQView />
+            </div>
+          )}
 
           {/* 14. DEDICATED PRIVACY POLICY PAGE (ADSENSE & GDPR) */}
-          {activeTab === 'privacy' && <PrivacyPolicyView />}
+          {activeTab === 'privacy' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <PrivacyPolicyView />
+            </div>
+          )}
 
           {/* 15. DEDICATED TERMS OF SERVICE PAGE */}
-          {activeTab === 'terms' && <TermsOfServiceView />}
+          {activeTab === 'terms' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <TermsOfServiceView />
+            </div>
+          )}
 
           {/* 16. DEDICATED EARNINGS & ADVERTISING DISCLAIMER PAGE */}
-          {activeTab === 'disclaimer' && <DisclaimerView />}
+          {activeTab === 'disclaimer' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <DisclaimerView />
+            </div>
+          )}
 
           {/* 17. DEDICATED HTML SITEMAP & DIRECTORY */}
-          {activeTab === 'sitemap' && <HTMLSitemapView />}
+          {activeTab === 'sitemap' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <HTMLSitemapView />
+            </div>
+          )}
         </main>
       </div>
 
@@ -497,9 +566,9 @@ const MainAppContent: React.FC = () => {
             onClose={() => setIntasendModalOpen(false)}
           />
 
-          <PayPalModal
-            isOpen={paypalModalOpen}
-            onClose={() => setPaypalModalOpen(false)}
+          <PaystackModal
+            isOpen={paystackModalOpen}
+            onClose={() => setPaystackModalOpen(false)}
           />
         </>
       )}
@@ -517,6 +586,15 @@ const MainAppContent: React.FC = () => {
       {/* Floating GDPR & AdSense Cookie Consent Banner */}
       <CookieConsentBanner />
 
+      {/* East Africa Access & Country Gate */}
+      <RegionGateModal />
+
+      {/* Mobile Number + Optional Email Registration / Sign-In Modal */}
+      <AuthModal />
+
+      {/* Two-Factor Authentication (SMS / Authenticator App) Modal */}
+      <TwoFactorModal />
+
       {/* Toast notifications */}
       <NotificationToast />
     </div>
@@ -526,9 +604,11 @@ const MainAppContent: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <TaskProvider>
-        <MainAppContent />
-      </TaskProvider>
+      <RegionProvider>
+        <TaskProvider>
+          <MainAppContent />
+        </TaskProvider>
+      </RegionProvider>
     </AuthProvider>
   );
 }

@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { convertKesToLocal } from '../lib/eastAfrica';
 import {
   Share2,
   Copy,
@@ -31,6 +33,10 @@ export const ReferralDashboard: React.FC = () => {
     setWalletOpen,
     setActiveTab
   } = useTasks();
+  const { selectedCountry } = useRegion();
+  const starterLocal = convertKesToLocal(50, selectedCountry);
+  const proLocal = convertKesToLocal(100, selectedCountry);
+  const vipLocal = convertKesToLocal(200, selectedCountry);
 
   const [copied, setCopied] = useState(false);
   const [editingCode, setEditingCode] = useState(false);
@@ -55,9 +61,9 @@ export const ReferralDashboard: React.FC = () => {
   const filteredHistory = useMemo(() => {
     return referralHistory.filter((item) => {
       if (tierFilter !== 'all') {
-        if (tierFilter === 'starter' && !item.passPurchased.includes('$2')) return false;
-        if (tierFilter === 'pro' && !item.passPurchased.includes('$5')) return false;
-        if (tierFilter === 'vip' && !item.passPurchased.includes('$10')) return false;
+        if (tierFilter === 'starter' && !item.passPurchased.toLowerCase().includes('starter')) return false;
+        if (tierFilter === 'pro' && !item.passPurchased.toLowerCase().includes('pro')) return false;
+        if (tierFilter === 'vip' && !item.passPurchased.toLowerCase().includes('vip')) return false;
       }
       if (searchFilter.trim()) {
         const q = searchFilter.toLowerCase();
@@ -114,7 +120,7 @@ export const ReferralDashboard: React.FC = () => {
               Referral Partner Dashboard
             </h1>
             <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-              Share your unique invite link with friends, students, and remote workers worldwide. Whenever a referred user signs up and purchases a <strong className="text-slate-800">Worker Pass ($2, $5, or $10)</strong>, you earn an instant <strong className="text-slate-800">20% commission</strong> credited directly to your balance.
+              Share your unique invite link with friends, students, and remote workers across East Africa. Whenever a referred user signs up and purchases a <strong className="text-slate-800">Worker Pass (KES 50, KES 100, or KES 200)</strong>, you earn an instant <strong className="text-slate-800">20% commission</strong> credited directly to your balance.
             </p>
           </div>
 
@@ -248,7 +254,7 @@ export const ReferralDashboard: React.FC = () => {
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.commissionPercentage}%
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">On all pass tiers ($2–$10)</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">On all pass tiers (KES 50–200)</div>
         </div>
 
         <div className="p-3 border-r border-slate-100 last:border-r-0">
@@ -273,13 +279,13 @@ export const ReferralDashboard: React.FC = () => {
         <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900">Starter Pass Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">$2.00 Pass</span>
+            <span className="text-xs font-mono font-bold text-slate-700">KES 50 ({selectedCountry.currency} {starterLocal.toLocaleString()})</span>
           </div>
           <div className="text-xl font-bold font-mono text-emerald-600 tabular-nums">
-            +$0.40 Commission
+            +KES 10 (~$0.08)
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            When your invitee activates the $2 Starter Pass for survey access, you instantly receive 20% in your wallet.
+            When your invitee activates the KES 50 Starter Pass for survey access, you instantly receive 20% in your wallet.
           </p>
         </div>
 
@@ -289,26 +295,26 @@ export const ReferralDashboard: React.FC = () => {
               <span className="text-xs font-bold text-brand-950">Pro Tasker Referral</span>
               <span className="text-[10px] font-bold text-brand-600">Most Popular</span>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-700">$5.00 Pass</span>
+            <span className="text-xs font-mono font-bold text-slate-700">KES 100 ({selectedCountry.currency} {proLocal.toLocaleString()})</span>
           </div>
           <div className="text-xl font-bold font-mono text-brand-600 tabular-nums">
-            +$1.00 Commission
+            +KES 20 (~$0.15)
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn $1.00 each time a referral unlocks AI Annotation, Receipt Entry, and Meme Bounties with the $5 Pro Pass.
+            Earn KES 20 (~$0.15) each time a referral unlocks AI Annotation, Receipt Entry, and Meme Bounties with the KES 100 Pro Pass.
           </p>
         </div>
 
         <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900">VIP Taskmaster Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">$10.00 Pass</span>
+            <span className="text-xs font-mono font-bold text-slate-700">KES 200 ({selectedCountry.currency} {vipLocal.toLocaleString()})</span>
           </div>
           <div className="text-xl font-bold font-mono text-amber-600 tabular-nums">
-            +$2.00 Commission
+            +KES 40 (~$0.31)
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn $2.00 cash commission when top freelancers purchase the VIP Pass for copywriting and unlimited task quotas.
+            Earn KES 40 (~$0.31) commission when top freelancers purchase the KES 200 VIP Pass for copywriting and unlimited task quotas.
           </p>
         </div>
       </div>
@@ -338,7 +344,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'starter' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Starter ($2)
+                Starter (KES 50)
               </button>
               <button
                 type="button"
@@ -347,7 +353,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'pro' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Pro ($5)
+                Pro (KES 100)
               </button>
               <button
                 type="button"
@@ -356,7 +362,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'vip' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                VIP ($10)
+                VIP (KES 200)
               </button>
             </div>
 
@@ -367,7 +373,7 @@ export const ReferralDashboard: React.FC = () => {
             >
               <Zap className="w-4 h-4 fill-current" />
               <span>
-                Simulate Purchase (+${simulatedTier === 'starter' ? '0.40' : simulatedTier === 'vip' ? '2.00' : '1.00'})
+                Simulate Purchase (+${simulatedTier === 'starter' ? '0.08' : simulatedTier === 'vip' ? '0.31' : '0.15'})
               </span>
             </button>
           </div>
@@ -406,9 +412,9 @@ export const ReferralDashboard: React.FC = () => {
               className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 outline-hidden"
             >
               <option value="all">All Passes</option>
-              <option value="starter">Starter Pass ($2)</option>
-              <option value="pro">Pro Pass ($5)</option>
-              <option value="vip">VIP Pass ($10)</option>
+              <option value="starter">Starter Pass (KES 50)</option>
+              <option value="pro">Pro Pass (KES 100)</option>
+              <option value="vip">VIP Pass (KES 200)</option>
             </select>
 
             {/* Export CSV */}
@@ -493,7 +499,7 @@ export const ReferralDashboard: React.FC = () => {
           <div className="flex items-center gap-2 text-slate-600">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              All referral commissions are combined with task earnings toward your <strong>$100.00 withdrawal milestone</strong>.
+              All referral commissions are combined with task earnings toward your <strong>$20.00 withdrawal milestone</strong>.
             </span>
           </div>
 

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTasks } from '../context/TaskContext';
-import { TaskCategory } from '../types/tasks';
-import { Search, Flame, ShieldCheck, Zap } from 'lucide-react';
+import { Search, Flame } from 'lucide-react';
+import heroWorkforceImg from '../assets/images/hero_global_workforce_1794041820709.jpg';
 
 interface Props {
   selectedCategory: string;
@@ -39,7 +39,7 @@ export const HeroMarketplace: React.FC<Props> = ({
   const streakMultiplierPercent = userStats.streakDays >= 7 ? 20 : 10;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 text-slate-900">
       {/* Editorial Hero Split */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white rounded-3xl border border-slate-200 p-6 md:p-10 shadow-xs overflow-hidden">
         <div className="lg:col-span-7 space-y-5">
@@ -59,11 +59,11 @@ export const HeroMarketplace: React.FC<Props> = ({
           </button>
 
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-slate-900 text-balance leading-tight">
-            Earn Globally with Surveys, AI Annotation & Micro Tasks
+            Earn Across East Africa with Surveys, AI Annotation &amp; Micro Tasks
           </h1>
 
           <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-xl">
-            Join thousands of remote earners worldwide on Gideon Global Tasks. Complete paid questionnaires, label computer vision datasets, digitize retail receipts, draft marketing copy, and generate viral memes with instant withdrawals.
+            Exclusively built for remote earners across East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia). Complete paid questionnaires, label computer vision datasets, digitize receipts, and withdraw via M-PESA, Airtel/MTN MoMo &amp; East Africa Bank rails.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -90,17 +90,17 @@ export const HeroMarketplace: React.FC<Props> = ({
 
         {/* Hero Visual Asset */}
         <div className="lg:col-span-5 h-full">
-          <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md aspect-16/10 lg:aspect-auto lg:h-72">
+          <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md aspect-video lg:aspect-auto lg:h-72 bg-slate-900">
             <img
-              src="/src/assets/images/hero_global_workforce_1794041820709.jpg"
+              src={heroWorkforceImg}
               alt="Global Workforce Collaboration"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4">
+            <div className="absolute inset-0 bg-slate-950/45 bg-gradient-to-t from-slate-950/75 via-transparent to-transparent flex items-end p-4">
               <div className="text-white text-xs">
-                <span className="font-bold block">140+ Countries Represented</span>
-                <span className="text-slate-300 text-[11px]">Fair, borderless micropayments since 2024</span>
+                <span className="font-bold block">East Africa Exclusive · 8 Nations</span>
+                <span className="text-slate-300 text-[11px]">KE · UG · TZ · RW · BI · SS · ET · SO · M-PESA &amp; MoMo</span>
               </div>
             </div>
           </div>
@@ -117,9 +117,9 @@ export const HeroMarketplace: React.FC<Props> = ({
         </div>
         <div className="p-3 text-center border-r border-slate-100 last:border-r-0">
           <div className="text-xl md:text-2xl font-bold font-mono text-slate-900 tabular-nums">
-            140+
+            8 Nations
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">Nations Active</div>
+          <div className="text-xs text-slate-500 mt-0.5">East Africa Exclusive</div>
         </div>
         <div className="p-3 text-center border-r border-slate-100 last:border-r-0">
           <div className="text-xl md:text-2xl font-bold font-mono text-slate-900 tabular-nums">
@@ -148,8 +148,8 @@ export const HeroMarketplace: React.FC<Props> = ({
                 onClick={() => onSelectCategory(cat.id)}
                 className={`px-4 py-2 text-xs font-semibold rounded-xl whitespace-nowrap shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300'
+                    ? 'bg-blue-950 text-white border border-blue-300/50 shadow-sm'
+                    : 'bg-white text-slate-700 hover:text-blue-900 border border-blue-200 hover:border-white'
                 }`}
               >
                 {cat.label}

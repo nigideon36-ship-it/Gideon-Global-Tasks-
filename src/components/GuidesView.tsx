@@ -66,7 +66,7 @@ const GUIDES: GuideArticle[] = [
         heading: '1. The Economics of Real-Time Global Polling',
         body: [
           'Before launching a consumer software product, physical beverage, or financial service, global enterprises invest millions validating consumer intent. Blind product development carries catastrophic failure rates; surveyed consumer feedback reduces market risk by matching features to verified consumer pain points.',
-          'Gideon Global Tasks distributes surveys across verified demographics in 45+ countries. Rather than relying on outdated telephone polling or easily gamed bot farms, our platform combines cryptographic Google account verification with randomized trap questions to ensure 100% authentic human sentiment.'
+          'Gideon Global Tasks distributes surveys exclusively across verified demographics in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Rather than relying on outdated telephone polling or easily gamed bot farms, our platform combines cryptographic Google account verification with randomized trap questions to ensure 100% authentic human sentiment.'
         ],
         takeaways: [
           'Enterprises value thoughtful, comprehensive open-ended qualitative feedback over one-word answers.',
@@ -82,7 +82,7 @@ const GUIDES: GuideArticle[] = [
         takeaways: [
           'Never rush through questions—survey algorithms flag answers completed faster than human reading speeds.',
           'Check the Tasks Marketplace daily for newly published morning quotas.',
-          'Combine survey rewards with the Starter ($2) or Pro ($5) pass to unlock full daily task allowances.'
+          'Combine survey rewards with the Starter (KES 50) or Pro (KES 100) pass to unlock full daily task allowances.'
         ]
       }
     ]
@@ -122,11 +122,11 @@ const GUIDES: GuideArticle[] = [
       {
         heading: '1. The Challenge of Cross-Border Digital Remittances',
         body: [
-          'In many emerging economies across East Africa, Southeast Asia, and Latin America, traditional wire transfers incur $30 to $50 minimum processing fees and take 3–5 business days to clear. For freelance workers earning micro-rewards from surveys and annotations, these predatory fees represent a significant percentage of their earnings.',
-          'Gideon Global Tasks solved this problem by integrating direct **M-PESA STK Push** mobile money and **Wise** multi-currency rails. When a contributor reaches our $100.00 withdrawal milestone, funds are disbursed directly into their mobile wallet or local currency bank account with zero platform fees.'
+          'Across East Africa, traditional wire transfers and legacy PayPal links often impose steep fees, holds, or verification roadblocks. For digital workers earning micro-rewards from surveys and annotations, reliable local mobile money is essential.',
+          'Gideon Global Tasks solved this problem by focusing exclusively on East Africa and integrating direct **M-PESA STK Push**, **Airtel / MTN MoMo**, and **Paystack Card** checkout alongside zero-fee $20.00+ withdrawals.'
         ],
         takeaways: [
-          'The $100.00 minimum withdrawal threshold protects platform liquidity and ensures 0% fee disbursement.',
+          'The $20.00 minimum withdrawal threshold protects platform liquidity and ensures 0% fee disbursement.',
           'M-PESA payouts generate immediate confirmation codes (e.g., QJH89K2P0L) for real-time mobile verification.',
           'Contributors can also reinvest wallet balances directly into VIP Taskmaster passes without external card fees.'
         ]
@@ -190,7 +190,7 @@ export const GuidesView: React.FC = () => {
             <Sparkles className="w-5 h-5 text-emerald-400" />
             <h4 className="font-bold text-xs">Ready to Apply These Techniques?</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Activate your Starter ($2), Pro ($5), or VIP ($10) worker pass to start completing paid tasks right now.
+              Activate your Starter (KES 50), Pro (KES 100), or VIP (KES 200) worker pass to start completing paid tasks right now.
             </p>
             <button
               onClick={() => setActiveTab('packages')}

@@ -79,7 +79,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
 
               <h3 className="text-sm font-bold text-slate-900">1. Information We Collect</h3>
               <p>
-                Gideon Global Tasks collects information you provide directly to us when creating an account, authenticating via Google OAuth, purchasing contributor passes ($2, $5, $10), completing tasks, and requesting withdrawals via M-PESA or Wise. This includes your name, email address, transaction identifiers, and task responses.
+                Gideon Global Tasks collects information you provide directly to us when creating an account, authenticating via Google OAuth or East Africa mobile number, verifying regional eligibility, purchasing contributor passes (KES 50, KES 100, KES 200), completing tasks, and requesting withdrawals via M-PESA, Airtel/MTN MoMo, or East Africa Bank. This includes your name, phone number, optional email address, transaction identifiers, and task responses.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">2. Google AdSense & Third-Party Cookies</h3>
@@ -107,19 +107,19 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
             </>
           ) : (
             <>
-              <h3 className="text-sm font-bold text-slate-900">1. Contributor Eligibility & Worker Passes</h3>
+              <h3 className="text-sm font-bold text-slate-900">1. East Africa Contributor Eligibility &amp; Worker Passes</h3>
               <p>
-                Gideon Global Tasks provides a crowdsourced platform for verified surveys, AI computer vision annotation, retail receipt extraction, copywriting, and micro tasks. Users unlock task categories by activating a Starter ($2), Pro ($5), or VIP ($10) worker pass via M-PESA, Card, or Wallet balance.
+                Gideon Global Tasks is restricted exclusively to residents in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Users unlock task categories by activating a Starter (KES 50), Pro (KES 100), or VIP (KES 200) worker pass in their local East African currency via M-PESA, Airtel / MTN MoMo, East Africa Card, or Wallet balance.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">2. Task Approval & Quality Standards</h3>
+              <h3 className="text-sm font-bold text-slate-900">2. Task Approval &amp; Quality Standards</h3>
               <p>
-                All completed tasks undergo automated and human quality audits. Contributors maintain a quality score (target 95%+). Honest completion is required; automated bots or fraudulent submissions will result in immediate pass revocation.
+                All completed tasks undergo automated and human quality audits. Contributors maintain a quality score (target 95%+). Honest completion is required; automated bots, non-East Africa VPN usage, or fraudulent submissions will result in immediate pass revocation.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">3. Payout Thresholds & Methods</h3>
+              <h3 className="text-sm font-bold text-slate-900">3. Payout Thresholds &amp; Methods</h3>
               <p>
-                Withdrawals start from a minimum threshold of <strong>$100.00 USD</strong> to maintain high liquidity and reduce transaction fees. Payouts are disbursed to verified M-PESA phone lines and Wise accounts.
+                Withdrawals start from a minimum threshold of <strong>$20.00 USD</strong> to maintain high liquidity and reduce transaction fees. Payouts are disbursed to verified East Africa M-PESA, Airtel / MTN MoMo, and East Africa Bank accounts.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">4. Referral Program</h3>

@@ -38,7 +38,7 @@
       "properties": {
         "userUid": { "type": "string", "minLength": 1, "maxLength": 128 },
         "amount": { "type": "number" },
-        "method": { "type": "string", "enum": ["M-PESA", "PayPal", "Wise", "Crypto USDT", "Bank Wire", "Amazon Gift Card"] },
+        "method": { "type": "string", "enum": ["M-PESA", "Airtel / MTN MoMo", "East Africa Bank", "Wise", "Crypto USDT"] },
         "details": { "type": "string", "maxLength": 200 },
         "status": { "type": "string", "enum": ["Pending", "Completed", "Rejected"] },
         "createdAt": { "type": "string", "format": "date-time" },

@@ -53,7 +53,7 @@ export function generateSitemapXml(baseUrl: string = 'https://gideon-global-task
       changefreq: 'weekly',
       priority: '0.9',
       lastmod: today,
-      comment: 'Contributor Passes: Starter ($2), Pro ($5), VIP ($10)'
+      comment: 'Contributor Passes: Starter (KES 50), Pro (KES 100), VIP (KES 200)'
     },
 
     // 2. All Task Category Hubs (Filtering & Indexing)
@@ -162,7 +162,7 @@ export function generateSitemapXml(baseUrl: string = 'https://gideon-global-task
       changefreq: 'weekly',
       priority: '0.7',
       lastmod: today,
-      comment: 'Escrow Wallet & Payout Center (M-PESA & Wise $100+)'
+      comment: 'Escrow Wallet & Payout Center (M-PESA & Mobile Money $20+)'
     },
     {
       url: `${cleanBase}/#about`,

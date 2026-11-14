@@ -53,15 +53,15 @@ export const TermsOfServiceView: React.FC = () => {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">Starter Pass ($2.00)</h3>
+            <h3 className="font-bold text-slate-900">Starter Pass (KES 50 / ~$0.38)</h3>
             <p className="text-slate-500 text-[11px]">Grants up to 25 tasks daily across consumer market surveys and micro tasks.</p>
           </div>
           <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-emerald-950">Pro Pass ($5.00)</h3>
+            <h3 className="font-bold text-emerald-950">Pro Pass (KES 100 / ~$0.77)</h3>
             <p className="text-emerald-900 text-[11px]">Unlocks 75 tasks daily, autonomous AI computer vision annotation, receipt OCR, and meme studio bounties.</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">VIP Pass ($10.00)</h3>
+            <h3 className="font-bold text-slate-900">VIP Pass (KES 200 / ~$1.54)</h3>
             <p className="text-slate-500 text-[11px]">Unlimited daily tasks, technical copywriting, priority queue, and 0% withdrawal transaction fees.</p>
           </div>
         </div>
@@ -89,10 +89,10 @@ export const TermsOfServiceView: React.FC = () => {
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-700">
           <p className="font-semibold text-slate-900 flex items-center gap-1.5">
             <DollarSign className="w-4 h-4 text-emerald-600" />
-            <span>Minimum Payout Milestone: $100.00 USD</span>
+            <span>Minimum Payout Milestone: $20.00 USD</span>
           </p>
           <p className="text-slate-600 leading-relaxed">
-            Due to fixed banking routing surcharges on cross-border financial transactions, withdrawals unlock once your approved wallet balance reaches <strong>$100.00 USD</strong>.
+            Due to fixed banking routing surcharges on cross-border financial transactions, withdrawals unlock once your approved wallet balance reaches <strong>$20.00 USD</strong>.
           </p>
           <p className="text-slate-600 leading-relaxed">
             Disbursements are processed within 24–48 hours via <strong>M-PESA</strong> (direct STK mobile money to verified East African phone numbers) and <strong>Wise</strong> (international bank rails covering 80+ currencies).
@@ -104,7 +104,7 @@ export const TermsOfServiceView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">5. 20% Referral Commission Program</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Contributors receive a dedicated affiliate tracking link. When a new user creates an account via your link and purchases a worker pass, you receive a guaranteed 20% commission ($0.40 on Starter, $1.00 on Pro, $2.00 on VIP) credited directly to your withdrawable wallet balance.
+          Contributors receive a dedicated affiliate tracking link. When a new user creates an account via your link and purchases a worker pass, you receive a guaranteed 20% commission (KES 10 / ~$0.08 on Starter, KES 20 / ~$0.15 on Pro, KES 40 / ~$0.31 on VIP) credited directly to your withdrawable wallet balance.
         </p>
       </section>
 

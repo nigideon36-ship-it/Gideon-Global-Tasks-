@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useTasks } from '../context/TaskContext';
-import { AVAILABLE_PACKAGES } from '../context/TaskContext';
-import { useAuth } from '../context/AuthContext';
-import { TaskPackage } from '../types/tasks';
-import { X, Check, ShieldCheck, Zap, Sparkles, Phone, CreditCard, Wallet, Smartphone, AlertCircle, Users, Globe, Mail, ExternalLink } from 'lucide-react';
+import { useTasks, AVAILABLE_PACKAGES } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { EAST_AFRICA_COUNTRIES, isEastAfricaPhone, convertKesToLocal } from '../lib/eastAfrica';
+import { X, Check, ShieldCheck, Zap, Sparkles, Phone, CreditCard, Wallet, Smartphone, AlertCircle, Users, MapPin } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -13,173 +12,144 @@ interface Props {
 
 export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCategory }) => {
   const { activePackage, purchasePackage, userStats, setActiveTab } = useTasks();
-  const { user } = useAuth();
+  const { selectedCountry, setSelectedCountryCode } = useRegion();
 
   const [selectedPkgId, setSelectedPkgId] = useState<'starter' | 'pro' | 'vip'>('pro');
-  const [paymentMethod, setPaymentMethod] = useState<'M-PESA' | 'PayPal' | 'Wallet' | 'Card'>('M-PESA');
-  const [phoneNumber, setPhoneNumber] = useState('+254 712 345 678');
-  const [paypalPayerEmail, setPaypalPayerEmail] = useState(user?.email || '');
-  const [paypalRecipientEmail, setPaypalRecipientEmail] = useState('nigideon36@gmail.com');
-  const [paypalMeHandle, setPaypalMeHandle] = useState('nigideon36');
+  const [paymentMethod, setPaymentMethod] = useState<'M-PESA' | 'Mobile Money' | 'Card' | 'Wallet'>('M-PESA');
+  const [phoneNumber, setPhoneNumber] = useState(selectedCountry.samplePhone);
   const [cardHolder, setCardHolder] = useState('Gideon Contributor');
   const [isProcessing, setIsProcessing] = useState(false);
   const [stkStatus, setStkStatus] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.email && !paypalPayerEmail) {
-      setPaypalPayerEmail(user.email);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    fetch('/api/paypal/config')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.primaryEmail) setPaypalRecipientEmail(data.primaryEmail);
-        if (data.payPalMeHandle) setPaypalMeHandle(data.payPalMeHandle);
-      })
-      .catch(() => {});
-  }, [isOpen]);
+    setPhoneNumber(selectedCountry.samplePhone);
+  }, [selectedCountry.code]);
 
   if (!isOpen) return null;
 
   const selectedPkg = AVAILABLE_PACKAGES.find((p) => p.id === selectedPkgId) || AVAILABLE_PACKAGES[1];
+  const localAmount = convertKesToLocal(selectedPkg.priceKes, selectedCountry);
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setStkStatus(null);
 
-    if (paymentMethod === 'M-PESA' && !phoneNumber.trim()) {
-      setErrorMsg('Please enter a valid Safaricom M-PESA mobile number.');
-      return;
-    }
-
-    if (paymentMethod === 'PayPal' && !paypalPayerEmail.trim().includes('@')) {
-      setErrorMsg('Please enter your valid PayPal account email address.');
+    if ((paymentMethod === 'M-PESA' || paymentMethod === 'Mobile Money') && !isEastAfricaPhone(phoneNumber)) {
+      setErrorMsg(
+        `East Africa Only: Enter a valid ${selectedCountry.name} mobile number (${selectedCountry.dialCode}...).`
+      );
       return;
     }
 
     if (paymentMethod === 'Wallet' && userStats.balance < selectedPkg.price) {
-      setErrorMsg(`Insufficient wallet balance ($${userStats.balance.toFixed(2)}) for $${selectedPkg.price.toFixed(2)} pass.`);
+      setErrorMsg(`Insufficient wallet balance ($${userStats.balance.toFixed(2)}) for KES ${selectedPkg.priceKes} (~$${selectedPkg.price.toFixed(2)}) pass.`);
       return;
     }
 
     setIsProcessing(true);
 
-    if (paymentMethod === 'M-PESA') {
+    if (paymentMethod === 'M-PESA' || paymentMethod === 'Mobile Money') {
       try {
-        setStkStatus(`Initiating M-PESA STK Push to ${phoneNumber} via IntaSend...`);
-        const kesAmount = Math.round(selectedPkg.price * 130);
+        const kesAmount = selectedPkg.priceKes;
 
-        let res = await fetch('/api/intasend/stk-push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: phoneNumber,
-            amount: kesAmount,
-            packageId: selectedPkg.id,
-            name: cardHolder || 'Gideon Contributor'
-          })
-        });
+        if (selectedCountry.code === 'KE' || phoneNumber.trim().startsWith('+254') || phoneNumber.trim().startsWith('0')) {
+          setStkStatus(
+            `Initiating Paystack M-PESA STK Push to ${phoneNumber} (KES ${kesAmount})...`
+          );
 
-        let data = await res.json();
-        if (!data.success) {
-          // Fallback to direct Daraja route if configured
-          res = await fetch('/api/mpesa/stkpush', {
+          const res = await fetch('/api/paystack/stk-push', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-ea-country': selectedCountry.code,
+              'x-ea-verified': 'true',
+            },
             body: JSON.stringify({
+              countryCode: selectedCountry.code,
               phone: phoneNumber,
               amount: kesAmount,
-              packageId: selectedPkg.id
-            })
+              amountUsd: selectedPkg.price,
+              packageId: selectedPkg.id,
+              name: cardHolder || 'Gideon Contributor',
+            }),
           });
-          data = await res.json();
-        }
 
-        if (data.success) {
-          setStkStatus(`M-PESA prompt sent! Please enter your PIN on your mobile phone to approve KES ${kesAmount}.`);
-          setTimeout(() => {
-            const success = purchasePackage(
-              selectedPkgId,
-              'M-PESA',
-              `${phoneNumber} (Receipt: ${data.mpesaReceipt || 'IntaSend-OK'})`
+          const data = await res.json();
+          if (data.success) {
+            setStkStatus(
+              data.message || `Paystack M-PESA prompt sent! Enter PIN on your phone to pay KES ${kesAmount}.`
             );
+            setTimeout(() => {
+              const success = purchasePackage(
+                selectedPkgId,
+                paymentMethod,
+                `${selectedCountry.code} ${phoneNumber} (Paystack Ref: ${data.reference || data.mpesaReceipt || 'PS-STK'})`
+              );
+              setIsProcessing(false);
+              setStkStatus(null);
+              if (success) {
+                onClose();
+              }
+            }, 2200);
+            return;
+          } else {
+            setErrorMsg(data.error || 'Paystack M-PESA STK Push request could not be completed.');
             setIsProcessing(false);
             setStkStatus(null);
-            if (success) {
-              onClose();
-            }
-          }, 2400);
-          return;
+            return;
+          }
         } else {
-          setErrorMsg(data.error || 'Payment request could not be processed.');
+          // Non-Kenya East Africa countries: fallback notice or IntaSend mobile money / Paystack Card
+          setErrorMsg(
+            `Paystack M-PESA STK Push natively supports Kenya (+254) numbers. For ${selectedCountry.name}, please select "East Africa Card (Visa/Mastercard)" powered by Paystack!`
+          );
           setIsProcessing(false);
           setStkStatus(null);
           return;
         }
       } catch (err: any) {
-        setErrorMsg(err.message || 'Failed to connect to payment gateway.');
+        setErrorMsg(err.message || 'Failed to connect to Paystack payment gateway.');
         setIsProcessing(false);
         setStkStatus(null);
         return;
       }
     }
 
-    if (paymentMethod === 'PayPal') {
+    if (paymentMethod === 'Card') {
       try {
-        setStkStatus(`Processing international PayPal payment ($${selectedPkg.price.toFixed(2)} USD) to ${paypalRecipientEmail}...`);
-        // 1. Create Order
-        const orderRes = await fetch('/api/paypal/create-order', {
+        setStkStatus(`Initializing Paystack Visa/Mastercard checkout for ${selectedCountry.name}...`);
+        const res = await fetch('/api/paystack/initialize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-ea-country': selectedCountry.code,
+            'x-ea-verified': 'true',
+          },
           body: JSON.stringify({
-            amount: selectedPkg.price,
+            amountKes: selectedPkg.priceKes,
+            amountUsd: selectedPkg.price,
+            countryCode: selectedCountry.code,
             packageId: selectedPkg.id,
-            description: `Gideon Contributor Pass - ${selectedPkg.name}`,
-            payerEmail: paypalPayerEmail.trim()
-          })
+            callbackUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+          }),
         });
-        const orderData = await orderRes.json();
-        if (!orderRes.ok || !orderData.success) {
-          throw new Error(orderData.error || 'Could not initiate PayPal order.');
-        }
-
-        // 2. Capture Order
-        const captureRes = await fetch('/api/paypal/capture-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: orderData.orderId,
-            payerEmail: paypalPayerEmail.trim(),
-            notes: `Pass: ${selectedPkg.name}`
-          })
-        });
-        const captureData = await captureRes.json();
-        if (!captureRes.ok || !captureData.success) {
-          throw new Error(captureData.error || 'Could not verify PayPal order.');
-        }
-
-        setStkStatus(`PayPal payment of $${selectedPkg.price.toFixed(2)} USD verified! Routed to ${paypalRecipientEmail}. Activating pass...`);
-
-        setTimeout(() => {
-          const success = purchasePackage(
-            selectedPkgId,
-            'PayPal',
-            `PayPal (${paypalPayerEmail.trim()} -> ${paypalRecipientEmail}, Txn: ${captureData.transactionId || 'PP-OK'})`
-          );
+        const data = await res.json();
+        if (!data.success) {
+          setErrorMsg(data.error || 'Could not start Paystack Card checkout.');
           setIsProcessing(false);
           setStkStatus(null);
-          if (success) {
-            onClose();
-          }
-        }, 1400);
-        return;
+          return;
+        }
+
+        if (data.authorizationUrl && typeof window !== 'undefined') {
+          // Safe redirect inside current top/iframe view or display clickable Paystack link
+          window.location.href = data.authorizationUrl;
+          return;
+        }
       } catch (err: any) {
-        setErrorMsg(err.message || 'PayPal transaction could not be processed.');
+        setErrorMsg(err.message || 'Paystack Card checkout error.');
         setIsProcessing(false);
         setStkStatus(null);
         return;
@@ -190,7 +160,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
       const success = purchasePackage(
         selectedPkgId,
         paymentMethod,
-        paymentMethod === 'Wallet' ? 'Wallet Balance' : cardHolder
+        paymentMethod === 'Wallet' ? 'Wallet Balance' : `${cardHolder} (${selectedCountry.code} IntaSend Card)`
       );
       setIsProcessing(false);
       if (success) {
@@ -210,10 +180,10 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Gideon Contributor Task Passes
+                East Africa Contributor Task Passes
               </h2>
               <p className="text-xs text-slate-500">
-                Purchase an official worker package to unlock daily task quotas and qualify for $100+ withdrawals.
+                Activate a worker package via Paystack M-PESA STK Push or East Africa Card to qualify for $20+ withdrawals.
               </p>
             </div>
           </div>
@@ -232,7 +202,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center gap-2 font-medium">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
               <span>
-                To access <strong>{requiredForCategory}</strong> tasks and submit work for bounties, please activate your <strong>$2, $5, or $10</strong> Contributor Pass.
+                To access <strong>{requiredForCategory}</strong> tasks and submit work for bounties, please activate your <strong>KES 50, KES 100, or KES 200</strong> Contributor Pass ({selectedCountry.code !== 'KE' ? `shown in ${selectedCountry.currency}` : 'Kenya Shillings'}).
               </span>
             </div>
           )}
@@ -242,6 +212,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             {AVAILABLE_PACKAGES.map((pkg) => {
               const isSelected = selectedPkgId === pkg.id;
               const isActive = activePackage?.id === pkg.id;
+              const estLocal = convertKesToLocal(pkg.priceKes, selectedCountry);
               return (
                 <div
                   key={pkg.id}
@@ -268,13 +239,20 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                       )}
                     </div>
 
-                    <div className="flex items-baseline gap-1 my-3">
-                      <span className="text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
-                        ${pkg.price.toFixed(2)}
-                      </span>
-                      <span className="text-xs text-slate-500 font-medium">
-                        / ~{(pkg.price * 130).toLocaleString()} KES
-                      </span>
+                    <div className="my-3 space-y-0.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl md:text-3xl font-extrabold font-mono text-slate-900 tabular-nums">
+                          {selectedCountry.currency} {estLocal.toLocaleString()}
+                        </span>
+                        {selectedCountry.code !== 'KE' && (
+                          <span className="text-xs font-mono font-semibold text-blue-700">
+                            (KES {pkg.priceKes})
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium font-mono">
+                        ≈ ${pkg.price.toFixed(2)} USD {selectedCountry.code === 'KE' ? '· Local Currency' : `· ${selectedCountry.name} Exchange`}
+                      </div>
                     </div>
 
                     <p className="text-xs text-slate-500 mb-4 leading-relaxed">
@@ -304,7 +282,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
                       }`}
                     >
-                      {isActive ? 'Current Active Tier' : `Select $${pkg.price.toFixed(2)} Package`}
+                      {isActive ? 'Current Active Tier' : `Select ${selectedCountry.currency} ${estLocal.toLocaleString()}`}
                     </button>
                   </div>
                 </div>
@@ -312,20 +290,31 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             })}
           </div>
 
-          {/* Checkout & Payment Rail Selection */}
+          {/* Checkout & East Africa Payment Rail Selection */}
           <form onSubmit={handlePurchase} className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Select Payment Method:
+                  East Africa Checkout (Paystack STK &amp; Card):
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Instant activation for {selectedPkg.name} (${selectedPkg.price.toFixed(2)})
+                  Instant activation for {selectedPkg.name} (<strong>{selectedCountry.currency} {localAmount.toLocaleString()}</strong> · KES {selectedPkg.priceKes} · ~${selectedPkg.price.toFixed(2)} USD)
                 </p>
               </div>
 
-              <div className="text-right font-mono font-bold text-slate-900 text-sm">
-                Total Due: ${selectedPkg.price.toFixed(2)}
+              <div className="flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <select
+                  value={selectedCountry.code}
+                  onChange={(e) => setSelectedCountryCode(e.target.value as any)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 outline-hidden focus:border-emerald-600"
+                >
+                  {EAST_AFRICA_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.dialCode} · {c.currency})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -341,20 +330,33 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                 }`}
               >
                 <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>M-PESA (Kenya)</span>
+                <span>M-PESA (Paystack STK)</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setPaymentMethod('PayPal')}
+                onClick={() => setPaymentMethod('Mobile Money')}
                 className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                  paymentMethod === 'PayPal'
-                    ? 'border-[#003087] bg-blue-50 text-[#003087] shadow-xs'
+                  paymentMethod === 'Mobile Money'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <Globe className="w-4 h-4 text-[#003087] shrink-0" />
-                <span>PayPal (Intl USD)</span>
+                <Zap className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Mobile Money (KE)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('Card')}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+                  paymentMethod === 'Card'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 text-slate-600 shrink-0" />
+                <span>East Africa Card</span>
               </button>
 
               <button
@@ -369,28 +371,17 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                 <Wallet className="w-4 h-4 text-brand-600 shrink-0" />
                 <span>Wallet (${userStats.balance.toFixed(2)})</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('Card')}
-                className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                  paymentMethod === 'Card'
-                    ? 'border-brand-600 bg-brand-50 text-brand-900 shadow-xs'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <CreditCard className="w-4 h-4 text-slate-600 shrink-0" />
-                <span>Debit / Card</span>
-              </button>
             </div>
 
             {/* Payment Inputs */}
-            {paymentMethod === 'M-PESA' && (
+            {(paymentMethod === 'M-PESA' || paymentMethod === 'Mobile Money') && (
               <div className="space-y-2 p-4 bg-white rounded-xl border border-emerald-200">
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                  <label>Safaricom M-PESA Phone Number:</label>
+                  <label>
+                    {selectedCountry.name} Mobile Money Number ({selectedCountry.mobileRails}):
+                  </label>
                   <span className="text-emerald-700 font-mono text-[11px]">
-                    KES {(selectedPkg.price * 130).toLocaleString()}
+                    ~{localAmount.toLocaleString()} {selectedCountry.currency}
                   </span>
                 </div>
                 <div className="relative">
@@ -399,59 +390,13 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+254 7XX XXX XXX"
+                    placeholder={selectedCountry.samplePhone}
                     className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono font-semibold focus:border-emerald-500 outline-hidden"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  You will receive an automated M-PESA STK prompt on your mobile phone to enter your PIN.
+                  Processed automatically via <strong>Paystack M-PESA STK Push</strong> (Kenya <code className="bg-slate-100 px-1 rounded">+254</code> numbers receive an instant PIN prompt). Contributors in UG, TZ, RW, BI, SS, ET &amp; SO can use <strong>East Africa Card (Visa/Mastercard)</strong>.
                 </p>
-              </div>
-            )}
-
-            {paymentMethod === 'PayPal' && (
-              <div className="space-y-3 p-4 bg-white rounded-xl border border-blue-200">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                  <span className="flex items-center gap-1.5 text-[#003087] font-bold">
-                    <Globe className="w-4 h-4" />
-                    International PayPal Checkout (USD)
-                  </span>
-                  <span className="font-mono text-[#003087] font-bold">
-                    ${selectedPkg.price.toFixed(2)} USD
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-lg text-[11px] text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span>
-                    PayPal Recipient: <strong className="font-mono text-[#003087]">{paypalRecipientEmail}</strong>
-                  </span>
-                  <a
-                    href={`https://paypal.me/${paypalMeHandle.replace(/^@/, '')}/${selectedPkg.price}USD`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#003087] font-bold hover:underline"
-                  >
-                    <span>Open PayPal.Me (${selectedPkg.price})</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Your PayPal Account Email (for payment receipt):
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                    <input
-                      type="email"
-                      value={paypalPayerEmail}
-                      onChange={(e) => setPaypalPayerEmail(e.target.value)}
-                      placeholder="your-email@example.com"
-                      required
-                      className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono focus:border-[#003087] outline-hidden"
-                    />
-                  </div>
-                </div>
               </div>
             )}
 
@@ -469,6 +414,9 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
 
             {paymentMethod === 'Card' && (
               <div className="space-y-3 p-4 bg-white rounded-xl border border-slate-200">
+                <p className="text-[11px] text-slate-600">
+                  Pay using East African bank Visa / Mastercard cards across all 8 East Africa countries, processed securely via <strong>Paystack</strong>.
+                </p>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Cardholder Name:
@@ -512,7 +460,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
               <div className="flex items-center gap-2 text-brand-900 font-medium">
                 <Users className="w-4 h-4 text-brand-600 shrink-0" />
                 <span>
-                  Earn <strong>20% cash commission</strong> ($0.40–$2.00) when colleagues purchase a worker pass with your link.
+                  Earn <strong>20% cash commission</strong> (KES 10–KES 40 / ~$0.08–$0.31) when colleagues in East Africa purchase a pass with your link.
                 </span>
               </div>
               <button
@@ -530,7 +478,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Encrypted 256-Bit Escrow · Instant Activation Guarantee</span>
+                <span>East Africa Escrow · Paystack STK &amp; Card Verified</span>
               </div>
 
               <button
@@ -540,7 +488,7 @@ export const PackagesModal: React.FC<Props> = ({ isOpen, onClose, requiredForCat
               >
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <span>
-                  {isProcessing ? 'Processing M-PESA / Pass...' : `Activate ${selectedPkg.name} ($${selectedPkg.price})`}
+                  {isProcessing ? 'Processing Payment...' : `Activate ${selectedPkg.name} (${selectedCountry.currency} ${localAmount.toLocaleString()})`}
                 </span>
               </button>
             </div>

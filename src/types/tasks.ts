@@ -94,9 +94,9 @@ export interface Task {
 export interface PayoutRecord {
   id: string;
   amount: number;
-  method: 'M-PESA' | 'PayPal' | 'Wise' | 'Crypto USDT' | 'Bank Wire' | 'Amazon Gift Card';
+  method: 'M-PESA' | 'Airtel / MTN MoMo' | 'East Africa Bank' | 'Wise' | 'Crypto USDT';
   accountDetails: string;
-  status: 'Completed' | 'Processing';
+  status: 'Completed' | 'Processing' | 'Rejected';
   timestamp: string;
   mpesaReceipt?: string;
 }
@@ -116,7 +116,8 @@ export interface TaskHistoryRecord {
 export interface TaskPackage {
   id: 'starter' | 'pro' | 'vip';
   name: string;
-  price: number; // 2, 5, 10
+  price: number; // USD equivalent of priceKes
+  priceKes: number; // Base price in Kenya Shillings: 50, 100, 200
   description: string;
   taskAllowance: string;
   unlockedCategories: TaskCategory[];
@@ -156,10 +157,10 @@ export interface ReferralRecord {
   refereeEmailMasked: string;
   refereeCountry: string;
   dateJoined: string;
-  passPurchased: string; // e.g. "Starter Pass ($2)", "Pro Tasker Pass ($5)", "VIP Taskmaster Pass ($10)"
+  passPurchased: string; // e.g. "Starter Pass (KES 50)", "Pro Tasker Pass (KES 100)", "VIP Taskmaster Pass (KES 200)"
   passPrice: number;
   commissionRate: number; // e.g. 0.20 (20%)
-  commissionEarned: number; // e.g. 1.00
+  commissionEarned: number; // e.g. 0.15 USD (~KES 20)
   paymentMethod: 'M-PESA' | 'Card' | 'Wallet';
   status: 'Credited' | 'Pending';
   transactionId: string;

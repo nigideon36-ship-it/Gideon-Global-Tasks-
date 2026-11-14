@@ -4,7 +4,8 @@ import { INITIAL_TASKS, INITIAL_MEMES, INITIAL_LEADERBOARD } from '../data/mockT
 import confetti from 'canvas-confetti';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, OperationType, handleFirestoreError, isPermissionError } from '../lib/firebase';
-import { OWNER_EMAIL } from './AuthContext';
+import { OWNER_EMAIL, useAuth } from './AuthContext';
+import { useRegion } from './RegionContext';
 
 export interface UserStatsType {
   balance: number;
@@ -25,8 +26,9 @@ export const AVAILABLE_PACKAGES: TaskPackage[] = [
   {
     id: 'starter',
     name: 'Starter Contributor Pass',
-    price: 2.00,
-    description: 'Entry-level pass to begin completing verified paid surveys and fast micro tasks.',
+    price: 0.38,
+    priceKes: 50,
+    description: 'Entry-level pass (KES 50) to begin completing verified paid surveys and fast micro tasks.',
     taskAllowance: '25 Tasks / Day',
     unlockedCategories: ['survey', 'micro'],
     features: [
@@ -39,9 +41,10 @@ export const AVAILABLE_PACKAGES: TaskPackage[] = [
   {
     id: 'pro',
     name: 'Pro Tasker Pass',
-    price: 5.00,
+    price: 0.77,
+    priceKes: 100,
     isPopular: true,
-    description: 'Unlocks AI Computer Vision Annotation, Receipt Digitization, and Meme Bounties.',
+    description: 'Unlocks AI Computer Vision Annotation, Receipt Digitization, and Meme Bounties for KES 100.',
     taskAllowance: '75 Tasks / Day',
     unlockedCategories: ['survey', 'annotation', 'data-entry', 'meme-content', 'micro'],
     features: [
@@ -55,15 +58,16 @@ export const AVAILABLE_PACKAGES: TaskPackage[] = [
   {
     id: 'vip',
     name: 'VIP Taskmaster Pass',
-    price: 10.00,
-    description: 'Full platform access with unlimited daily tasks, high-paying copywriting, and zero fees.',
+    price: 1.54,
+    priceKes: 200,
+    description: 'Full platform access (KES 200) with unlimited daily tasks, high-paying copywriting, and zero fees.',
     taskAllowance: 'Unlimited Daily Tasks',
     unlockedCategories: ['survey', 'annotation', 'data-entry', 'writing', 'meme-content', 'micro'],
     features: [
       'Everything in Pro',
       'High-Paying Writing & Copywriting ($5–$15+)',
       'Unlimited Daily Task Quota',
-      '0% Fee Guarantee on $100+ Withdrawals',
+      '0% Fee Guarantee on $20+ Withdrawals',
       'Instant M-PESA STK & Wise Priority Disbursement',
       'Dedicated 24/7 AI Taskmaster Support'
     ]
@@ -131,31 +135,31 @@ const INITIAL_TASK_HISTORY: TaskHistoryRecord[] = [
 const INITIAL_REFERRAL_HISTORY: ReferralRecord[] = [
   {
     id: 'ref-tx-101',
-    refereeName: 'Kwame Mensah',
-    refereeEmailMasked: 'kw***ah@gmail.com',
-    refereeCountry: 'Ghana',
+    refereeName: 'Samuel Kiprop',
+    refereeEmailMasked: 'sa***op@gmail.com',
+    refereeCountry: 'Kenya',
     dateJoined: 'Yesterday',
-    passPurchased: 'Pro Tasker Pass ($5)',
-    passPrice: 5.00,
+    passPurchased: 'Pro Tasker Pass (KES 100)',
+    passPrice: 0.77,
     commissionRate: 0.20,
-    commissionEarned: 1.00,
+    commissionEarned: 0.15,
     paymentMethod: 'M-PESA',
     status: 'Credited',
     transactionId: 'MPESA-REF-71829'
   },
   {
     id: 'ref-tx-102',
-    refereeName: 'Elena Rostova',
-    refereeEmailMasked: 'el***va@proton.me',
-    refereeCountry: 'Poland',
+    refereeName: 'Grace Namukasa',
+    refereeEmailMasked: 'gr***sa@gmail.com',
+    refereeCountry: 'Uganda',
     dateJoined: '2 days ago',
-    passPurchased: 'VIP Taskmaster Pass ($10)',
-    passPrice: 10.00,
+    passPurchased: 'VIP Taskmaster Pass (KES 200)',
+    passPrice: 1.54,
     commissionRate: 0.20,
-    commissionEarned: 2.00,
+    commissionEarned: 0.31,
     paymentMethod: 'Card',
     status: 'Credited',
-    transactionId: 'CARD-REF-99214'
+    transactionId: 'IS-REF-99214'
   },
   {
     id: 'ref-tx-103',
@@ -163,39 +167,39 @@ const INITIAL_REFERRAL_HISTORY: ReferralRecord[] = [
     refereeEmailMasked: 'br***no@yahoo.com',
     refereeCountry: 'Kenya',
     dateJoined: '4 days ago',
-    passPurchased: 'Starter Contributor Pass ($2)',
-    passPrice: 2.00,
+    passPurchased: 'Starter Contributor Pass (KES 50)',
+    passPrice: 0.38,
     commissionRate: 0.20,
-    commissionEarned: 0.40,
+    commissionEarned: 0.08,
     paymentMethod: 'M-PESA',
     status: 'Credited',
     transactionId: 'MPESA-REF-58319'
   },
   {
     id: 'ref-tx-104',
-    refereeName: 'Sofia Ramos',
-    refereeEmailMasked: 'so***os@hotmail.com',
-    refereeCountry: 'Brazil',
+    refereeName: 'Asha Mwinyi',
+    refereeEmailMasked: 'as***yi@gmail.com',
+    refereeCountry: 'Tanzania',
     dateJoined: '5 days ago',
-    passPurchased: 'Pro Tasker Pass ($5)',
-    passPrice: 5.00,
+    passPurchased: 'Pro Tasker Pass (KES 100)',
+    passPrice: 0.77,
     commissionRate: 0.20,
-    commissionEarned: 1.00,
-    paymentMethod: 'Card',
+    commissionEarned: 0.15,
+    paymentMethod: 'M-PESA',
     status: 'Credited',
-    transactionId: 'CARD-REF-34812'
+    transactionId: 'MPESA-REF-34812'
   }
 ];
 
 const APP_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
 
 const INITIAL_REFERRAL_STATS: ReferralStats = {
-  referralCode: 'GIDEON-GLOBAL-894',
-  referralLink: `${APP_ORIGIN}/?ref=GIDEON-GLOBAL-894`,
+  referralCode: 'GIDEON-EA-894',
+  referralLink: `${APP_ORIGIN}/?ref=GIDEON-EA-894`,
   totalClicks: 142,
   totalSignups: 19,
   passesPurchasedCount: 4,
-  totalCommissionEarned: 4.40,
+  totalCommissionEarned: 0.69,
   pendingCommission: 0.00,
   commissionPercentage: 20,
   vipTierBonusPercent: 5
@@ -236,7 +240,7 @@ interface TaskContextType {
   activePackage: TaskPackage | null;
   packagesModalOpen: boolean;
   setPackagesModalOpen: (open: boolean) => void;
-  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'PayPal' | 'Card' | 'Wallet', accountOrPhone: string) => boolean;
+  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Wallet', accountOrPhone: string) => boolean;
   streakModalOpen: boolean;
   setStreakModalOpen: (open: boolean) => void;
   advanceDailyStreak: () => void;
@@ -269,8 +273,8 @@ interface TaskContextType {
   setDarajaModalOpen: (open: boolean) => void;
   intasendModalOpen: boolean;
   setIntasendModalOpen: (open: boolean) => void;
-  paypalModalOpen: boolean;
-  setPaypalModalOpen: (open: boolean) => void;
+  paystackModalOpen: boolean;
+  setPaystackModalOpen: (open: boolean) => void;
   privacyTermsModalOpen: boolean;
   setPrivacyTermsModalOpen: (open: boolean) => void;
   privacyTermsTab: 'privacy' | 'terms';
@@ -330,8 +334,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         {
           id: 'PAY-8310',
           amount: 100.00,
-          method: 'Wise' as const,
-          accountDetails: 'elena.rostova@wise.com',
+          method: 'Airtel / MTN MoMo' as const,
+          accountDetails: '+256 772 345 678',
           status: 'Completed' as const,
           timestamp: '1 week ago'
         }
@@ -351,7 +355,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activePackage, setActivePackage] = useState<TaskPackage | null>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PACKAGE);
-      return saved ? JSON.parse(saved) : AVAILABLE_PACKAGES[2]; // default to VIP Taskmaster
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return AVAILABLE_PACKAGES.find((p) => p.id === parsed?.id) || AVAILABLE_PACKAGES[2];
+      }
+      return AVAILABLE_PACKAGES[2]; // default to VIP Taskmaster
     } catch {
       return AVAILABLE_PACKAGES[2];
     }
@@ -391,7 +399,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return saved as ThemeColor;
       }
     } catch {}
-    return 'emerald'; // Default theme color refreshed to Emerald Fintech
+    return 'cobalt'; // Default theme color set to Ocean Cobalt Blue
   });
 
   useEffect(() => {
@@ -450,6 +458,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const { activeToken } = useAuth();
+  const { selectedCountry } = useRegion();
+
   const [workerMode, setWorkerMode] = useState<'worker' | 'requester'>('worker');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
@@ -459,8 +470,128 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [publisherModalOpen, setPublisherModalOpen] = useState(false);
   const [darajaModalOpen, setDarajaModalOpen] = useState(false);
   const [intasendModalOpen, setIntasendModalOpen] = useState(false);
-  const [paypalModalOpen, setPaypalModalOpen] = useState(false);
+  const [paystackModalOpen, setPaystackModalOpen] = useState(false);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState(false);
+
+  const recordPlatformTransaction = (payload: {
+    id?: string;
+    kind: 'withdrawal' | 'pass_purchase' | 'task_reward' | 'referral_commission';
+    title: string;
+    customerLabel?: string;
+    gatewayOrMethod: string;
+    currency?: string;
+    amountLocal?: number;
+    amountUsd: number;
+    status?: 'Completed' | 'Processing' | 'Pending' | 'Rejected' | 'Failed';
+    reference?: string;
+    metadata?: Record<string, string | number | boolean | undefined>;
+  }) => {
+    fetch('/api/transactions/record', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-ea-country': selectedCountry.code,
+        'x-ea-verified': 'true',
+        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+      },
+      body: JSON.stringify({
+        ...payload,
+        countryCode: selectedCountry.code,
+      }),
+    }).catch(() => {});
+  };
+
+  // Sync locally-queued Processing withdrawals to the server-side Owner approval queue
+  useEffect(() => {
+    const pendingItems = userStats.payoutHistory.filter((p) => p.status === 'Processing');
+    if (pendingItems.length === 0) return;
+
+    pendingItems.forEach((p) => {
+      fetch('/api/withdrawals/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ea-country': selectedCountry.code,
+          'x-ea-verified': 'true',
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        body: JSON.stringify({
+          id: p.id,
+          amountUsd: p.amount,
+          method: p.method,
+          accountDetails: p.accountDetails,
+          countryCode: selectedCountry.code,
+          mpesaReceipt: p.mpesaReceipt,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const remote = data?.withdrawal;
+          if (!remote || remote.status === p.status) return;
+          setUserStats((prev) => {
+            let refunded = 0;
+            const updatedHistory = prev.payoutHistory.map((item) => {
+              if (item.id !== remote.id) return item;
+              if (item.status === 'Processing' && remote.status === 'Rejected') {
+                refunded += item.amount;
+              }
+              return {
+                ...item,
+                status: remote.status,
+                mpesaReceipt: remote.mpesaReceipt || item.mpesaReceipt,
+              };
+            });
+            return {
+              ...prev,
+              balance: +(prev.balance + refunded).toFixed(2),
+              payoutHistory: updatedHistory,
+            };
+          });
+        })
+        .catch(() => {});
+    });
+  }, [activeToken, walletOpen, activeTab]);
+
+  // Sync live Owner withdrawal approvals/rejections whenever Wallet opens
+  useEffect(() => {
+    if (!walletOpen || !activeToken) return;
+    fetch('/api/withdrawals/my', {
+      headers: { Authorization: `Bearer ${activeToken}` }
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = data?.withdrawals;
+        if (!Array.isArray(list) || list.length === 0) return;
+        const statusById = new Map<string, any>(list.map((w: any) => [w.id, w]));
+        setUserStats((prev) => {
+          let refunded = 0;
+          let changed = false;
+          const updatedHistory = prev.payoutHistory.map((item) => {
+            const remote = statusById.get(item.id);
+            if (!remote) return item;
+            if (remote.status !== item.status) {
+              changed = true;
+              if (item.status === 'Processing' && remote.status === 'Rejected') {
+                refunded += item.amount;
+              }
+              return {
+                ...item,
+                status: remote.status,
+                mpesaReceipt: remote.mpesaReceipt || item.mpesaReceipt,
+              };
+            }
+            return item;
+          });
+          if (!changed) return prev;
+          return {
+            ...prev,
+            balance: +(prev.balance + refunded).toFixed(2),
+            payoutHistory: updatedHistory,
+          };
+        });
+      })
+      .catch(() => {});
+  }, [walletOpen, activeToken]);
   const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -630,7 +761,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     processStreakAdvancement(nextDate);
   };
 
-  const purchasePackage = (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'PayPal' | 'Card' | 'Wallet', accountOrPhone: string): boolean => {
+  const purchasePackage = (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Wallet', accountOrPhone: string): boolean => {
     const pkg = AVAILABLE_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) return false;
 
@@ -646,12 +777,25 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setActivePackage(pkg);
+    recordPlatformTransaction({
+      id: `PASS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      kind: 'pass_purchase',
+      title: `${pkg.name} (KES ${pkg.priceKes})`,
+      customerLabel: accountOrPhone || auth.currentUser?.email || 'East Africa Contributor',
+      gatewayOrMethod: method,
+      currency: 'KES',
+      amountLocal: pkg.priceKes,
+      amountUsd: pkg.price,
+      status: 'Completed',
+      reference: `${method.toUpperCase()}-${pkg.id.toUpperCase()}`,
+      metadata: { packageId: pkg.id, accountOrPhone },
+    });
     try {
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     } catch {}
 
     showNotification(
-      `Congratulations! ${pkg.name} ($${pkg.price}) activated via ${method} (${accountOrPhone}). Tasks unlocked!`
+      `Congratulations! ${pkg.name} (KES ${pkg.priceKes} / ~$${pkg.price.toFixed(2)}) activated via ${method} (${accountOrPhone}). Tasks unlocked!`
     );
     return true;
   };
@@ -695,6 +839,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : t
       )
     );
+
+    recordPlatformTransaction({
+      id: newHistoryRecord.transactionRef,
+      kind: 'task_reward',
+      title: summaryTitle,
+      customerLabel: auth.currentUser?.displayName || auth.currentUser?.email || 'East Africa Contributor',
+      gatewayOrMethod: taskCategory.replace('-', ' ').toUpperCase(),
+      currency: 'USD',
+      amountUsd: totalAward,
+      status: 'Completed',
+      reference: newHistoryRecord.transactionRef,
+      metadata: { taskId, category: taskCategory, accuracyScore: 99.4 },
+    });
 
     // Persist completed task record to Cloud SQL and Firestore if user is authenticated
     if (auth.currentUser) {
@@ -741,6 +898,28 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })
         }).catch((err) => console.warn('Cloud SQL task record sync deferred:', err));
       }).catch((err) => console.warn('Could not get auth token for Cloud SQL sync:', err));
+    } else {
+      try {
+        const customerToken = localStorage.getItem('gideon_customer_token_v1');
+        if (customerToken) {
+          fetch('/api/user/tasks', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${customerToken}`
+            },
+            body: JSON.stringify({
+              taskId,
+              taskTitle: summaryTitle,
+              category: taskCategory,
+              reward: totalAward,
+              status: 'Approved',
+              accuracyScore: 99.4,
+              transactionRef: newHistoryRecord.transactionRef
+            })
+          }).catch(() => {});
+        }
+      } catch {}
     }
 
     try {
@@ -753,8 +932,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const requestPayout = (amount: number, method: PayoutRecord['method'], details: string): boolean => {
-    if (amount < 100) {
-      showNotification('Withdrawals start from $100.00. Continue completing tasks to reach the $100 cash-out milestone!');
+    if (amount < 20) {
+      showNotification('Withdrawals start from $20.00. Continue completing tasks to reach the $20 cash-out milestone!');
       return false;
     }
 
@@ -782,14 +961,35 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       payoutHistory: [newRecord, ...prev.payoutHistory]
     }));
 
+    // Submit withdrawal to server-side Owner approval queue
+    fetch('/api/withdrawals/request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-ea-country': selectedCountry.code,
+        'x-ea-verified': 'true',
+        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+      },
+      body: JSON.stringify({
+        id: newRecord.id,
+        amountUsd: amount,
+        method,
+        accountDetails: details,
+        countryCode: selectedCountry.code,
+        mpesaReceipt,
+      }),
+    }).catch(() => {});
+
     if (auth.currentUser?.emailVerified) {
       const wId = `wd_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       const wPath = `withdrawals/${wId}`;
+      const safeDetails = String(details || '').trim();
+      const paddedDetails = (safeDetails.length >= 3 ? safeDetails : `${safeDetails || method} payout`).slice(0, 200);
       setDoc(doc(db, 'withdrawals', wId), {
         userUid: auth.currentUser.uid.slice(0, 128),
         amount: Number(amount),
         method,
-        details: String(details).slice(0, 200),
+        details: paddedDetails,
         status: 'Pending',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -908,12 +1108,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const CANDIDATES = [
       { name: 'David Kimani', email: 'da***ni@gmail.com', country: 'Kenya', method: 'M-PESA' as const },
-      { name: 'Maria Santos', email: 'ma***os@gmail.com', country: 'Philippines', method: 'Card' as const },
-      { name: 'Jean-Luc Dubois', email: 'jl***is@outlook.fr', country: 'France', method: 'Card' as const },
-      { name: 'Ananya Sharma', email: 'an***ma@gmail.com', country: 'India', method: 'Card' as const },
-      { name: 'Mateo Morales', email: 'ma***es@colombia.co', country: 'Colombia', method: 'Card' as const },
+      { name: 'Grace Namukasa', email: 'gr***sa@gmail.com', country: 'Uganda', method: 'Card' as const },
+      { name: 'Asha Mwinyi', email: 'as***yi@gmail.com', country: 'Tanzania', method: 'M-PESA' as const },
+      { name: 'Jean-Paul Habimana', email: 'jp***na@gmail.com', country: 'Rwanda', method: 'Card' as const },
+      { name: 'Chantal Niyonkuru', email: 'ch***ru@gmail.com', country: 'Burundi', method: 'Card' as const },
       { name: 'Faith Wanjiku', email: 'fa***ku@yahoo.com', country: 'Kenya', method: 'M-PESA' as const },
-      { name: 'Amara Okafor', email: 'am***or@gmail.com', country: 'Nigeria', method: 'Card' as const }
+      { name: 'Deng Kuol', email: 'de***ol@gmail.com', country: 'South Sudan', method: 'M-PESA' as const }
     ];
 
     const pick = CANDIDATES[Math.floor(Math.random() * CANDIDATES.length)];
@@ -923,10 +1123,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const passInfo =
       passTier === 'starter'
-        ? { title: 'Starter Contributor Pass ($2)', price: 2.00, method: pick.method }
+        ? { title: 'Starter Contributor Pass (KES 50)', price: 0.38, method: pick.method }
         : passTier === 'vip'
-        ? { title: 'VIP Taskmaster Pass ($10)', price: 10.00, method: 'Card' as const }
-        : { title: 'Pro Tasker Pass ($5)', price: 5.00, method: 'M-PESA' as const };
+        ? { title: 'VIP Taskmaster Pass (KES 200)', price: 1.54, method: 'Card' as const }
+        : { title: 'Pro Tasker Pass (KES 100)', price: 0.77, method: 'M-PESA' as const };
 
     // Standard 20% commission on worker passes purchased by referred users
     const rate = referralStats.commissionPercentage / 100;
@@ -962,6 +1162,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       passesPurchasedCount: prev.passesPurchasedCount + 1,
       totalCommissionEarned: +(prev.totalCommissionEarned + earned).toFixed(2)
     }));
+
+    recordPlatformTransaction({
+      id: newRecord.transactionId,
+      kind: 'referral_commission',
+      title: `20% Referral Commission · ${passInfo.title}`,
+      customerLabel: `${chosenName} (${chosenCountry})`,
+      gatewayOrMethod: passInfo.method,
+      currency: 'USD',
+      amountUsd: earned,
+      status: 'Completed',
+      reference: newRecord.transactionId,
+      metadata: { passTier, refereeCountry: chosenCountry },
+    });
 
     try {
       confetti({
@@ -1022,8 +1235,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDarajaModalOpen,
         intasendModalOpen,
         setIntasendModalOpen,
-        paypalModalOpen,
-        setPaypalModalOpen,
+        paystackModalOpen,
+        setPaystackModalOpen,
         privacyTermsModalOpen,
         setPrivacyTermsModalOpen,
         privacyTermsTab,
