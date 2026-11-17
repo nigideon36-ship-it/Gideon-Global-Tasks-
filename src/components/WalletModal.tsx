@@ -1,44 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
-import { isEastAfricaPhone } from '../lib/eastAfrica';
+import {
+  isEastAfricaPhone,
+  WITHDRAWAL_THRESHOLD_USD,
+  convertUsdToLocal,
+  localAmountToUsd,
+  formatCurrencyFromUsd,
+  formatCurrencyFromKes,
+} from '../lib/eastAfrica';
 import { PayoutRecord } from '../types/tasks';
-import { X, Wallet, ArrowUpRight, ShieldCheck, CheckCircle2, AlertCircle, Clock, Zap } from 'lucide-react';
+import { WithdrawalEligibilityGate } from './WithdrawalEligibilityGate';
+import { X, Wallet, ArrowUpRight, ShieldCheck, CheckCircle2, AlertCircle, Lock, Zap, Clock } from 'lucide-react';
 
 export const WalletModal: React.FC = () => {
   const { userStats, walletOpen, setWalletOpen, requestPayout, activePackage, setPackagesModalOpen } = useTasks();
+  const { customerProfile, openMyAccount } = useAuth();
   const { selectedCountry } = useRegion();
 
-  const [payoutMethod, setPayoutMethod] = useState<PayoutRecord['method']>('M-PESA');
-  const [amount, setAmount] = useState<string>('20.00');
-  const [accountDetails, setAccountDetails] = useState<string>(selectedCountry.samplePhone);
+  const lockedWithdrawal = customerProfile?.withdrawalDetails?.locked
+    ? customerProfile.withdrawalDetails
+    : null;
+
+  const minLocalAmount = convertUsdToLocal(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
+  const [payoutMethod, setPayoutMethod] = useState<PayoutRecord['method']>(
+    (lockedWithdrawal?.method as PayoutRecord['method']) || 'M-PESA'
+  );
+  const [amount, setAmount] = useState<string>(String(minLocalAmount));
+  const [accountDetails, setAccountDetails] = useState<string>(
+    lockedWithdrawal?.accountDetails || customerProfile?.phone || selectedCountry.samplePhone
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') {
-      setAccountDetails(selectedCountry.samplePhone);
+    setAmount(String(convertUsdToLocal(WITHDRAWAL_THRESHOLD_USD, selectedCountry)));
+  }, [selectedCountry.code]);
+
+  useEffect(() => {
+    if (lockedWithdrawal) {
+      setPayoutMethod(lockedWithdrawal.method);
+      setAccountDetails(lockedWithdrawal.accountDetails);
+      return;
     }
-  }, [selectedCountry.code, payoutMethod]);
+    if (payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') {
+      setAccountDetails(customerProfile?.phone || selectedCountry.samplePhone);
+    }
+  }, [selectedCountry.code, payoutMethod, lockedWithdrawal, customerProfile?.phone]);
 
   if (!walletOpen) return null;
 
-  const numAmount = parseFloat(amount) || 0;
-  const isEligible = numAmount >= 20 && numAmount <= userStats.balance;
-  const progressTo20 = Math.min(100, Math.round((userStats.balance / 20) * 100));
+  const maxLocalBalance = convertUsdToLocal(userStats.balance, selectedCountry);
+  const numLocalAmount = parseFloat(amount) || 0;
+  const resolvedUsdAmount =
+    Math.abs(numLocalAmount - maxLocalBalance) <= 1 && userStats.balance >= WITHDRAWAL_THRESHOLD_USD
+      ? userStats.balance
+      : localAmountToUsd(numLocalAmount, selectedCountry);
+  const isEligible =
+    numLocalAmount >= minLocalAmount && resolvedUsdAmount <= userStats.balance + 1e-4;
+  const thresholdLabel = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
 
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (numAmount < 20) {
-      setErrorMsg('Withdrawals start from $20.00. Continue completing tasks to reach the $20 cash-out milestone.');
+    if (numLocalAmount < minLocalAmount) {
+      setErrorMsg(`Withdrawals start from ${thresholdLabel}. Continue completing tasks to reach ${thresholdLabel}.`);
       return;
     }
 
-    if (numAmount > userStats.balance) {
-      setErrorMsg(`Withdrawal amount exceeds available balance ($${userStats.balance.toFixed(2)}).`);
+    if (resolvedUsdAmount > userStats.balance + 1e-4) {
+      setErrorMsg(`Withdrawal amount exceeds available balance (${formatCurrencyFromUsd(userStats.balance, selectedCountry)}).`);
       return;
     }
 
@@ -61,12 +95,12 @@ export const WalletModal: React.FC = () => {
       return;
     }
 
-    const success = requestPayout(numAmount, payoutMethod, accountDetails.trim());
+    const success = requestPayout(resolvedUsdAmount, payoutMethod, accountDetails.trim());
     if (success) {
       setSuccessMsg(
-        `$${numAmount.toFixed(2)} payout initiated via ${payoutMethod}! Funds scheduled for instant priority disbursement.`
+        `${formatCurrencyFromUsd(resolvedUsdAmount, selectedCountry)} payout initiated via ${payoutMethod}! Funds scheduled for priority disbursement.`
       );
-      setAmount('20.00');
+      setAmount(String(minLocalAmount));
     }
   };
 
@@ -84,9 +118,9 @@ export const WalletModal: React.FC = () => {
                 Gideon Global Wallet & Payouts
               </h2>
               <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span>Pass: <strong className="text-brand-600">{activePackage?.name || 'Active Pass'}</strong></span>
+                <span>Pass: <strong className="text-brand-600">{activePackage?.name || 'Locked (No Active Pass)'}</strong></span>
                 <span aria-hidden="true">·</span>
-                <span>Minimum Withdrawal: <strong className="text-slate-900 font-mono">$20.00</strong></span>
+                <span>Minimum Withdrawal: <strong className="text-slate-900 font-mono">{thresholdLabel}</strong></span>
               </div>
             </div>
           </div>
@@ -105,9 +139,13 @@ export const WalletModal: React.FC = () => {
             <div className="flex items-center gap-2.5">
               <Zap className="w-4 h-4 text-brand-600 shrink-0" />
               <div>
-                <span className="font-bold text-brand-950">Active Worker Pass: {activePackage?.name || 'Pro Contributor'} (${activePackage?.price || 5})</span>
+                <span className="font-bold text-brand-950">
+                  {activePackage
+                    ? `Active Worker Pass: ${activePackage.name} (${formatCurrencyFromKes(activePackage.priceKes, selectedCountry)})`
+                    : `Worker Pass: Locked (Activate ${formatCurrencyFromKes(50, selectedCountry)} / ${formatCurrencyFromKes(100, selectedCountry)} / ${formatCurrencyFromKes(200, selectedCountry)})`}
+                </span>
                 <p className="text-slate-600 text-[11px]">
-                  {activePackage?.taskAllowance} · 0% fee on withdrawals starting from $20.00.
+                  {activePackage ? activePackage.taskAllowance : 'M-PESA Code + Screenshot required for Owner approval'} · 0% fee on withdrawals from {thresholdLabel} · Pay Pass via M-PESA: <strong className="font-extrabold font-mono text-emerald-900">0758727558</strong>
                 </p>
               </div>
             </div>
@@ -119,7 +157,7 @@ export const WalletModal: React.FC = () => {
               }}
               className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold whitespace-nowrap shadow-xs"
             >
-              Change Pass (KES 50, 100, 200)
+              Change Pass ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)})
             </button>
           </div>
 
@@ -130,12 +168,12 @@ export const WalletModal: React.FC = () => {
                 Available to Cash Out
               </div>
               <div className="text-2xl font-bold font-mono tabular-nums text-emerald-400">
-                ${userStats.balance.toFixed(2)}
+                {formatCurrencyFromUsd(userStats.balance, selectedCountry)}
               </div>
               <div className="text-[11px] text-slate-400 mt-1">
-                {userStats.balance >= 20
-                  ? 'Eligible for $20+ withdrawal'
-                  : `$${(20 - userStats.balance).toFixed(2)} needed for $20 goal`}
+                {userStats.balance >= WITHDRAWAL_THRESHOLD_USD
+                  ? `Threshold met (${thresholdLabel}+)`
+                  : `${formatCurrencyFromUsd(Math.max(0, WITHDRAWAL_THRESHOLD_USD - userStats.balance), selectedCountry)} needed for threshold`}
               </div>
             </div>
 
@@ -144,7 +182,7 @@ export const WalletModal: React.FC = () => {
                 Pending Verification
               </div>
               <div className="text-2xl font-bold font-mono tabular-nums text-slate-800">
-                ${userStats.pendingBalance.toFixed(2)}
+                {formatCurrencyFromUsd(userStats.pendingBalance, selectedCountry)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
                 Clears within 24 hours
@@ -156,7 +194,7 @@ export const WalletModal: React.FC = () => {
                 Lifetime Earnings
               </div>
               <div className="text-2xl font-bold font-mono tabular-nums text-slate-800">
-                ${userStats.lifetimeEarned.toFixed(2)}
+                {formatCurrencyFromUsd(userStats.lifetimeEarned, selectedCountry)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
                 Across {userStats.completedTasksCount} completed tasks
@@ -164,54 +202,83 @@ export const WalletModal: React.FC = () => {
             </div>
           </div>
 
-          {/* $20 Withdrawal Milestone Progress Meter */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center justify-between text-xs font-medium text-slate-700 mb-1.5">
-              <span>$20.00 Minimum Withdrawal Milestone</span>
-              <span className="font-mono font-bold text-slate-900 tabular-nums">
-                ${userStats.balance.toFixed(2)} / $20.00 ({progressTo20}%)
-              </span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  userStats.balance >= 20 ? 'bg-emerald-500' : 'bg-indigo-600'
-                }`}
-                style={{ width: `${progressTo20}%` }}
-              />
-            </div>
-          </div>
+          {/* Sequential Withdrawal Eligibility Gate & Form */}
+          <WithdrawalEligibilityGate onCloseParent={() => setWalletOpen(false)}>
+            <form onSubmit={handleWithdraw} className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Request Payout (Minimum {thresholdLabel})
+                </h3>
+                <span className="text-xs font-mono font-semibold text-emerald-600">
+                  0% Fee Applied
+                </span>
+              </div>
 
-          {/* Withdrawal Request Form */}
-          <form onSubmit={handleWithdraw} className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Request Payout (Minimum $20.00)
-              </h3>
-              <span className="text-xs font-mono font-semibold text-emerald-600">
-                0% Fee Applied
-              </span>
-            </div>
+            {lockedWithdrawal ? (
+              <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Lock className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                  <span>
+                    Locked to real registration payout: <strong>{lockedWithdrawal.method}</strong> ·{' '}
+                    <span className="font-mono font-bold text-slate-900">{lockedWithdrawal.accountDetails}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWalletOpen(false);
+                    openMyAccount('details');
+                  }}
+                  className="text-blue-700 hover:underline font-semibold whitespace-nowrap cursor-pointer"
+                >
+                  Open My Account →
+                </button>
+              </div>
+            ) : (
+              customerProfile && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-950">
+                  <span>
+                    Tip: Lock your real withdrawal destination in <strong>My Account</strong> for instant 1-click cash-out verification.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWalletOpen(false);
+                      openMyAccount('details');
+                    }}
+                    className="text-amber-900 hover:underline font-bold whitespace-nowrap cursor-pointer"
+                  >
+                    Go to My Account →
+                  </button>
+                </div>
+              )
+            )}
 
             {/* Payout Channel Tabs with M-PESA prominent */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Select Destination Rail:
+                {lockedWithdrawal ? 'Registered Destination Rail (Locked):' : 'Select Destination Rail:'}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                 {(['M-PESA', 'Airtel / MTN MoMo', 'East Africa Bank', 'Wise', 'Crypto USDT'] as const).map((method) => {
                   const isSelected = payoutMethod === method;
+                  const isDisabledByLock = Boolean(lockedWithdrawal && lockedWithdrawal.method !== method);
                   return (
                     <button
                       key={method}
                       type="button"
-                      onClick={() => setPayoutMethod(method)}
+                      disabled={isDisabledByLock}
+                      onClick={() => {
+                        if (!lockedWithdrawal) setPayoutMethod(method);
+                      }}
                       className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition-all ${
                         isSelected
                           ? method === 'M-PESA'
                             ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold shadow-xs'
                             : 'border-indigo-600 bg-indigo-50/80 text-indigo-900 font-bold shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                          : isDisabledByLock
+                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700 cursor-pointer'
                       }`}
                     >
                       {method}
@@ -221,104 +288,120 @@ export const WalletModal: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Amount in USD ($) — Minimum $20.00
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-mono">$</span>
-                  <input
-                    type="number"
-                    step="5"
-                    min="20"
-                    max={userStats.balance}
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 text-xs rounded-xl border border-slate-300 font-mono font-semibold focus:border-indigo-500 outline-hidden"
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Amount in {selectedCountry.currency} ({selectedCountry.symbol}) — Minimum {thresholdLabel}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-slate-500 font-mono">{selectedCountry.symbol}</span>
+                    <input
+                      type="number"
+                      step="50"
+                      min={minLocalAmount}
+                      max={maxLocalBalance}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full pl-14 pr-3 py-2 text-xs rounded-xl border border-slate-300 font-mono font-semibold focus:border-indigo-500 outline-hidden"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center mt-1 text-[11px] text-slate-500">
+                    <span>Threshold: {thresholdLabel}</span>
+                    {userStats.balance >= WITHDRAWAL_THRESHOLD_USD && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount(String(maxLocalBalance))}
+                        className="text-indigo-600 hover:underline font-semibold"
+                      >
+                        Withdraw All ({formatCurrencyFromUsd(userStats.balance, selectedCountry)})
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center mt-1 text-[11px] text-slate-500">
-                  <span>Threshold: $20.00</span>
-                  {userStats.balance >= 20 && (
-                    <button
-                      type="button"
-                      onClick={() => setAmount(userStats.balance.toFixed(2))}
-                      className="text-indigo-600 hover:underline font-semibold"
-                    >
-                      Withdraw All (${userStats.balance.toFixed(2)})
-                    </button>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>
+                      {payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
+                        ? `${selectedCountry.name} Mobile Money Number (${selectedCountry.dialCode})`
+                        : payoutMethod === 'Crypto USDT'
+                        ? 'USDT Address (TRC-20)'
+                        : payoutMethod === 'East Africa Bank'
+                        ? 'Bank Name & Account / SWIFT'
+                        : 'Wise Recipient Email'}
+                    </span>
+                    {lockedWithdrawal && (
+                      <span className="text-[10px] font-semibold text-slate-500 inline-flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        <span>Locked</span>
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    readOnly={Boolean(lockedWithdrawal)}
+                    value={accountDetails}
+                    onChange={(e) => {
+                      if (!lockedWithdrawal) setAccountDetails(e.target.value);
+                    }}
+                    placeholder={
+                      payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
+                        ? selectedCountry.samplePhone
+                        : payoutMethod === 'Crypto USDT'
+                        ? 'e.g. TLq8x...39Fk'
+                        : payoutMethod === 'East Africa Bank'
+                        ? 'e.g. Equity / KCB / Stanbic Account #'
+                        : 'e.g. name@domain.com'
+                    }
+                    className={`w-full px-3 py-2 text-xs rounded-xl border font-mono outline-hidden ${
+                      lockedWithdrawal
+                        ? 'border-slate-200 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed'
+                        : 'border-slate-300 bg-white focus:border-indigo-500'
+                    }`}
+                  />
+                  {(payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') && (
+                    <div className="text-[11px] text-emerald-700 font-mono mt-1">
+                      Estimated Payout: {selectedCountry.symbol} {Math.round(numLocalAmount).toLocaleString()} {selectedCountry.currency} (East Africa Instant B2C)
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
-                    ? `${selectedCountry.name} Mobile Money Number (${selectedCountry.dialCode})`
-                    : payoutMethod === 'Crypto USDT'
-                    ? 'USDT Address (TRC-20)'
-                    : payoutMethod === 'East Africa Bank'
-                    ? 'Bank Name & Account / SWIFT'
-                    : 'Wise Recipient Email'}
-                </label>
-                <input
-                  type="text"
-                  value={accountDetails}
-                  onChange={(e) => setAccountDetails(e.target.value)}
-                  placeholder={
-                    payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo'
-                      ? selectedCountry.samplePhone
-                      : payoutMethod === 'Crypto USDT'
-                      ? 'e.g. TLq8x...39Fk'
-                      : payoutMethod === 'East Africa Bank'
-                      ? 'e.g. Equity / KCB / Stanbic Account #'
-                      : 'e.g. name@domain.com'
-                  }
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-mono focus:border-indigo-500 outline-hidden"
-                />
-                {(payoutMethod === 'M-PESA' || payoutMethod === 'Airtel / MTN MoMo') && (
-                  <div className="text-[11px] text-emerald-700 font-mono mt-1">
-                    Estimated Payout: ~{Math.round(numAmount * selectedCountry.approxRatePerUsd).toLocaleString()} {selectedCountry.currency} (East Africa Instant B2C)
-                  </div>
-                )}
-              </div>
-            </div>
+              {errorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+              {successMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{successMsg}</span>
+                </div>
+              )}
 
-            {successMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successMsg}</span>
-              </div>
-            )}
+              <div className="flex items-center justify-between pt-2">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>M-PESA STK & Bank Wire 256-Bit Escrow Security</span>
+                </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>M-PESA STK & Bank Wire 256-Bit Escrow Security</span>
+                <button
+                  type="submit"
+                  disabled={!isEligible}
+                  className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-semibold text-white transition-all ${
+                    isEligible
+                      ? 'bg-slate-900 hover:bg-slate-800 shadow-sm cursor-pointer'
+                      : 'bg-slate-300 cursor-not-allowed'
+                  }`}
+                >
+                  <span>Confirm {thresholdLabel}+ Withdrawal</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={!isEligible}
-                className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-semibold text-white transition-all ${
-                  isEligible
-                    ? 'bg-slate-900 hover:bg-slate-800 shadow-sm cursor-pointer'
-                    : 'bg-slate-300 cursor-not-allowed'
-                }`}
-              >
-                <span>Confirm $20+ Withdrawal</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </form>
+            </form>
+          </WithdrawalEligibilityGate>
 
           {/* Payout History Ledger */}
           <div>
@@ -355,7 +438,7 @@ export const WalletModal: React.FC = () => {
                       <td className="py-2.5 px-4 font-medium text-slate-900">{rec.method}</td>
                       <td className="py-2.5 px-4 text-slate-500 truncate max-w-[140px] font-mono">{rec.accountDetails}</td>
                       <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
-                        ${rec.amount.toFixed(2)}
+                        {formatCurrencyFromUsd(rec.amount, selectedCountry)}
                       </td>
                       <td className="py-2.5 px-4 text-right">
                         <span
@@ -381,6 +464,30 @@ export const WalletModal: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Customer Support Helpline */}
+          <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-blue-950">
+            <div className="font-semibold">
+              Experiencing withdrawal or account issues? Contact our support desk directly:
+            </div>
+            <div className="flex flex-wrap items-center gap-3 font-mono font-bold">
+              <a
+                href="tel:+254712727558"
+                className="text-blue-700 hover:underline"
+              >
+                Call: +254712727558
+              </a>
+              <span aria-hidden="true" className="text-blue-300">·</span>
+              <a
+                href="https://wa.me/254785909543"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-700 hover:underline"
+              >
+                WhatsApp: 0785909543
+              </a>
             </div>
           </div>
         </div>

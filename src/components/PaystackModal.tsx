@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   ExternalLink,
   RefreshCw,
-  CreditCard
+  CreditCard,
+  Link2,
+  Wand2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,28 +24,46 @@ interface PaystackModalProps {
   onClose: () => void;
 }
 
+interface PaymentPagesState {
+  starter: string;
+  pro: string;
+  vip: string;
+  customDeposit: string;
+}
+
 export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose }) => {
   const { idToken } = useAuth();
-  const [activeTab, setActiveTab] = useState<'credentials' | 'test' | 'guide'>('credentials');
+  const [activeTab, setActiveTab] = useState<'credentials' | 'pages' | 'test' | 'guide'>('credentials');
 
   const [publicKey, setPublicKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
+  const [hasSecretKey, setHasSecretKey] = useState(false);
   const [isTest, setIsTest] = useState(true);
   const [webhookUrl, setWebhookUrl] = useState(
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/paystack/webhook`
       : 'https://gideon-global-tasks.ai.studio/api/paystack/webhook'
   );
+  const [paymentPages, setPaymentPages] = useState<PaymentPagesState>({
+    starter: '',
+    pro: '',
+    vip: '',
+    customDeposit: '',
+  });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isCreatingPages, setIsCreatingPages] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [testPhone, setTestPhone] = useState('+254712345678');
   const [testAmountKes, setTestAmountKes] = useState('260');
   const [isSendingStk, setIsSendingStk] = useState(false);
   const [stkResult, setStkResult] = useState<any | null>(null);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const appOrigin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://gideon-global-tasks.ai.studio';
 
   useEffect(() => {
     if (!isOpen || !idToken) return;
@@ -54,19 +74,35 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
       .then((res) => res.json())
       .then((data) => {
         if (data.publicKey) setPublicKey(data.publicKey);
+        if (data.hasSecretKey !== undefined) setHasSecretKey(Boolean(data.hasSecretKey));
         if (data.isTest !== undefined) setIsTest(data.isTest);
         if (data.webhookUrl) setWebhookUrl(data.webhookUrl);
+        if (data.paymentPages) {
+          setPaymentPages({
+            starter: data.paymentPages.starter || '',
+            pro: data.paymentPages.pro || '',
+            vip: data.paymentPages.vip || '',
+            customDeposit: data.paymentPages.customDeposit || '',
+          });
+        }
       })
       .catch(() => {});
   }, [isOpen, idToken]);
 
   if (!isOpen) return null;
 
+  const copyText = (key: string, text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg(null);
-    setSaveSuccess(false);
+    setSaveSuccess(null);
 
     try {
       const res = await fetch('/api/paystack/config', {
@@ -79,14 +115,26 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
           publicKey,
           secretKey,
           isTest,
-          webhookUrl
+          webhookUrl,
+          paymentPages,
         })
       });
 
       const data = await res.json();
       if (data.success) {
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
+        if (data.config?.hasSecretKey !== undefined) {
+          setHasSecretKey(Boolean(data.config.hasSecretKey));
+        }
+        if (data.config?.paymentPages) {
+          setPaymentPages({
+            starter: data.config.paymentPages.starter || '',
+            pro: data.config.paymentPages.pro || '',
+            vip: data.config.paymentPages.vip || '',
+            customDeposit: data.config.paymentPages.customDeposit || '',
+          });
+        }
+        setSaveSuccess(data.message || 'Paystack settings saved! M-PESA STK Push, Card checkout & Payment Pages are active.');
+        setTimeout(() => setSaveSuccess(null), 4000);
       } else {
         setErrorMsg(data.error || 'Failed to save Paystack configuration');
       }
@@ -94,6 +142,44 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
       setErrorMsg(err.message || 'Error communicating with server');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAutoCreatePages = async () => {
+    setIsCreatingPages(true);
+    setErrorMsg(null);
+    setSaveSuccess(null);
+
+    try {
+      const res = await fetch('/api/paystack/pages/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({
+          redirectOrigin: appOrigin,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMsg(data.error || 'Could not generate Paystack Payment Pages.');
+        return;
+      }
+      if (data.paymentPages) {
+        setPaymentPages({
+          starter: data.paymentPages.starter || '',
+          pro: data.paymentPages.pro || '',
+          vip: data.paymentPages.vip || '',
+          customDeposit: data.paymentPages.customDeposit || '',
+        });
+      }
+      setSaveSuccess(data.message || '4 Paystack Payment Pages created & linked automatically.');
+      setTimeout(() => setSaveSuccess(null), 5000);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error connecting to Paystack Page API.');
+    } finally {
+      setIsCreatingPages(false);
     }
   };
 
@@ -128,11 +214,7 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const copyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setCopiedWebhook(true);
-    setTimeout(() => setCopiedWebhook(false), 2000);
-  };
+  const configuredPagesCount = Object.values(paymentPages).filter(Boolean).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
@@ -148,18 +230,12 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                 <h2 className="text-base font-bold leading-tight">
                   Paystack Gateway (Kenya Starter Business)
                 </h2>
-                <span
-                  className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded-full font-bold ${
-                    !isTest
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-900/30 text-white border border-white/30'
-                  }`}
-                >
-                  {!isTest ? 'Live Mode' : 'Test Mode'}
+                <span className="text-xs font-mono text-sky-50">
+                  · {!isTest ? 'Live Mode' : 'Test Mode'}
                 </span>
               </div>
               <p className="text-xs text-sky-50">
-                M-PESA STK Push + East Africa Visa/Mastercard without a Paybill or Till!
+                M-PESA STK Push, Visa/Mastercard checkout &amp; hosted Paystack Payment Pages
               </p>
             </div>
           </div>
@@ -173,11 +249,11 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center border-b border-slate-200 bg-slate-50 px-6 text-xs font-semibold text-slate-600">
+        <div className="flex items-center overflow-x-auto border-b border-slate-200 bg-slate-50 px-6 text-xs font-semibold text-slate-600">
           <button
             type="button"
             onClick={() => setActiveTab('credentials')}
-            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'credentials'
                 ? 'border-[#09A5DB] text-[#0576A0] font-bold bg-white'
                 : 'border-transparent hover:text-slate-900'
@@ -188,27 +264,39 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('pages')}
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'pages'
+                ? 'border-[#09A5DB] text-[#0576A0] font-bold bg-white'
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span>Payment Pages ({configuredPagesCount}/4)</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('test')}
-            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'test'
                 ? 'border-[#09A5DB] text-[#0576A0] font-bold bg-white'
                 : 'border-transparent hover:text-slate-900'
             }`}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Test M-PESA STK Push</span>
+            <span>Test STK Push</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('guide')}
-            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'guide'
                 ? 'border-[#09A5DB] text-[#0576A0] font-bold bg-white'
                 : 'border-transparent hover:text-slate-900'
             }`}
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>East Africa Coverage &amp; Setup</span>
+            <span>Setup Guide</span>
           </button>
         </div>
 
@@ -217,7 +305,7 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
           {saveSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Paystack keys saved! M-PESA STK Push and Card checkout are active.</span>
+              <span>{saveSuccess}</span>
             </div>
           )}
 
@@ -238,7 +326,7 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                   </p>
                   <p className="text-[11px] text-slate-700 leading-relaxed">
                     <strong>Kenya (+254):</strong> Direct M-PESA STK Push via Paystack Charge API (settles straight to your personal M-PESA or personal bank account, no Paybill/Till required).<br />
-                    <strong>Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia:</strong> Covered automatically via <strong>Paystack Visa / Mastercard / Apple Pay</strong> checkout.
+                    <strong>Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia:</strong> Covered automatically via <strong>Paystack Visa / Mastercard / Apple Pay</strong> checkout and hosted <strong>Payment Pages</strong>.
                   </p>
                 </div>
               </div>
@@ -294,15 +382,20 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
 
               {/* Secret Key */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 flex items-center gap-1">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Paystack Secret Key (For Server STK Push &amp; Verification)</span>
+                <label className="font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Paystack Secret Key (For Server STK Push, Pages &amp; Verification)</span>
+                  </span>
+                  {hasSecretKey && !secretKey && (
+                    <span className="text-[11px] font-medium text-emerald-700">Saved on server</span>
+                  )}
                 </label>
                 <input
                   type="password"
                   value={secretKey}
                   onChange={(e) => setSecretKey(e.target.value)}
-                  placeholder="sk_test_... or sk_live_..."
+                  placeholder={hasSecretKey ? '•••••••••••••••• (leave blank to keep saved key)' : 'sk_test_... or sk_live_...'}
                   className="w-full px-3.5 py-2.5 font-mono text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#09A5DB] focus:outline-none"
                 />
               </div>
@@ -313,11 +406,11 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                   <span>Paystack Webhook URL (Paste in Dashboard → Settings → API Keys)</span>
                   <button
                     type="button"
-                    onClick={copyWebhook}
+                    onClick={() => copyText('webhook', webhookUrl)}
                     className="text-[#0576A0] hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
                   >
-                    {copiedWebhook ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedWebhook ? 'Copied' : 'Copy URL'}</span>
+                    {copiedKey === 'webhook' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'webhook' ? 'Copied' : 'Copy URL'}</span>
                   </button>
                 </label>
                 <input
@@ -343,6 +436,137 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                 >
                   {isLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save Paystack Keys</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'pages' && (
+            <form onSubmit={handleSave} className="space-y-5">
+              <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-xs">
+                      Paystack Hosted Payment Pages (`paystack.com/pay/...`)
+                    </h3>
+                    <p className="text-[11px] text-slate-700 leading-relaxed mt-0.5">
+                      Use Payment Pages as a direct checkout backup when M-PESA STK Push times out, for WhatsApp/social sales, or for client campaign escrow deposits.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoCreatePages}
+                    disabled={isCreatingPages}
+                    className="px-3.5 py-2 bg-[#09A5DB] hover:bg-[#0576A0] text-white font-semibold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    {isCreatingPages ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isCreatingPages ? 'Creating Pages...' : 'Auto-Create via Paystack API'}</span>
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-sky-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+                  <span className="text-slate-700">
+                    Dashboard Redirect URL (set on Paystack pages for instant auto-unlock):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-white px-2 py-1 rounded border border-sky-200 font-mono text-[10px] text-slate-800 truncate max-w-[230px]">
+                      {appOrigin}/?paystack_pkg=pro
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copyText('redirect', `${appOrigin}/`)}
+                      className="text-[#0576A0] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      {copiedKey === 'redirect' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey === 'redirect' ? 'Copied' : 'Copy Base URL'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  {
+                    key: 'starter' as const,
+                    label: 'Starter Worker Pass Page (KES 50)',
+                    redirectHint: `${appOrigin}/?paystack_pkg=starter`,
+                    placeholder: 'https://paystack.com/pay/gideon-starter-pass',
+                  },
+                  {
+                    key: 'pro' as const,
+                    label: 'Pro Creator Pass Page (KES 100)',
+                    redirectHint: `${appOrigin}/?paystack_pkg=pro`,
+                    placeholder: 'https://paystack.com/pay/gideon-pro-pass',
+                  },
+                  {
+                    key: 'vip' as const,
+                    label: 'VIP Full Access Pass Page (KES 200)',
+                    redirectHint: `${appOrigin}/?paystack_pkg=vip`,
+                    placeholder: 'https://paystack.com/pay/gideon-vip-pass',
+                  },
+                  {
+                    key: 'customDeposit' as const,
+                    label: 'Employer / Campaign Escrow Deposit Page (Custom Amount)',
+                    redirectHint: `${appOrigin}/`,
+                    placeholder: 'https://paystack.com/pay/gideon-campaign-deposit',
+                  },
+                ].map((item) => {
+                  const val = paymentPages[item.key];
+                  return (
+                    <div key={item.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="font-bold text-slate-700">{item.label}</label>
+                        {val && (
+                          <div className="flex items-center gap-3 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => copyText(item.key, val)}
+                              className="text-[#0576A0] hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              {copiedKey === item.key ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedKey === item.key ? 'Copied' : 'Copy Link'}</span>
+                            </button>
+                            <a
+                              href={val}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-600 hover:text-slate-900 hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>Open</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="url"
+                        value={val}
+                        onChange={(e) =>
+                          setPaymentPages((prev) => ({ ...prev, [item.key]: e.target.value }))
+                        }
+                        placeholder={item.placeholder}
+                        className="w-full px-3.5 py-2.5 font-mono text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#09A5DB] focus:outline-none"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-500">
+                  Saved links appear in Worker Pass checkout &amp; Owner campaign briefs.
+                </span>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50 shrink-0"
+                >
+                  {isLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Payment Pages</span>
                 </button>
               </div>
             </form>
@@ -426,7 +650,7 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
 
           {activeTab === 'guide' && (
             <div className="space-y-4 text-slate-600 leading-relaxed">
-              <h3 className="font-bold text-slate-900 text-sm">Paystack Starter Business Setup (No Paybill/Till Needed):</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Paystack Starter Business &amp; Payment Pages Setup:</h3>
               <ol className="list-decimal pl-4 space-y-2 text-xs">
                 <li>
                   Create your account on <a href="https://dashboard.paystack.com/#/signup" target="_blank" rel="noopener noreferrer" className="text-[#0576A0] underline font-medium">paystack.com</a> and select <strong>Kenya → Starter Business</strong>.
@@ -438,7 +662,7 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                   If onboarding asks for a website URL and rejects <code className="bg-slate-100 px-1 rounded">*.run.app</code>, select the <strong>No Website / Social Media / Payment Links</strong> option and link your active business social page.
                 </li>
                 <li>
-                  Go to <strong>Settings → API Keys &amp; Webhooks</strong>, copy your Public Key &amp; Secret Key, and paste them into the <em>API Keys</em> tab here.
+                  Copy your Public Key &amp; Secret Key into the <strong>API Keys</strong> tab, then open the <strong>Payment Pages</strong> tab and click <strong>Auto-Create via Paystack API</strong> (or paste URLs from Paystack Dashboard → Payment Pages).
                 </li>
               </ol>
 
@@ -449,7 +673,8 @@ export const PaystackModal: React.FC<PaystackModalProps> = ({ isOpen, onClose })
                 </div>
                 <p>
                   • <strong>M-PESA STK Push:</strong> Works natively for Kenyan (<code className="bg-white px-1 rounded">+254</code>) Safaricom numbers.<br />
-                  • <strong>Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia:</strong> Contributors in those countries pay via <strong>Paystack Visa / Mastercard</strong> checkout (or add Flutterwave later if you also want native Ugandan/Tanzanian/Rwandan Mobile Money).
+                  • <strong>Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia:</strong> Contributors pay via <strong>Paystack Visa / Mastercard</strong> checkout or your hosted <strong>Paystack Payment Pages</strong>.<br />
+                  • <strong>Auto-Unlock on Return:</strong> Any Payment Page configured with Redirect URL <code className="bg-white px-1 rounded">{appOrigin}/?paystack_pkg=pro</code> automatically verifies <code className="bg-white px-1 rounded">?reference=...</code> and unlocks the pass on return.
                 </p>
               </div>
             </div>

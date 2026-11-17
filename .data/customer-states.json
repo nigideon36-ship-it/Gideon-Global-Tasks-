@@ -1,0 +1,42 @@
+[
+  {
+    "uid": "cust_verify_1794910104512",
+    "userStats": {
+      "balance": 25,
+      "pendingBalance": 0,
+      "lifetimeEarned": 25,
+      "completedTasksCount": 4,
+      "qualityScore": 100,
+      "streakDays": 0,
+      "lastLoginDate": "",
+      "streakBonusMultiplier": 1,
+      "sevenDayBonusAwarded": false,
+      "tier": "Bronze",
+      "completedTaskIds": [],
+      "payoutHistory": []
+    },
+    "taskHistory": [],
+    "referralHistory": [],
+    "referralStats": {
+      "referralCode": "GIDEON-EA-4512",
+      "referralLink": "https://gideonglobal.com/?ref=GIDEON-EA-4512",
+      "totalClicks": 0,
+      "totalSignups": 0,
+      "passesPurchasedCount": 0,
+      "totalCommissionEarned": 0,
+      "pendingCommission": 0,
+      "commissionPercentage": 20,
+      "vipTierBonusPercent": 5,
+      "vipReferralCount": 0
+    },
+    "dailyUsage": {
+      "dateKey": "2026-11-17",
+      "completedTodayCount": 0,
+      "surveysCompletedTodayCount": 0,
+      "earnedTodayUsd": 0
+    },
+    "activePackageId": null,
+    "vipReferralCount": 0,
+    "updatedAt": "2026-11-17T10:08:24.935Z"
+  }
+]

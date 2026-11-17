@@ -1,11 +1,14 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { Globe, ShieldCheck, Mail, BookOpen, HelpCircle, CheckCircle2, ArrowRight, FileText, Cookie } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { setActiveTab, setWalletOpen, setPublisherModalOpen, openPrivacyTerms } = useTasks();
   const { isOwner } = useAuth();
+  const { selectedCountry } = useRegion();
 
   return (
     <footer className="mt-20 border-t border-blue-400/40 bg-blue-900 text-blue-100 py-12 text-xs">
@@ -32,6 +35,21 @@ export const Footer: React.FC = () => {
                 <Mail className="w-3.5 h-3.5 text-sky-300 shrink-0" />
                 <a href="mailto:nigideon36@gmail.com" className="hover:text-white font-mono">
                   nigideon36@gmail.com
+                </a>
+              </div>
+              <div className="text-blue-100 leading-relaxed">
+                <span>If customers experience issues — </span>
+                <a href="tel:+254712727558" className="font-mono font-bold text-white hover:underline">
+                  Call: +254712727558
+                </a>
+                <span aria-hidden="true"> · </span>
+                <a
+                  href="https://wa.me/254785909543"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono font-bold text-emerald-300 hover:underline"
+                >
+                  WhatsApp: 0785909543
                 </a>
               </div>
               <div className="flex items-center gap-2 text-emerald-300">
@@ -101,6 +119,18 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
+                  href="/dashboard"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('dashboard');
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Customer Dashboard
+                </a>
+              </li>
+              <li>
+                <a
                   href="/packages"
                   onClick={(e) => {
                     e.preventDefault();
@@ -108,7 +138,31 @@ export const Footer: React.FC = () => {
                   }}
                   className="hover:text-white transition-colors"
                 >
-                  Worker Passes (KES 50, 100, 200)
+                  Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)})
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/investments"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('investments');
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Investments ({formatCurrencyFromKes(50, selectedCountry)}+ Deposit Only)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/testimonials"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('testimonials');
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Customer Testimonials &amp; Reviews
                 </a>
               </li>
               <li>
@@ -141,7 +195,7 @@ export const Footer: React.FC = () => {
                   onClick={() => setWalletOpen(true)}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Wallet & Cash Out ($20 Min)
+                  Wallet & Cash Out ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} Min)
                 </button>
               </li>
               {isOwner && (

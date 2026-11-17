@@ -1,9 +1,17 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import {
+  formatCurrencyFromKes,
+  formatCurrencyFromUsd,
+  MAX_TASK_REWARD_KES,
+  WITHDRAWAL_THRESHOLD_USD,
+} from '../lib/eastAfrica';
 import { ShieldCheck, Zap, Globe, ArrowRight, CheckCircle2, Award, Users, BookOpen, HelpCircle, DollarSign, Wallet } from 'lucide-react';
 
 export const PlatformOverviewLanding: React.FC = () => {
   const { setActiveTab, setPackagesModalOpen } = useTasks();
+  const { selectedCountry } = useRegion();
 
   return (
     <section className="space-y-12 py-8 border-t border-blue-400/40 mt-12 text-white">
@@ -21,21 +29,35 @@ export const PlatformOverviewLanding: React.FC = () => {
             Gideon Global Tasks is an East Africa-exclusive crowdsourcing and multimodal data annotation marketplace serving contributors in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia.
           </p>
           <p className="text-xs md:text-sm text-blue-100 leading-relaxed">
-            Contributors earn verified micropayments for completed tasks, maintain an ongoing accuracy score, build daily login streak multipliers, and withdraw accumulated earnings starting from the $20.00 milestone directly via <strong className="text-white">M-PESA</strong>, <strong className="text-white">Airtel / MTN MoMo</strong>, and <strong className="text-white">East Africa Bank</strong> rails.
+            Contributors earn verified micropayments for completed tasks, maintain an ongoing accuracy score, build daily login streak multipliers, and withdraw accumulated earnings starting from the {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} milestone directly via <strong className="text-white">M-PESA</strong>, <strong className="text-white">Airtel / MTN MoMo</strong>, and <strong className="text-white">East Africa Bank</strong> rails.
           </p>
           <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setActiveTab('investments')}
+              className="text-xs font-bold text-emerald-300 hover:text-emerald-200 underline cursor-pointer"
+            >
+              Invest from {formatCurrencyFromKes(50, selectedCountry)}+ →
+            </button>
+            <span className="text-blue-300">·</span>
+            <button
+              onClick={() => setActiveTab('testimonials')}
+              className="text-xs font-bold text-amber-200 hover:text-amber-100 underline cursor-pointer"
+            >
+              Customer Testimonials →
+            </button>
+            <span className="text-blue-300">·</span>
             <button
               onClick={() => setActiveTab('about')}
               className="text-xs font-semibold text-white hover:text-blue-200 underline cursor-pointer"
             >
-              Learn more about our corporate mission →
+              Mission →
             </button>
             <span className="text-blue-300">·</span>
             <button
               onClick={() => setActiveTab('guides')}
               className="text-xs font-semibold text-white hover:text-blue-200 underline cursor-pointer"
             >
-              Read contributor training guides →
+              Guides →
             </button>
           </div>
         </div>
@@ -56,9 +78,9 @@ export const PlatformOverviewLanding: React.FC = () => {
             <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center text-xs">
               02
             </div>
-            <h3 className="font-bold text-sm text-slate-900">Activate Contributor Pass</h3>
+            <h3 className="font-bold text-sm text-slate-900">Activate Contributor Pass (Deposit Only)</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Unlock daily task quotas with a nominal pass: Starter (KES 50 for 25 tasks), Pro (KES 100 for 75 tasks), or VIP (KES 200 for unlimited bounties), converted automatically into your local East African currency.
+              Start with 1 free task daily (max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}), or deposit to unlock Starter ({formatCurrencyFromKes(50, selectedCountry)}: 2 tasks/day), Second Pass Pro ({formatCurrencyFromKes(100, selectedCountry)}: 3 tasks/day), or VIP ({formatCurrencyFromKes(200, selectedCountry)}: 4 surveys/day) — all capped at {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} max per task.
             </p>
           </div>
 
@@ -68,7 +90,7 @@ export const PlatformOverviewLanding: React.FC = () => {
             </div>
             <h3 className="font-bold text-sm text-slate-900">Maintain 7-Day Streaks</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Submit accurate work adhering to instructions. Complete tasks daily to reach the 7-day contributor milestone, unlocking an instant $5.00 cash bonus plus a permanent +20% reward multiplier.
+              Submit accurate work adhering to instructions. Complete tasks daily to reach the 7-day contributor milestone, unlocking an instant {formatCurrencyFromUsd(5, selectedCountry)} bonus plus a permanent +20% reward multiplier.
             </p>
           </div>
 
@@ -76,9 +98,9 @@ export const PlatformOverviewLanding: React.FC = () => {
             <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 font-bold flex items-center justify-center text-xs">
               04
             </div>
-            <h3 className="font-bold text-sm text-slate-900">Withdraw at $20 Milestone</h3>
+            <h3 className="font-bold text-sm text-slate-900">Withdraw at {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} Milestone</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Once your balance reaches the $20.00 cash-out threshold, initiate a zero-fee transfer directly to your M-PESA, Airtel / MTN MoMo, or East Africa Bank account.
+              Once your balance reaches the {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} cash-out threshold, initiate a zero-fee transfer directly to your M-PESA, Airtel / MTN MoMo, or East Africa Bank account.
             </p>
           </div>
         </div>
@@ -143,16 +165,16 @@ export const PlatformOverviewLanding: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
-            <h4 className="font-bold text-slate-900">Why does payout start at $20.00?</h4>
+            <h4 className="font-bold text-slate-900">Why does payout start at {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}?</h4>
             <p className="text-slate-500 leading-relaxed text-[11px]">
-              By aggregating payments starting from $20, Gideon Global Tasks absorbs all gateway and mobile money fees, guaranteeing contributors receive 100% of their earnings with zero deduction fees.
+              By starting payouts from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}, Gideon Global Tasks absorbs all gateway and mobile money fees, guaranteeing contributors receive 100% of their earnings with zero deduction fees.
             </p>
           </div>
 
           <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
-            <h4 className="font-bold text-slate-900">How do worker passes (KES 50, KES 100, KES 200) operate?</h4>
+            <h4 className="font-bold text-slate-900">How do worker passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)}) operate?</h4>
             <p className="text-slate-500 leading-relaxed text-[11px]">
-              Passes fund platform infrastructure and prevent bot abuse. They unlock generous daily task quotas in Kenya Shillings (or your local East Africa currency equivalent) while 100% of task rewards go into your wallet.
+              Passes fund platform infrastructure and prevent bot abuse. They unlock higher daily task quotas in your local East Africa currency ({selectedCountry.symbol}) while 100% of task rewards go into your wallet.
             </p>
           </div>
 
@@ -166,7 +188,7 @@ export const PlatformOverviewLanding: React.FC = () => {
           <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
             <h4 className="font-bold text-slate-900">How does the 7-day streak bonus work?</h4>
             <p className="text-slate-500 leading-relaxed text-[11px]">
-              Log in and complete at least one task each day. On Day 7, you receive an automatic $5.00 cash bonus plus an ongoing +20% reward multiplier applied to every future task approved.
+              Log in and complete at least one task each day. On Day 7, you receive an automatic {formatCurrencyFromUsd(5, selectedCountry)} milestone bonus plus an ongoing +20% reward multiplier applied to future tasks (up to {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} max per task).
             </p>
           </div>
         </div>

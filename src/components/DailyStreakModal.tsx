@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, Flame, Check, Gift, Sparkles, Calendar, ArrowRight, ShieldCheck, Trophy } from 'lucide-react';
 
 interface Props {
@@ -9,11 +11,13 @@ interface Props {
 
 export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { userStats, checkInDaily, advanceDailyStreak } = useTasks();
+  const { selectedCountry } = useRegion();
 
   if (!isOpen) return null;
 
   const currentStreak = userStats.streakDays;
   const multiplierPercent = currentStreak >= 7 ? 20 : 10;
+  const day7Bonus = formatCurrencyFromUsd(5, selectedCountry);
 
   const DAYS = [
     { day: 1, label: 'Day 1', reward: '+10% Task Bonus' },
@@ -22,7 +26,7 @@ export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
     { day: 4, label: 'Day 4', reward: '+10% Task Bonus' },
     { day: 5, label: 'Day 5', reward: '+10% Task Bonus' },
     { day: 6, label: 'Day 6', reward: '+10% Task Bonus' },
-    { day: 7, label: 'Day 7', reward: '+$5.00 Cash Bonus & 20% Boost', isGrand: true }
+    { day: 7, label: 'Day 7', reward: `+${day7Bonus} Cash Bonus & 20% Boost`, isGrand: true }
   ];
 
   return (
@@ -39,7 +43,7 @@ export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
               {currentStreak}-Day Active Streak! 🔥
             </h2>
             <p className="text-xs text-amber-100 max-w-md">
-              Log in daily to maintain your streak. Reaching Day 7 unlocks a <strong className="text-white">+$5.00 cash milestone bonus</strong> and increases your earnings multiplier to <strong className="text-white">+20%</strong>!
+              Log in daily to maintain your streak. Reaching Day 7 unlocks a <strong className="text-white">+{day7Bonus} cash milestone bonus</strong> and increases your earnings multiplier to <strong className="text-white">+20%</strong>!
             </p>
           </div>
 
@@ -107,7 +111,7 @@ export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         isMilestone ? 'text-amber-700 font-extrabold' : 'text-slate-600'
                       }`}
                     >
-                      {isMilestone ? '+$5.00 & 20%' : '+10%'}
+                      {isMilestone ? `+${day7Bonus} & 20%` : '+10%'}
                     </span>
                   </div>
                 );
@@ -127,7 +131,7 @@ export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <p className="text-[11px] text-slate-500">
                 {currentStreak >= 7
                   ? 'Maximum 7-day boost active! You earn an extra 20% on all surveys, annotations, and tasks.'
-                  : `Currently earning +10% bonus. Reach Day 7 to unlock +20% boost and $5.00 cash award.`}
+                  : `Currently earning +10% bonus. Reach Day 7 to unlock +20% boost and ${day7Bonus} cash award.`}
               </p>
             </div>
 
@@ -155,7 +159,7 @@ export const DailyStreakModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <Flame className="w-4 h-4 fill-current" />
               <span>
                 {currentStreak === 6
-                  ? 'Simulate Day 7 (Claim $5.00 Bonus!)'
+                  ? `Simulate Day 7 (Claim ${day7Bonus} Bonus!)`
                   : 'Simulate Next Day Streak'}
               </span>
             </button>

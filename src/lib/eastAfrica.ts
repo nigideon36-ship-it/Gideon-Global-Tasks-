@@ -3,6 +3,7 @@ export interface EastAfricaCountry {
   name: string;
   dialCode: string;
   currency: string;
+  symbol: string;
   approxRatePerUsd: number;
   mobileRails: string;
   timezone: string;
@@ -15,6 +16,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Kenya',
     dialCode: '+254',
     currency: 'KES',
+    symbol: 'KSh',
     approxRatePerUsd: 130,
     mobileRails: 'Safaricom M-PESA & Airtel Money',
     timezone: 'Africa/Nairobi',
@@ -25,6 +27,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Uganda',
     dialCode: '+256',
     currency: 'UGX',
+    symbol: 'USh',
     approxRatePerUsd: 3700,
     mobileRails: 'MTN MoMo & Airtel Money',
     timezone: 'Africa/Kampala',
@@ -35,6 +38,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Tanzania',
     dialCode: '+255',
     currency: 'TZS',
+    symbol: 'TSh',
     approxRatePerUsd: 2650,
     mobileRails: 'M-Pesa TZ, Tigo Pesa & Airtel Money',
     timezone: 'Africa/Dar_es_Salaam',
@@ -45,6 +49,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Rwanda',
     dialCode: '+250',
     currency: 'RWF',
+    symbol: 'FRw',
     approxRatePerUsd: 1350,
     mobileRails: 'MTN MoMo & Airtel Money',
     timezone: 'Africa/Kigali',
@@ -55,6 +60,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Burundi',
     dialCode: '+257',
     currency: 'BIF',
+    symbol: 'FBu',
     approxRatePerUsd: 2900,
     mobileRails: 'Lumicash & EcoCash',
     timezone: 'Africa/Bujumbura',
@@ -65,6 +71,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'South Sudan',
     dialCode: '+211',
     currency: 'SSP',
+    symbol: 'SSP',
     approxRatePerUsd: 1300,
     mobileRails: 'm-Gurush & MTN MoMo',
     timezone: 'Africa/Juba',
@@ -75,6 +82,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Ethiopia',
     dialCode: '+251',
     currency: 'ETB',
+    symbol: 'Br',
     approxRatePerUsd: 120,
     mobileRails: 'Telebirr & M-PESA ET',
     timezone: 'Africa/Addis_Ababa',
@@ -85,6 +93,7 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     name: 'Somalia',
     dialCode: '+252',
     currency: 'SOS',
+    symbol: 'Sh.So.',
     approxRatePerUsd: 570,
     mobileRails: 'EVC Plus & Zaad Service',
     timezone: 'Africa/Mogadishu',
@@ -123,14 +132,40 @@ export function isEastAfricaPhone(phone: string): boolean {
 }
 
 export const KES_PER_USD = 130;
+export const MAX_TASK_REWARD_KES = 50;
+export const MAX_TASK_REWARD_USD = +(MAX_TASK_REWARD_KES / KES_PER_USD).toFixed(4); // 0.3846 USD base = KES 50
+export const WITHDRAWAL_THRESHOLD_USD = 20; // Equivalent to KSh 2,600 at 130 KES/USD
+export const VIP_PASS_KES = 200;
 
 export function convertKesToUsd(kesAmount: number): number {
-  return +(kesAmount / KES_PER_USD).toFixed(2);
+  return +(Math.max(0, Number(kesAmount) || 0) / KES_PER_USD).toFixed(4);
 }
 
 export function convertKesToLocal(kesAmount: number, country: EastAfricaCountry): number {
-  if (country.code === 'KE') return Math.round(kesAmount);
-  return Math.max(1, Math.round((kesAmount * country.approxRatePerUsd) / KES_PER_USD));
+  const safeKes = Math.max(0, Number(kesAmount) || 0);
+  if (safeKes === 0) return 0;
+  if (country.code === 'KE') return Math.round(safeKes);
+  return Math.max(1, Math.round((safeKes * country.approxRatePerUsd) / KES_PER_USD));
+}
+
+export function convertUsdToLocal(usdAmount: number, country: EastAfricaCountry): number {
+  const safeUsd = Math.max(0, Number(usdAmount) || 0);
+  if (safeUsd === 0) return 0;
+  return Math.round(safeUsd * country.approxRatePerUsd);
+}
+
+export function localAmountToUsd(localAmount: number, country: EastAfricaCountry): number {
+  const safeLocal = Math.max(0, Number(localAmount) || 0);
+  if (safeLocal === 0) return 0;
+  return +(safeLocal / country.approxRatePerUsd).toFixed(4);
+}
+
+export function formatCurrencyFromUsd(usdAmount: number, country: EastAfricaCountry = EAST_AFRICA_COUNTRIES[0]): string {
+  return `${country.symbol} ${convertUsdToLocal(usdAmount, country).toLocaleString()}`;
+}
+
+export function formatCurrencyFromKes(kesAmount: number, country: EastAfricaCountry = EAST_AFRICA_COUNTRIES[0]): string {
+  return `${country.symbol} ${convertKesToLocal(kesAmount, country).toLocaleString()}`;
 }
 
 export function detectEastAfricaFromTimezone(): EastAfricaCountry | null {

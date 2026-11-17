@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Task, PayoutRecord, MemeItem, LeaderboardUser, TaskHistoryRecord, TaskPackage, ReferralRecord, ReferralStats } from '../types/tasks';
 import { INITIAL_TASKS, INITIAL_MEMES, INITIAL_LEADERBOARD } from '../data/mockTasks';
 import confetti from 'canvas-confetti';
@@ -6,6 +6,37 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, OperationType, handleFirestoreError, isPermissionError } from '../lib/firebase';
 import { OWNER_EMAIL, useAuth } from './AuthContext';
 import { useRegion } from './RegionContext';
+import {
+  evaluateTaskEligibility,
+  getQuotaRuleForPackageId,
+  getTodayDateKey,
+  PassQuotaRule,
+  TaskEligibilityResult,
+} from '../lib/passQuotas';
+import {
+  MAX_TASK_REWARD_KES,
+  MAX_TASK_REWARD_USD,
+  WITHDRAWAL_THRESHOLD_USD,
+  VIP_PASS_KES,
+  convertKesToUsd,
+  formatCurrencyFromKes,
+  formatCurrencyFromUsd,
+} from '../lib/eastAfrica';
+
+export interface CustomerPassProofItem {
+  id: string;
+  packageId: 'starter' | 'pro' | 'vip';
+  packageName: string;
+  amountKes: number;
+  payToNumber: '0758727558';
+  senderPhone: string;
+  mpesaCode: string;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Banned';
+  ownerApprovalDetails?: string;
+  rejectionOrBanReason?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
 
 export interface UserStatsType {
   balance: number;
@@ -26,189 +57,79 @@ export const AVAILABLE_PACKAGES: TaskPackage[] = [
   {
     id: 'starter',
     name: 'Starter Contributor Pass',
-    price: 0.38,
+    price: convertKesToUsd(50),
     priceKes: 50,
-    description: 'Entry-level pass (KES 50) to begin completing verified paid surveys and fast micro tasks.',
-    taskAllowance: '25 Tasks / Day',
+    description: 'Entry Worker Pass (50 Shillings): Complete up to 2 paid tasks daily with payout not exceeding 50 shillings per task.',
+    taskAllowance: '2 Tasks Daily · Max 50 Shillings',
     unlockedCategories: ['survey', 'micro'],
     features: [
-      'Access to Market Research Surveys',
-      'Micro Tasks & Instant Usability Polls',
-      'Standard Verification Queue',
-      'Community Meme Voting & Feed'
+      'Up to 2 Paid Tasks Daily',
+      'Task Reward Cap: Not exceeding 50 shillings',
+      'Access to Starter Surveys & Micro Tasks',
+      'Standard Verification Queue'
     ]
   },
   {
     id: 'pro',
-    name: 'Pro Tasker Pass',
-    price: 0.77,
+    name: 'Pro Tasker Pass (2nd Pass)',
+    price: convertKesToUsd(100),
     priceKes: 100,
     isPopular: true,
-    description: 'Unlocks AI Computer Vision Annotation, Receipt Digitization, and Meme Bounties for KES 100.',
-    taskAllowance: '75 Tasks / Day',
-    unlockedCategories: ['survey', 'annotation', 'data-entry', 'meme-content', 'micro'],
+    description: 'Second Worker Pass (100 Shillings): Complete up to 3 tasks daily with payout not exceeding 50 shillings per task across campaigns & annotations.',
+    taskAllowance: '3 Tasks Daily · Max 50 Shillings',
+    unlockedCategories: ['survey', 'annotation', 'data-entry', 'meme-content', 'creator-campaign', 'micro'],
     features: [
-      'Everything in Starter',
-      'Autonomous Driving Bounding Box Annotation',
-      'Receipt & Invoice OCR Extraction Suite',
-      'Gideon Meme Studio Bounty Publishing',
-      '2x Daily Streak Multiplier Bonus'
+      'Up to 3 Paid Tasks Daily',
+      'Task Reward Cap: Not exceeding 50 shillings',
+      'Creator Campaigns (FB, IG, TikTok & WhatsApp)',
+      'Autonomous Driving Annotation & Receipt OCR',
+      'Community Meme Studio Bounties'
     ]
   },
   {
     id: 'vip',
     name: 'VIP Taskmaster Pass',
-    price: 1.54,
+    price: convertKesToUsd(200),
     priceKes: 200,
-    description: 'Full platform access (KES 200) with unlimited daily tasks, high-paying copywriting, and zero fees.',
-    taskAllowance: 'Unlimited Daily Tasks',
-    unlockedCategories: ['survey', 'annotation', 'data-entry', 'writing', 'meme-content', 'micro'],
+    description: 'Top-tier VIP Pass (200 Shillings): Complete up to 4 paid surveys daily with payout not exceeding 50 shillings per survey.',
+    taskAllowance: '4 Surveys Daily · Max 50 Shillings',
+    unlockedCategories: ['survey', 'annotation', 'data-entry', 'writing', 'meme-content', 'creator-campaign', 'micro'],
     features: [
-      'Everything in Pro',
-      'High-Paying Writing & Copywriting ($5–$15+)',
-      'Unlimited Daily Task Quota',
-      '0% Fee Guarantee on $20+ Withdrawals',
-      'Instant M-PESA STK & Wise Priority Disbursement',
-      'Dedicated 24/7 AI Taskmaster Support'
+      'Up to 4 Paid Surveys Daily',
+      'Survey Reward Cap: Not exceeding 50 shillings',
+      'Full Access to High-Value Market Surveys & Writing',
+      '0% Fee Guarantee on Withdrawals',
+      'Instant M-PESA & Mobile Money Priority Disbursement'
     ]
   }
 ];
 
-const INITIAL_TASK_HISTORY: TaskHistoryRecord[] = [
-  {
-    id: 'hist-1',
-    taskId: 'task-anno-101',
-    taskTitle: 'Autonomous Driving CV: Tag Vehicles & Pedestrians',
-    category: 'annotation',
-    reward: 4.50,
-    status: 'Approved',
-    completedAt: 'Today at 08:35 AM',
-    accuracyScore: 99.4,
-    transactionRef: 'TXN-984102'
-  },
-  {
-    id: 'hist-2',
-    taskId: 'task-entry-201',
-    taskTitle: 'Apex Tech Retail Receipt Digitization & Extraction',
-    category: 'data-entry',
-    reward: 3.40,
-    status: 'Approved',
-    completedAt: 'Yesterday at 04:15 PM',
-    accuracyScore: 100.0,
-    transactionRef: 'TXN-983210'
-  },
-  {
-    id: 'hist-3',
-    taskId: 'task-surv-301',
-    taskTitle: 'Global Remote Work & AI Tooling Survey 2026',
-    category: 'survey',
-    reward: 2.80,
-    status: 'Approved',
-    completedAt: '2 days ago',
-    accuracyScore: 98.8,
-    transactionRef: 'TXN-981045'
-  },
-  {
-    id: 'hist-4',
-    taskId: 'task-write-501',
-    taskTitle: 'Product Copywriting: "HyperCharge 140W GaN Hub"',
-    category: 'writing',
-    reward: 5.50,
-    status: 'Approved',
-    completedAt: '3 days ago',
-    accuracyScore: 99.1,
-    transactionRef: 'TXN-979920'
-  },
-  {
-    id: 'hist-5',
-    taskId: 'task-micro-601',
-    taskTitle: 'Rapid A/B Usability Poll: Fintech Dark Mode Button',
-    category: 'micro',
-    reward: 0.75,
-    status: 'Approved',
-    completedAt: '4 days ago',
-    accuracyScore: 100.0,
-    transactionRef: 'TXN-976451'
-  }
-];
+const INITIAL_TASK_HISTORY: TaskHistoryRecord[] = [];
 
-const INITIAL_REFERRAL_HISTORY: ReferralRecord[] = [
-  {
-    id: 'ref-tx-101',
-    refereeName: 'Samuel Kiprop',
-    refereeEmailMasked: 'sa***op@gmail.com',
-    refereeCountry: 'Kenya',
-    dateJoined: 'Yesterday',
-    passPurchased: 'Pro Tasker Pass (KES 100)',
-    passPrice: 0.77,
-    commissionRate: 0.20,
-    commissionEarned: 0.15,
-    paymentMethod: 'M-PESA',
-    status: 'Credited',
-    transactionId: 'MPESA-REF-71829'
-  },
-  {
-    id: 'ref-tx-102',
-    refereeName: 'Grace Namukasa',
-    refereeEmailMasked: 'gr***sa@gmail.com',
-    refereeCountry: 'Uganda',
-    dateJoined: '2 days ago',
-    passPurchased: 'VIP Taskmaster Pass (KES 200)',
-    passPrice: 1.54,
-    commissionRate: 0.20,
-    commissionEarned: 0.31,
-    paymentMethod: 'Card',
-    status: 'Credited',
-    transactionId: 'IS-REF-99214'
-  },
-  {
-    id: 'ref-tx-103',
-    refereeName: 'Brian Otieno',
-    refereeEmailMasked: 'br***no@yahoo.com',
-    refereeCountry: 'Kenya',
-    dateJoined: '4 days ago',
-    passPurchased: 'Starter Contributor Pass (KES 50)',
-    passPrice: 0.38,
-    commissionRate: 0.20,
-    commissionEarned: 0.08,
-    paymentMethod: 'M-PESA',
-    status: 'Credited',
-    transactionId: 'MPESA-REF-58319'
-  },
-  {
-    id: 'ref-tx-104',
-    refereeName: 'Asha Mwinyi',
-    refereeEmailMasked: 'as***yi@gmail.com',
-    refereeCountry: 'Tanzania',
-    dateJoined: '5 days ago',
-    passPurchased: 'Pro Tasker Pass (KES 100)',
-    passPrice: 0.77,
-    commissionRate: 0.20,
-    commissionEarned: 0.15,
-    paymentMethod: 'M-PESA',
-    status: 'Credited',
-    transactionId: 'MPESA-REF-34812'
-  }
-];
+const INITIAL_REFERRAL_HISTORY: ReferralRecord[] = [];
 
 const APP_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
 
 const INITIAL_REFERRAL_STATS: ReferralStats = {
   referralCode: 'GIDEON-EA-894',
   referralLink: `${APP_ORIGIN}/?ref=GIDEON-EA-894`,
-  totalClicks: 142,
-  totalSignups: 19,
-  passesPurchasedCount: 4,
-  totalCommissionEarned: 0.69,
+  totalClicks: 0,
+  totalSignups: 0,
+  passesPurchasedCount: 0,
+  totalCommissionEarned: 0.00,
   pendingCommission: 0.00,
   commissionPercentage: 20,
-  vipTierBonusPercent: 5
+  vipTierBonusPercent: 5,
+  vipReferralCount: 0
 };
 
 export type PlatformTab =
   | 'tasks'
+  | 'dashboard'
   | 'task-history'
   | 'referrals'
+  | 'investments'
+  | 'testimonials'
   | 'meme-studio'
   | 'ai-media'
   | 'three-globe'
@@ -235,12 +156,31 @@ interface TaskContextType {
   taskHistory: TaskHistoryRecord[];
   referralHistory: ReferralRecord[];
   referralStats: ReferralStats;
+  vipReferralCount: number;
+  hasVipReferral: boolean;
   updateReferralCode: (newCode: string) => boolean;
   simulateReferralPurchase: (passTier?: 'starter' | 'pro' | 'vip', refereeName?: string, country?: string) => void;
   activePackage: TaskPackage | null;
   packagesModalOpen: boolean;
   setPackagesModalOpen: (open: boolean) => void;
-  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Wallet', accountOrPhone: string) => boolean;
+  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Paystack Page', accountOrPhone: string) => boolean;
+  dailyQuotaStatus: {
+    rule: PassQuotaRule;
+    usedToday: number;
+    surveysUsedToday: number;
+    remainingToday: number;
+    canDoTask: (task: Task) => TaskEligibilityResult;
+  };
+  passProofs: CustomerPassProofItem[];
+  passBannedReason: string | null;
+  refreshPassProofs: () => Promise<void>;
+  submitManualPassProof: (params: {
+    packageId: 'starter' | 'pro' | 'vip';
+    senderPhone: string;
+    mpesaCode: string;
+    screenshotDataUrl: string;
+    screenshotFileName?: string;
+  }) => Promise<{ success: boolean; error?: string; proof?: CustomerPassProofItem }>;
   streakModalOpen: boolean;
   setStreakModalOpen: (open: boolean) => void;
   advanceDailyStreak: () => void;
@@ -262,10 +202,13 @@ interface TaskContextType {
   completeTask: (taskId: string, rewardEarned: number, summaryTitle: string) => void;
   requestPayout: (amount: number, method: PayoutRecord['method'], details: string) => boolean;
   postTask: (newTask: Omit<Task, 'id' | 'createdAt' | 'spotsRemaining'>) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => boolean;
+  deleteTask: (taskId: string) => boolean;
   upvoteMeme: (memeId: string) => void;
   tipMeme: (memeId: string, amount: number) => boolean;
   addMeme: (meme: Omit<MemeItem, 'id' | 'createdAt' | 'upvotes' | 'tipsEarned'>) => void;
   notification: string | null;
+  showNotification: (msg: string) => void;
   clearNotification: () => void;
   publisherModalOpen: boolean;
   setPublisherModalOpen: (open: boolean) => void;
@@ -283,19 +226,86 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY_STATS = 'gideon_global_user_stats';
+const LOCAL_STORAGE_KEY_STATS = 'gideon_global_user_stats_v2';
 const LOCAL_STORAGE_KEY_TASKS = 'gideon_global_tasks';
 const LOCAL_STORAGE_KEY_MEMES = 'gideon_global_memes';
-const LOCAL_STORAGE_KEY_HISTORY = 'gideon_global_history';
-const LOCAL_STORAGE_KEY_PACKAGE = 'gideon_global_package';
-const LOCAL_STORAGE_KEY_REF_HISTORY = 'gideon_global_ref_history';
-const LOCAL_STORAGE_KEY_REF_STATS = 'gideon_global_ref_stats';
+const LOCAL_STORAGE_KEY_HISTORY = 'gideon_global_history_v2';
+const LOCAL_STORAGE_KEY_PACKAGE = 'gideon_global_package_v2';
+const LOCAL_STORAGE_KEY_DAILY_QUOTA = 'gideon_daily_task_usage_v1';
+const LOCAL_STORAGE_KEY_PASS_PROOF_IDS = 'gideon_pass_proof_ids_v1';
+const LOCAL_STORAGE_KEY_UNLOCKED_PROOFS = 'gideon_unlocked_proof_ids_v1';
+const LOCAL_STORAGE_KEY_REF_HISTORY = 'gideon_global_ref_history_v2';
+const LOCAL_STORAGE_KEY_REF_STATS = 'gideon_global_ref_stats_v2';
+const LOCAL_STORAGE_KEY_LAST_STATE_UID = 'gideon_last_state_uid_v1';
+const LOCAL_STORAGE_KEY_PENDING_REF_CODE = 'gideon_pending_ref_code_v1';
+
+interface DailyUsageState {
+  dateKey: string;
+  count: number;
+  surveyCount: number;
+}
+
+function readTodayUsage(): DailyUsageState {
+  const today = getTodayDateKey();
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_DAILY_QUOTA);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.dateKey === today) {
+        return {
+          dateKey: today,
+          count: Math.max(0, Number(parsed.count) || 0),
+          surveyCount: Math.max(0, Number(parsed.surveyCount) || 0),
+        };
+      }
+    }
+  } catch {}
+  return { dateKey: today, count: 0, surveyCount: 0 };
+}
+
+function readStoredIds(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function appendStoredId(key: string, id: string) {
+  try {
+    const current = readStoredIds(key);
+    if (!current.includes(id)) {
+      localStorage.setItem(key, JSON.stringify([id, ...current].slice(0, 30)));
+    }
+  } catch {}
+}
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_TASKS);
-      return saved ? JSON.parse(saved) : INITIAL_TASKS;
+      if (!saved) return INITIAL_TASKS;
+      const parsed: Task[] = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INITIAL_TASKS;
+      // Sync built-in tasks with updated tier reward caps while keeping spotsRemaining & custom Owner tasks
+      const savedById = new Map(parsed.map((t) => [t.id, t]));
+      const builtInIds = new Set(INITIAL_TASKS.map((t) => t.id));
+      const syncedBuiltIns = INITIAL_TASKS.map((builtIn) => {
+        const cached = savedById.get(builtIn.id);
+        return cached
+          ? {
+              ...builtIn,
+              reward: Math.min(builtIn.reward, MAX_TASK_REWARD_USD),
+              spotsRemaining: cached.spotsRemaining ?? builtIn.spotsRemaining,
+            }
+          : builtIn;
+      });
+      const customTasks = parsed
+        .filter((t) => !builtInIds.has(t.id))
+        .map((t) => ({ ...t, reward: Math.min(Number(t.reward) || 0, MAX_TASK_REWARD_USD) }));
+      return [...syncedBuiltIns, ...customTasks];
     } catch {
       return INITIAL_TASKS;
     }
@@ -303,43 +313,26 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [userStats, setUserStats] = useState<UserStatsType>(() => {
     try {
+      // Clear legacy pre-funded $114.50 demo wallet cache once
+      localStorage.removeItem('gideon_global_user_stats');
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_STATS);
       if (saved) return JSON.parse(saved);
     } catch {
       // fallback
     }
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     return {
-      balance: 114.50, // Starting above 100 so user can immediately test $100+ withdrawals!
-      pendingBalance: 12.25,
-      lifetimeEarned: 382.80,
-      completedTasksCount: 37,
-      qualityScore: 99.4,
-      streakDays: 6, // Starting on day 6 so user can test advancing to Day 7 milestone!
-      lastLoginDate: yesterdayStr,
-      streakBonusMultiplier: 0.10,
+      balance: 0.00,
+      pendingBalance: 0.00,
+      lifetimeEarned: 0.00,
+      completedTasksCount: 0,
+      qualityScore: 100.0,
+      streakDays: 0,
+      lastLoginDate: '',
+      streakBonusMultiplier: 0,
       sevenDayBonusAwarded: false,
-      tier: 'Gold' as const,
+      tier: 'Bronze' as const,
       completedTaskIds: [] as string[],
-      payoutHistory: [
-        {
-          id: 'PAY-9418',
-          amount: 120.00,
-          method: 'M-PESA' as const,
-          accountDetails: '+254 712 345 678',
-          status: 'Completed' as const,
-          timestamp: '2 days ago',
-          mpesaReceipt: 'QJH89K2P0L'
-        },
-        {
-          id: 'PAY-8310',
-          amount: 100.00,
-          method: 'Airtel / MTN MoMo' as const,
-          accountDetails: '+256 772 345 678',
-          status: 'Completed' as const,
-          timestamp: '1 week ago'
-        }
-      ] as PayoutRecord[]
+      payoutHistory: [] as PayoutRecord[]
     };
   });
 
@@ -354,16 +347,21 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [activePackage, setActivePackage] = useState<TaskPackage | null>(() => {
     try {
+      // Clear legacy auto-unlocked default pass cache once so Owner approval gate applies
+      localStorage.removeItem('gideon_global_package');
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PACKAGE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return AVAILABLE_PACKAGES.find((p) => p.id === parsed?.id) || AVAILABLE_PACKAGES[2];
+        return AVAILABLE_PACKAGES.find((p) => p.id === parsed?.id) || null;
       }
-      return AVAILABLE_PACKAGES[2]; // default to VIP Taskmaster
+      return null; // Worker Passes stay locked until paid and Owner-approved
     } catch {
-      return AVAILABLE_PACKAGES[2];
+      return null;
     }
   });
+  const [dailyUsage, setDailyUsage] = useState<DailyUsageState>(() => readTodayUsage());
+  const [passProofs, setPassProofs] = useState<CustomerPassProofItem[]>([]);
+  const [passBannedReason, setPassBannedReason] = useState<string | null>(null);
 
   const [memes, setMemes] = useState<MemeItem[]>(() => {
     try {
@@ -424,8 +422,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (target === 'terms' || target === 'terms-of-service') return 'terms';
     if (target === 'disclaimer') return 'disclaimer';
     if (target === 'sitemap') return 'sitemap';
+    if (target === 'dashboard') return 'dashboard';
     if (target === 'task-history') return 'task-history';
     if (target === 'referrals') return 'referrals';
+    if (target === 'investments') return 'investments';
+    if (target === 'testimonials') return 'testimonials';
     if (target === 'packages') return 'packages';
     if (target === 'meme-studio') return 'meme-studio';
     if (target === 'ai-media') return 'ai-media';
@@ -458,8 +459,76 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const { activeToken } = useAuth();
+  const { activeToken, isOwner, user, customerProfile } = useAuth();
   const { selectedCountry } = useRegion();
+
+  const hydratedTokenRef = useRef<string | null>(null);
+  const currentUid = user?.uid || customerProfile?.uid || null;
+
+  // Capture referral code from URL (?ref=...) and keep in localStorage for registration
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref')?.trim().toUpperCase();
+      if (ref && ref.length >= 3) {
+        localStorage.setItem(LOCAL_STORAGE_KEY_PENDING_REF_CODE, ref);
+      }
+    } catch {}
+  }, []);
+
+  // Persist daily usage cleanly and roll over automatically when date changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_DAILY_QUOTA, JSON.stringify(dailyUsage));
+    } catch {}
+  }, [dailyUsage]);
+
+  const currentRule = useMemo(
+    () => getQuotaRuleForPackageId(activePackage?.id || null),
+    [activePackage?.id]
+  );
+
+  const normalizedDailyUsage = useMemo(() => {
+    const today = getTodayDateKey();
+    return dailyUsage.dateKey === today ? dailyUsage : { dateKey: today, count: 0, surveyCount: 0 };
+  }, [dailyUsage]);
+
+  const dailyQuotaStatus = useMemo(() => {
+    const usedToday = normalizedDailyUsage.count;
+    const surveysUsedToday = normalizedDailyUsage.surveyCount;
+    const remainingToday = Math.max(0, currentRule.dailyLimit - usedToday);
+
+    const canDoTask = (task: Task): TaskEligibilityResult =>
+      evaluateTaskEligibility({
+        packageId: activePackage?.id || null,
+        unlockedCategories: activePackage?.unlockedCategories,
+        taskReward: task.reward,
+        taskCategory: task.category,
+        completedTodayCount: usedToday,
+        surveysCompletedTodayCount: surveysUsedToday,
+        isOwner,
+        country: selectedCountry,
+      });
+
+    return {
+      rule: currentRule,
+      usedToday,
+      surveysUsedToday,
+      remainingToday,
+      canDoTask,
+    };
+  }, [activePackage?.id, activePackage?.unlockedCategories, currentRule, normalizedDailyUsage, isOwner, selectedCountry]);
+
+  const vipReferralCount = useMemo(() => {
+    const fromHistory = referralHistory.filter(
+      (r) =>
+        r.packageId === 'vip' ||
+        String(r.passPurchased || '').toLowerCase().includes('vip')
+    ).length;
+    return Math.max(referralStats.vipReferralCount || 0, fromHistory);
+  }, [referralHistory, referralStats.vipReferralCount]);
+
+  const hasVipReferral = vipReferralCount >= 1;
 
   const [workerMode, setWorkerMode] = useState<'worker' | 'requester'>('worker');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -475,7 +544,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const recordPlatformTransaction = (payload: {
     id?: string;
-    kind: 'withdrawal' | 'pass_purchase' | 'task_reward' | 'referral_commission';
+    kind: 'withdrawal' | 'pass_purchase' | 'task_reward' | 'referral_commission' | 'investment_deposit';
     title: string;
     customerLabel?: string;
     gatewayOrMethod: string;
@@ -595,6 +664,147 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
   const [notification, setNotification] = useState<string | null>(null);
 
+  const showNotification = useCallback((msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification((curr) => (curr === msg ? null : curr));
+    }, 5500);
+  }, []);
+
+  const refreshPassProofs = useCallback(async () => {
+    try {
+      const trackedIds = readStoredIds(LOCAL_STORAGE_KEY_PASS_PROOF_IDS);
+      if (!activeToken && trackedIds.length === 0) {
+        setPassProofs([]);
+        return;
+      }
+      const query = trackedIds.length > 0 ? `?ids=${encodeURIComponent(trackedIds.join(','))}` : '';
+      const res = await fetch(`/api/packages/my-proofs${query}`, {
+        headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.proofs)) {
+        setPassProofs(data.proofs);
+      }
+      if (data?.deactivated) {
+        setPassBannedReason(
+          data.deactivatedReason ||
+            'Your account has been temporarily deactivated by Platform Owner. Contact Support (+254712727558) to restore access.'
+        );
+        setActivePackage(null);
+        return;
+      }
+
+      if (data?.banned) {
+        setPassBannedReason(
+          data.bannedReason ||
+            'Permanently banned 🚫 forever (no second chance) for violating M-PESA Worker Pass proof rules.'
+        );
+        setActivePackage(null);
+        return;
+      } else {
+        setPassBannedReason(null);
+      }
+
+      if (data?.adminAssignedPass === 'free') {
+        setActivePackage(null);
+        return;
+      }
+
+      if (data?.adminAssignedPass && ['starter', 'pro', 'vip'].includes(data.adminAssignedPass)) {
+        const assignedPkg = AVAILABLE_PACKAGES.find((p) => p.id === data.adminAssignedPass) || null;
+        if (assignedPkg) {
+          setActivePackage(assignedPkg);
+        }
+      }
+
+      if (data?.approvedPackageId && data?.latestApprovedProof) {
+        const approvedProof: CustomerPassProofItem = data.latestApprovedProof;
+        const pkg = AVAILABLE_PACKAGES.find((p) => p.id === data.approvedPackageId) || null;
+        if (pkg) {
+          const alreadyUnlocked = readStoredIds(LOCAL_STORAGE_KEY_UNLOCKED_PROOFS).includes(approvedProof.id);
+          if (!alreadyUnlocked) {
+            appendStoredId(LOCAL_STORAGE_KEY_UNLOCKED_PROOFS, approvedProof.id);
+            setActivePackage(pkg);
+            try {
+              confetti({ particleCount: 75, spread: 65, origin: { y: 0.6 } });
+            } catch {}
+            showNotification(
+              `Owner Approved Your ${pkg.name}! ${approvedProof.ownerApprovalDetails || `M-PESA ${approvedProof.mpesaCode} confirmed. Tasks are now unlocked!`}`
+            );
+          } else {
+            setActivePackage((curr) => curr || pkg);
+          }
+        }
+      }
+    } catch {
+      // non-blocking network fallback
+    }
+  }, [activeToken, showNotification]);
+
+  const submitManualPassProof: TaskContextType['submitManualPassProof'] = useCallback(
+    async ({ packageId, senderPhone, mpesaCode, screenshotDataUrl, screenshotFileName }) => {
+      try {
+        const res = await fetch('/api/packages/manual-proof', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-ea-country': selectedCountry.code,
+            'x-ea-verified': 'true',
+            ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+          },
+          body: JSON.stringify({
+            packageId,
+            senderPhone,
+            mpesaCode,
+            screenshotDataUrl,
+            screenshotFileName,
+            countryCode: selectedCountry.code,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          if (res.status === 403) {
+            setPassBannedReason(data?.error || 'Account permanently banned 🚫 forever.');
+            setActivePackage(null);
+          }
+          return {
+            success: false,
+            error: data?.error || 'Could not submit M-PESA Worker Pass proof.',
+          };
+        }
+        if (data?.proof?.id) {
+          appendStoredId(LOCAL_STORAGE_KEY_PASS_PROOF_IDS, data.proof.id);
+        }
+        await refreshPassProofs();
+        showNotification(
+          `M-PESA code ${mpesaCode.trim().toUpperCase()} & screenshot submitted! Worker Pass stays locked until the Owner verifies 0758727558 and sends approval details.`
+        );
+        return { success: true, proof: data.proof };
+      } catch (err: any) {
+        return {
+          success: false,
+          error: err?.message || 'Network error submitting M-PESA proof.',
+        };
+      }
+    },
+    [activeToken, selectedCountry.code, refreshPassProofs, showNotification]
+  );
+
+  useEffect(() => {
+    void refreshPassProofs();
+  }, [refreshPassProofs]);
+
+  useEffect(() => {
+    const hasPending = passProofs.some((p) => p.status === 'Pending');
+    if (!packagesModalOpen && !hasPending) return;
+    const timer = window.setInterval(() => {
+      void refreshPassProofs();
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [packagesModalOpen, passProofs, refreshPassProofs]);
+
   const openPrivacyTerms = (tab: 'privacy' | 'terms' = 'privacy') => {
     setPrivacyTermsTab(tab);
     setPrivacyTermsModalOpen(true);
@@ -678,7 +888,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     taskId: d.taskId,
                     taskTitle: d.taskTitle,
                     category: d.category,
-                    reward: Number(d.reward),
+                    reward: Math.min(Number(d.reward), MAX_TASK_REWARD_USD),
                     status: d.status,
                     completedAt: d.completedAt ? new Date(d.completedAt).toLocaleDateString() : 'Recent',
                     accuracyScore: Number(d.accuracyScore),
@@ -696,12 +906,244 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => {
-      setNotification((curr) => (curr === msg ? null : curr));
-    }, 4500);
-  };
+  // Hydrate persistent server state on login/reload & prevent empty overwrites (Zero-Reset Guarantee)
+  useEffect(() => {
+    if (!activeToken) {
+      hydratedTokenRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    const tokenForReq = activeToken;
+
+    fetch('/api/user/state', {
+      headers: { Authorization: `Bearer ${tokenForReq}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.state) return;
+        const remote = data.state;
+        const remoteUid = String(remote.uid || currentUid || '');
+        const lastUid = (() => {
+          try {
+            return localStorage.getItem(LOCAL_STORAGE_KEY_LAST_STATE_UID);
+          } catch {
+            return null;
+          }
+        })();
+        const isSwitchingDifferentAccount = Boolean(lastUid && remoteUid && lastUid !== remoteUid);
+
+        if (remoteUid) {
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY_LAST_STATE_UID, remoteUid);
+          } catch {}
+        }
+
+        const remoteStats = remote.userStats || {};
+        setUserStats((prev) => {
+          const mergedCompletedIds = isSwitchingDifferentAccount
+            ? Array.from(new Set((remoteStats.completedTaskIds || []).filter(Boolean)))
+            : Array.from(
+                new Set([...(prev.completedTaskIds || []), ...(remoteStats.completedTaskIds || [])].filter(Boolean))
+              );
+
+          const payoutMap = new Map<string, PayoutRecord>();
+          const rank = (s: string) => (s === 'Completed' ? 3 : s === 'Rejected' ? 2 : 1);
+          const payoutSources = isSwitchingDifferentAccount
+            ? remoteStats.payoutHistory || []
+            : [...(prev.payoutHistory || []), ...(remoteStats.payoutHistory || [])];
+          for (const p of payoutSources) {
+            if (!p?.id) continue;
+            const ex = payoutMap.get(p.id);
+            if (!ex || rank(p.status) >= rank(ex.status)) {
+              payoutMap.set(p.id, p);
+            }
+          }
+          const mergedPayouts = Array.from(payoutMap.values());
+
+          return {
+            balance: isSwitchingDifferentAccount
+              ? +(Number(remoteStats.balance) || 0).toFixed(4)
+              : +Math.max(prev.balance, Number(remoteStats.balance) || 0).toFixed(4),
+            pendingBalance: isSwitchingDifferentAccount
+              ? +(Number(remoteStats.pendingBalance) || 0).toFixed(4)
+              : +Math.max(prev.pendingBalance, Number(remoteStats.pendingBalance) || 0).toFixed(4),
+            lifetimeEarned: isSwitchingDifferentAccount
+              ? +(Number(remoteStats.lifetimeEarned) || 0).toFixed(4)
+              : +Math.max(prev.lifetimeEarned, Number(remoteStats.lifetimeEarned) || 0).toFixed(4),
+            completedTasksCount: isSwitchingDifferentAccount
+              ? Number(remoteStats.completedTasksCount) || mergedCompletedIds.length
+              : Math.max(prev.completedTasksCount, Number(remoteStats.completedTasksCount) || 0, mergedCompletedIds.length),
+            qualityScore: Number(remoteStats.qualityScore || prev.qualityScore || 100),
+            streakDays: isSwitchingDifferentAccount
+              ? Number(remoteStats.streakDays) || 0
+              : Math.max(prev.streakDays, Number(remoteStats.streakDays) || 0),
+            lastLoginDate: remoteStats.lastLoginDate || prev.lastLoginDate || '',
+            streakBonusMultiplier: Math.max(prev.streakBonusMultiplier || 0, Number(remoteStats.streakBonusMultiplier) || 0),
+            sevenDayBonusAwarded: Boolean(
+              isSwitchingDifferentAccount
+                ? remoteStats.sevenDayBonusAwarded
+                : prev.sevenDayBonusAwarded || remoteStats.sevenDayBonusAwarded
+            ),
+            tier: remoteStats.tier || prev.tier || 'Bronze',
+            completedTaskIds: mergedCompletedIds as string[],
+            payoutHistory: mergedPayouts,
+          };
+        });
+
+        if (Array.isArray(remote.taskHistory)) {
+          setTaskHistory((prev) => {
+            const byKey = new Map<string, TaskHistoryRecord>();
+            const source = isSwitchingDifferentAccount
+              ? remote.taskHistory
+              : [...prev, ...remote.taskHistory];
+            for (const item of source) {
+              if (!item?.taskId) continue;
+              const k = item.id || `${item.taskId}::${item.completedAt}`;
+              if (!byKey.has(k)) {
+                byKey.set(k, {
+                  ...item,
+                  reward: Math.min(Number(item.reward) || 0, MAX_TASK_REWARD_USD),
+                });
+              }
+            }
+            return Array.from(byKey.values());
+          });
+        }
+
+        if (Array.isArray(remote.referralHistory)) {
+          setReferralHistory((prev) => {
+            const byId = new Map<string, ReferralRecord>();
+            const source = isSwitchingDifferentAccount
+              ? remote.referralHistory
+              : [...prev, ...remote.referralHistory];
+            for (const r of source) {
+              if (!r?.id) continue;
+              const ex = byId.get(r.id);
+              if (!ex || (Number(r.commissionEarned) || 0) >= (Number(ex.commissionEarned) || 0)) {
+                byId.set(r.id, r);
+              }
+            }
+            return Array.from(byId.values());
+          });
+        }
+
+        if (remote.referralStats || typeof remote.vipReferralCount === 'number') {
+          const rs = remote.referralStats || {};
+          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
+          setReferralStats((prev) => {
+            const code = (rs.referralCode || prev.referralCode || 'GIDEON-EA-894').toUpperCase();
+            return {
+              ...prev,
+              referralCode: code,
+              referralLink: `${origin}/?ref=${code}`,
+              totalClicks: isSwitchingDifferentAccount
+                ? Number(rs.totalClicks) || 0
+                : Math.max(prev.totalClicks, Number(rs.totalClicks) || 0),
+              totalSignups: isSwitchingDifferentAccount
+                ? Number(rs.totalSignups) || 0
+                : Math.max(prev.totalSignups, Number(rs.totalSignups) || 0),
+              passesPurchasedCount: isSwitchingDifferentAccount
+                ? Number(rs.passesPurchasedCount) || 0
+                : Math.max(prev.passesPurchasedCount, Number(rs.passesPurchasedCount) || 0),
+              totalCommissionEarned: isSwitchingDifferentAccount
+                ? +(Number(rs.totalCommissionEarned) || 0).toFixed(4)
+                : +Math.max(prev.totalCommissionEarned, Number(rs.totalCommissionEarned) || 0).toFixed(4),
+              pendingCommission: isSwitchingDifferentAccount
+                ? +(Number(rs.pendingCommission) || 0).toFixed(4)
+                : Math.max(prev.pendingCommission, Number(rs.pendingCommission) || 0),
+              vipReferralCount: isSwitchingDifferentAccount
+                ? Math.max(Number(remote.vipReferralCount) || 0, Number(rs.vipReferralCount) || 0)
+                : Math.max(
+                    prev.vipReferralCount || 0,
+                    Number(remote.vipReferralCount) || 0,
+                    Number(rs.vipReferralCount) || 0
+                  ),
+            };
+          });
+        }
+
+        if (remote.dailyUsage) {
+          const today = getTodayDateKey();
+          if (remote.dailyUsage.dateKey === today) {
+            setDailyUsage((prev) => {
+              const prevCount = prev.dateKey === today ? prev.count : 0;
+              const prevSurveys = prev.dateKey === today ? prev.surveyCount : 0;
+              return {
+                dateKey: today,
+                count: isSwitchingDifferentAccount
+                  ? Number(remote.dailyUsage.completedTodayCount) || 0
+                  : Math.max(prevCount, Number(remote.dailyUsage.completedTodayCount) || 0),
+                surveyCount: isSwitchingDifferentAccount
+                  ? Number(remote.dailyUsage.surveysCompletedTodayCount) || 0
+                  : Math.max(prevSurveys, Number(remote.dailyUsage.surveysCompletedTodayCount) || 0),
+              };
+            });
+          }
+        }
+
+        if (remote.activePackageId) {
+          const pkg = AVAILABLE_PACKAGES.find((p) => p.id === remote.activePackageId) || null;
+          if (pkg) {
+            setActivePackage((prev) => (isSwitchingDifferentAccount ? pkg : prev || pkg));
+          }
+        } else if (isSwitchingDifferentAccount) {
+          setActivePackage(null);
+        }
+
+        hydratedTokenRef.current = tokenForReq;
+      })
+      .catch(() => {
+        hydratedTokenRef.current = tokenForReq;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeToken, currentUid]);
+
+  // Debounced background sync to persistent server ledger after hydration
+  useEffect(() => {
+    if (!activeToken || hydratedTokenRef.current !== activeToken) return;
+
+    const timer = window.setTimeout(() => {
+      fetch('/api/user/state', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ea-country': selectedCountry.code,
+          'x-ea-verified': 'true',
+          Authorization: `Bearer ${activeToken}`,
+        },
+        body: JSON.stringify({
+          userStats,
+          taskHistory,
+          referralHistory,
+          referralStats,
+          dailyUsage: {
+            dateKey: normalizedDailyUsage.dateKey,
+            completedTodayCount: normalizedDailyUsage.count,
+            surveysCompletedTodayCount: normalizedDailyUsage.surveyCount,
+            earnedTodayUsd: 0,
+          },
+          activePackageId: activePackage?.id || null,
+          vipReferralCount,
+        }),
+      }).catch(() => {});
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeToken,
+    selectedCountry.code,
+    userStats,
+    taskHistory,
+    referralHistory,
+    referralStats,
+    normalizedDailyUsage,
+    activePackage?.id,
+    vipReferralCount,
+  ]);
 
   const clearNotification = () => setNotification(null);
 
@@ -715,13 +1157,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let bonusMessage = '';
 
       if (nextStreak === 7) {
-        // 7-Day Streak Milestone Reward: Grant $5.00 cash bonus + 20% earnings multiplier!
-        const bonusAmount = 5.00;
-        newBalance = +(newBalance + bonusAmount).toFixed(2);
-        newLifetime = +(newLifetime + bonusAmount).toFixed(2);
+        // 7-Day Streak Milestone Reward: Grant 5-unit bonus + 20% earnings multiplier!
+        const bonusAmount = 5.0;
+        newBalance = +(newBalance + bonusAmount).toFixed(4);
+        newLifetime = +(newLifetime + bonusAmount).toFixed(4);
         newMultiplier = 0.20;
         sevenDayAwarded = true;
-        bonusMessage = ' 🔥 7-DAY STREAK MILESTONE REACHED! Granted $5.00 cash bonus + 20% earnings multiplier on all tasks!';
+        bonusMessage = ` 🔥 7-DAY STREAK MILESTONE REACHED! Granted ${formatCurrencyFromUsd(bonusAmount, selectedCountry)} bonus + 20% earnings multiplier on all tasks!`;
         try {
           confetti({ particleCount: 110, spread: 80, origin: { y: 0.5 } });
         } catch {}
@@ -730,7 +1172,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         bonusMessage = ` 🔥 Streak extended to ${nextStreak} Days! (20% bonus active).`;
       } else {
         newMultiplier = 0.10;
-        bonusMessage = ` Day ${nextStreak} logged in! Reach Day 7 to earn your $5.00 bonus!`;
+        bonusMessage = ` Day ${nextStreak} logged in! Reach Day 7 to earn your ${formatCurrencyFromUsd(5.0, selectedCountry)} bonus!`;
       }
 
       showNotification(`Daily Streak Updated!${bonusMessage}`);
@@ -761,29 +1203,29 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     processStreakAdvancement(nextDate);
   };
 
-  const purchasePackage = (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Wallet', accountOrPhone: string): boolean => {
+  const purchasePackage = (
+    packageId: 'starter' | 'pro' | 'vip',
+    method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Paystack Page',
+    accountOrPhone: string
+  ): boolean => {
     const pkg = AVAILABLE_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) return false;
 
-    if (method === 'Wallet') {
-      if (userStats.balance < pkg.price) {
-        showNotification(`Insufficient wallet balance ($${userStats.balance.toFixed(2)}) for $${pkg.price.toFixed(2)} pass.`);
-        return false;
-      }
-      setUserStats((prev) => ({
-        ...prev,
-        balance: +(prev.balance - pkg.price).toFixed(2)
-      }));
+    if (String(method).toLowerCase().includes('wallet')) {
+      showNotification(
+        'Worker Passes must be purchased strictly by deposit (M-PESA 0758727558, Paystack STK, Card, or Mobile Money) — Wallet balance cannot be used.'
+      );
+      return false;
     }
 
     setActivePackage(pkg);
     recordPlatformTransaction({
       id: `PASS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
       kind: 'pass_purchase',
-      title: `${pkg.name} (KES ${pkg.priceKes})`,
+      title: `${pkg.name} (${formatCurrencyFromKes(pkg.priceKes, selectedCountry)})`,
       customerLabel: accountOrPhone || auth.currentUser?.email || 'East Africa Contributor',
       gatewayOrMethod: method,
-      currency: 'KES',
+      currency: selectedCountry.currency,
       amountLocal: pkg.priceKes,
       amountUsd: pkg.price,
       status: 'Completed',
@@ -795,19 +1237,49 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
 
     showNotification(
-      `Congratulations! ${pkg.name} (KES ${pkg.priceKes} / ~$${pkg.price.toFixed(2)}) activated via ${method} (${accountOrPhone}). Tasks unlocked!`
+      `Congratulations! ${pkg.name} (${formatCurrencyFromKes(pkg.priceKes, selectedCountry)}) activated via ${method} (${accountOrPhone}). Tasks unlocked!`
     );
     return true;
   };
 
   const completeTask = (taskId: string, rewardEarned: number, summaryTitle: string) => {
-    // 7-day streak grants a 20% bonus; normal streak grants 10%
-    const bonusMultiplier = userStats.streakDays >= 7 ? 0.20 : userStats.streakDays > 0 ? 0.10 : 0;
-    const finalBonusAmount = +(rewardEarned * bonusMultiplier).toFixed(2);
-    const totalAward = +(rewardEarned + finalBonusAmount).toFixed(2);
-
     const taskItem = tasks.find((t) => t.id === taskId);
     const taskCategory = taskItem?.category || 'micro';
+
+    const eligibility = evaluateTaskEligibility({
+      packageId: activePackage?.id || null,
+      unlockedCategories: activePackage?.unlockedCategories,
+      taskReward: rewardEarned,
+      taskCategory,
+      completedTodayCount: normalizedDailyUsage.count,
+      surveysCompletedTodayCount: normalizedDailyUsage.surveyCount,
+      isOwner,
+      country: selectedCountry,
+    });
+
+    if (!eligibility.allowed) {
+      showNotification(eligibility.reason || 'Daily task limit or tier cap reached. Upgrade your Worker Pass!');
+      setPackagesModalOpen(true);
+      return;
+    }
+
+    // 7-day streak grants a 20% bonus; normal streak grants 10% (strictly capped at 50 shillings / MAX_TASK_REWARD_USD)
+    const bonusMultiplier = userStats.streakDays >= 7 ? 0.20 : userStats.streakDays > 0 ? 0.10 : 0;
+    const finalBonusAmount = +(rewardEarned * bonusMultiplier).toFixed(4);
+    const rawTotal = +(rewardEarned + finalBonusAmount).toFixed(4);
+    const totalAward = isOwner
+      ? rawTotal
+      : +Math.min(rawTotal, eligibility.rule.maxAmountUsd, MAX_TASK_REWARD_USD).toFixed(4);
+
+    const todayKey = getTodayDateKey();
+    setDailyUsage((prev) => {
+      const base = prev.dateKey === todayKey ? prev : { dateKey: todayKey, count: 0, surveyCount: 0 };
+      return {
+        dateKey: todayKey,
+        count: base.count + 1,
+        surveyCount: base.surveyCount + (taskCategory === 'survey' ? 1 : 0),
+      };
+    });
 
     // Append to Task History Record table
     const newHistoryRecord: TaskHistoryRecord = {
@@ -826,8 +1298,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUserStats((prev) => ({
       ...prev,
-      balance: +(prev.balance + totalAward).toFixed(2),
-      lifetimeEarned: +(prev.lifetimeEarned + totalAward).toFixed(2),
+      balance: +(prev.balance + totalAward).toFixed(4),
+      lifetimeEarned: +(prev.lifetimeEarned + totalAward).toFixed(4),
       completedTasksCount: prev.completedTasksCount + 1,
       completedTaskIds: [...prev.completedTaskIds, taskId]
     }));
@@ -846,7 +1318,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       title: summaryTitle,
       customerLabel: auth.currentUser?.displayName || auth.currentUser?.email || 'East Africa Contributor',
       gatewayOrMethod: taskCategory.replace('-', ' ').toUpperCase(),
-      currency: 'USD',
+      currency: selectedCountry.currency,
       amountUsd: totalAward,
       status: 'Completed',
       reference: newHistoryRecord.transactionRef,
@@ -892,6 +1364,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             taskTitle: summaryTitle,
             category: taskCategory,
             reward: totalAward,
+            packageId: activePackage?.id || 'free',
             status: 'Approved',
             accuracyScore: 99.4,
             transactionRef: newHistoryRecord.transactionRef
@@ -913,6 +1386,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               taskTitle: summaryTitle,
               category: taskCategory,
               reward: totalAward,
+              packageId: activePackage?.id || 'free',
               status: 'Approved',
               accuracyScore: 99.4,
               transactionRef: newHistoryRecord.transactionRef
@@ -926,19 +1400,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
     } catch {}
 
+    const cappedNotice =
+      !isOwner && totalAward < rawTotal
+        ? ` (Capped at ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} / 50 shillings max)`
+        : '';
     showNotification(
-      `Task Approved! Earned $${totalAward.toFixed(2)} (${finalBonusAmount > 0 ? `includes $${finalBonusAmount.toFixed(2)} (${(bonusMultiplier * 100).toFixed(0)}% streak bonus)` : ''}) for ${summaryTitle}`
+      `Task Approved! Earned ${formatCurrencyFromUsd(totalAward, selectedCountry)}${cappedNotice} for ${summaryTitle}`
     );
   };
 
   const requestPayout = (amount: number, method: PayoutRecord['method'], details: string): boolean => {
-    if (amount < 20) {
-      showNotification('Withdrawals start from $20.00. Continue completing tasks to reach the $20 cash-out milestone!');
+    const minLocal = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
+    if (amount < WITHDRAWAL_THRESHOLD_USD) {
+      showNotification(`Withdrawals start from ${minLocal}. Continue completing tasks to reach ${minLocal}.`);
       return false;
     }
 
-    if (amount > userStats.balance) {
-      showNotification(`Payout failed: Requested amount exceeds available balance ($${userStats.balance.toFixed(2)}).`);
+    if (amount > userStats.balance + 1e-4) {
+      showNotification(
+        `Payout failed: Requested amount exceeds available balance (${formatCurrencyFromUsd(userStats.balance, selectedCountry)}).`
+      );
+      return false;
+    }
+
+    if (!isOwner && !hasVipReferral) {
+      showNotification(
+        `Any of your referrals must have purchased the VIP Worker Pass of ${formatCurrencyFromKes(VIP_PASS_KES, selectedCountry)} before requesting a withdrawal.`
+      );
       return false;
     }
 
@@ -947,7 +1435,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newRecord: PayoutRecord = {
       id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`,
-      amount,
+      amount: +amount.toFixed(4),
       method,
       accountDetails: details,
       status: 'Processing',
@@ -957,7 +1445,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUserStats((prev) => ({
       ...prev,
-      balance: +(prev.balance - amount).toFixed(2),
+      balance: +Math.max(0, prev.balance - amount).toFixed(4),
       payoutHistory: [newRecord, ...prev.payoutHistory]
     }));
 
@@ -1007,7 +1495,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     showNotification(
-      `Withdrawal of $${amount.toFixed(2)} via ${method} initiated! ${isMpesa ? `(M-PESA confirmation code: ${mpesaReceipt})` : 'Processing queued.'}`
+      `Withdrawal of ${formatCurrencyFromUsd(amount, selectedCountry)} via ${method} initiated! ${isMpesa ? `(M-PESA confirmation code: ${mpesaReceipt})` : 'Processing queued.'}`
     );
     return true;
   };
@@ -1029,6 +1517,30 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setTasks((prev) => [created, ...prev]);
     showNotification(`Task "${created.title}" published! Available to global contributors.`);
+  };
+
+  const updateTask = (taskId: string, updates: Partial<Task>): boolean => {
+    const currentEmail = auth.currentUser?.email?.toLowerCase();
+    if (currentEmail !== OWNER_EMAIL || !auth.currentUser?.emailVerified) {
+      showNotification(`Forbidden: Only ${OWNER_EMAIL} can edit platform tasks.`);
+      return false;
+    }
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
+    );
+    showNotification(`Task updated successfully.`);
+    return true;
+  };
+
+  const deleteTask = (taskId: string): boolean => {
+    const currentEmail = auth.currentUser?.email?.toLowerCase();
+    if (currentEmail !== OWNER_EMAIL || !auth.currentUser?.emailVerified) {
+      showNotification(`Forbidden: Only ${OWNER_EMAIL} can delete platform tasks.`);
+      return false;
+    }
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showNotification(`Task permanently removed from marketplace.`);
+    return true;
   };
 
   const upvoteMeme = (memeId: string) => {
@@ -1055,18 +1567,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUserStats((prev) => ({
       ...prev,
-      balance: +(prev.balance - amount).toFixed(2)
+      balance: +(prev.balance - amount).toFixed(4)
     }));
 
     setMemes((prev) =>
       prev.map((m) =>
         m.id === memeId
-          ? { ...m, tipsEarned: +(m.tipsEarned + amount).toFixed(2) }
+          ? { ...m, tipsEarned: +(m.tipsEarned + amount).toFixed(4) }
           : m
       )
     );
 
-    showNotification(`Sent $${amount.toFixed(2)} micro-tip to meme creator!`);
+    showNotification(`Sent ${formatCurrencyFromUsd(amount, selectedCountry)} micro-tip to meme creator!`);
     return true;
   };
 
@@ -1123,24 +1635,25 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const passInfo =
       passTier === 'starter'
-        ? { title: 'Starter Contributor Pass (KES 50)', price: 0.38, method: pick.method }
+        ? { title: `Starter Contributor Pass (${formatCurrencyFromKes(50, selectedCountry)})`, price: convertKesToUsd(50), method: pick.method }
         : passTier === 'vip'
-        ? { title: 'VIP Taskmaster Pass (KES 200)', price: 1.54, method: 'Card' as const }
-        : { title: 'Pro Tasker Pass (KES 100)', price: 0.77, method: 'M-PESA' as const };
+        ? { title: `VIP Taskmaster Pass (${formatCurrencyFromKes(200, selectedCountry)})`, price: convertKesToUsd(200), method: 'Card' as const }
+        : { title: `Pro Tasker Pass (${formatCurrencyFromKes(100, selectedCountry)})`, price: convertKesToUsd(100), method: 'M-PESA' as const };
 
     // Standard 20% commission on worker passes purchased by referred users
     const rate = referralStats.commissionPercentage / 100;
-    const earned = +(passInfo.price * rate).toFixed(2);
+    const earned = +(passInfo.price * rate).toFixed(4);
 
     // Instant credit to user's wallet and lifetime earnings!
     setUserStats((prev) => ({
       ...prev,
-      balance: +(prev.balance + earned).toFixed(2),
-      lifetimeEarned: +(prev.lifetimeEarned + earned).toFixed(2)
+      balance: +(prev.balance + earned).toFixed(4),
+      lifetimeEarned: +(prev.lifetimeEarned + earned).toFixed(4)
     }));
 
     const newRecord: ReferralRecord = {
       id: `ref-tx-${Date.now()}`,
+      packageId: passTier,
       refereeName: chosenName,
       refereeEmailMasked: chosenEmail,
       refereeCountry: chosenCountry,
@@ -1160,7 +1673,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...prev,
       totalSignups: prev.totalSignups + 1,
       passesPurchasedCount: prev.passesPurchasedCount + 1,
-      totalCommissionEarned: +(prev.totalCommissionEarned + earned).toFixed(2)
+      totalCommissionEarned: +(prev.totalCommissionEarned + earned).toFixed(4),
+      vipReferralCount: (prev.vipReferralCount || 0) + (passTier === 'vip' ? 1 : 0)
     }));
 
     recordPlatformTransaction({
@@ -1169,7 +1683,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       title: `20% Referral Commission · ${passInfo.title}`,
       customerLabel: `${chosenName} (${chosenCountry})`,
       gatewayOrMethod: passInfo.method,
-      currency: 'USD',
+      currency: selectedCountry.currency,
       amountUsd: earned,
       status: 'Completed',
       reference: newRecord.transactionId,
@@ -1185,7 +1699,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
 
     showNotification(
-      `🎉 Referral Commission! ${chosenName} bought a ${passInfo.title}. +$${earned.toFixed(2)} added directly to your wallet!`
+      `🎉 Referral Commission! ${chosenName} bought a ${passInfo.title}. +${formatCurrencyFromUsd(earned, selectedCountry)} added directly to your wallet!`
     );
   };
 
@@ -1197,12 +1711,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         taskHistory,
         referralHistory,
         referralStats,
+        vipReferralCount,
+        hasVipReferral,
         updateReferralCode,
         simulateReferralPurchase,
         activePackage,
         packagesModalOpen,
         setPackagesModalOpen,
         purchasePackage,
+        dailyQuotaStatus,
+        passProofs,
+        passBannedReason,
+        refreshPassProofs,
+        submitManualPassProof,
         streakModalOpen,
         setStreakModalOpen,
         advanceDailyStreak,
@@ -1224,10 +1745,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeTask,
         requestPayout,
         postTask,
+        updateTask,
+        deleteTask,
         upvoteMeme,
         tipMeme,
         addMeme,
         notification,
+        showNotification,
         clearNotification,
         publisherModalOpen,
         setPublisherModalOpen,

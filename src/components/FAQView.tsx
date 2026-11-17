@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import {
+  formatCurrencyFromKes,
+  formatCurrencyFromUsd,
+  MAX_TASK_REWARD_KES,
+  WITHDRAWAL_THRESHOLD_USD,
+} from '../lib/eastAfrica';
 import { HelpCircle, ChevronDown, ChevronUp, Sparkles, ArrowRight, ShieldCheck, Mail } from 'lucide-react';
 
 interface FAQItem {
@@ -8,55 +15,67 @@ interface FAQItem {
   answer: string;
 }
 
-const FAQS: FAQItem[] = [
-  {
-    category: 'general',
-    question: 'What is Gideon Global Tasks and who can access the platform?',
-    answer: 'Gideon Global Tasks is an East Africa-exclusive crowdsourcing network connecting verified contributors in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia with paid surveys, AI computer vision annotation, receipt OCR digitization, and micro tasks. Access outside East Africa is restricted to protect local mobile money quality and payout reliability.'
-  },
-  {
-    category: 'passes',
-    question: 'Why are worker passes (KES 50, KES 100, KES 200) required to complete tasks?',
-    answer: 'Worker passes fund platform compute, anti-bot biometric verification, and dedicated cloud annotation workspaces. By requiring a nominal pass—Starter (KES 50 for 25 tasks/day), Pro (KES 100 for 75 tasks/day), or VIP (KES 200 for unlimited tasks), automatically converted into your local East African currency—we filter out automated spam scripts and fraudulent submissions while 100% of task bounties go directly to contributors.'
-  },
-  {
-    category: 'payouts',
-    question: 'Why is the minimum withdrawal threshold set at $20.00?',
-    answer: 'Payment gateways and mobile money networks charge fixed transaction fees on small transfers. By aggregating payouts starting at $20.00, Gideon Global Tasks guarantees a 0% fee policy for East African workers on M-PESA, Airtel / MTN MoMo, and East Africa Bank disbursements.'
-  },
-  {
-    category: 'payouts',
-    question: 'Which withdrawal and payment methods are supported in East Africa?',
-    answer: 'We natively support Safaricom M-PESA STK Push (via IntaSend & Daraja), Airtel Money / MTN MoMo, East Africa Visa & Mastercard local billing, East Africa Direct Bank transfers, Wise, Crypto USDT, and internal wallet re-investments. International PayPal checkout has been retired in favor of fast East African mobile money.'
-  },
-  {
-    category: 'passes',
-    question: 'How does the Daily Contributor Streak system work?',
-    answer: 'Contributors who log in daily build a consecutive contributor streak. Reaching a 7-day streak awards an immediate $5.00 cash bonus directly to your wallet balance plus an ongoing +20% earnings multiplier across all completed task rewards. Logging in between Days 1–6 grants a +10% earnings bonus.'
-  },
-  {
-    category: 'general',
-    question: 'How does the 20% Referral Commission program work?',
-    answer: 'Every contributor receives a unique referral code and tracking link. When new users join via your link and activate any worker pass (KES 50 Starter, KES 100 Pro, or KES 200 VIP), you automatically receive an instant 20% cash commission credited directly to your withdrawable wallet balance (e.g., KES 20 / ~$0.15 on a KES 100 pass, KES 40 / ~$0.31 on a KES 200 pass).'
-  },
-  {
-    category: 'quality',
-    question: 'How are task submissions reviewed and quality scores maintained?',
-    answer: 'Submissions undergo automated precision audits (such as IoU bounding box calculations for computer vision or regex checks for receipt figures) alongside peer spot-checks. Contributors maintain an accuracy quality score (target 95%+). High-performing contributors unlock high-paying VIP writing bounties and priority verification queues.'
-  },
-  {
-    category: 'quality',
-    question: 'How does Gideon Global Tasks comply with Google AdSense and privacy regulations?',
-    answer: 'Our platform strictly complies with Google Publisher Policies, GDPR, and CCPA. We do not sell personally identifiable information. Contextual advertisements served via Google AdSense use standard cookies that users can manage or opt out of via Google Ads Settings or aboutads.info. We maintain transparent terms, an active contact desk (nigideon36@gmail.com), and rigorous human content standards.'
-  }
-];
-
 export const FAQView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { selectedCountry } = useRegion();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const [filter, setFilter] = useState<'all' | 'general' | 'payouts' | 'passes' | 'quality'>('all');
 
-  const filteredFaqs = FAQS.filter((f) => filter === 'all' || f.category === filter);
+  const faqs = useMemo<FAQItem[]>(() => {
+    const pass50 = formatCurrencyFromKes(50, selectedCountry);
+    const pass100 = formatCurrencyFromKes(100, selectedCountry);
+    const pass200 = formatCurrencyFromKes(200, selectedCountry);
+    const maxCap = formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry);
+    const threshold = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
+    const streakBonus = formatCurrencyFromUsd(5, selectedCountry);
+    const comm20 = formatCurrencyFromKes(20, selectedCountry);
+    const comm40 = formatCurrencyFromKes(40, selectedCountry);
+
+    return [
+      {
+        category: 'general',
+        question: 'What is Gideon Global Tasks and who can access the platform?',
+        answer: 'Gideon Global Tasks is an East Africa-exclusive crowdsourcing network connecting verified contributors in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia with paid surveys, AI computer vision annotation, receipt OCR digitization, and micro tasks. Access outside East Africa is restricted to protect local mobile money quality and payout reliability.'
+      },
+      {
+        category: 'passes',
+        question: `Why are worker passes (${pass50}, ${pass100}, ${pass200}) required to unlock more daily tasks?`,
+        answer: `Worker passes fund platform compute, anti-bot biometric verification, and dedicated cloud annotation workspaces. Free contributors get 1 daily task (up to ${maxCap}). Deposit-funded passes unlock Starter (${pass50} for 2 tasks/day), Second Pass Pro (${pass100} for 3 tasks/day), and VIP (${pass200} for 4 surveys/day), with every completed task capped at ${maxCap} max.`
+      },
+      {
+        category: 'payouts',
+        question: `Why does the withdrawal threshold start at ${threshold}?`,
+        answer: `Payment gateways and mobile money networks charge fixed transaction fees on small transfers. By starting payouts at ${threshold}, Gideon Global Tasks guarantees a 0% fee policy for East African workers on M-PESA, Airtel / MTN MoMo, and East Africa Bank disbursements.`
+      },
+      {
+        category: 'payouts',
+        question: 'Which withdrawal and payment methods are supported in East Africa?',
+        answer: 'We natively support Safaricom M-PESA (0758727558 for pass & investment deposits), Airtel Money / MTN MoMo, East Africa Visa & Mastercard local billing, and East Africa Direct Bank transfers. International PayPal checkout has been retired in favor of fast East African mobile money.'
+      },
+      {
+        category: 'passes',
+        question: 'How does the Daily Contributor Streak system work?',
+        answer: `Contributors who log in daily build a consecutive contributor streak. Reaching a 7-day streak awards an immediate ${streakBonus} milestone bonus directly to your wallet balance plus an ongoing +20% earnings multiplier (respecting the ${maxCap} per-task reward limit). Logging in between Days 1–6 grants a +10% earnings bonus.`
+      },
+      {
+        category: 'general',
+        question: 'How does the 20% Referral Commission program work?',
+        answer: `Every contributor receives a unique referral code and tracking link. When new users join via your link and activate any worker pass (${pass50} Starter, ${pass100} Pro, or ${pass200} VIP), you automatically receive an instant 20% cash commission credited directly to your withdrawable wallet balance (e.g., ${comm20} on a ${pass100} pass, ${comm40} on a ${pass200} pass).`
+      },
+      {
+        category: 'quality',
+        question: 'How are task submissions reviewed and quality scores maintained?',
+        answer: 'Submissions undergo automated precision audits (such as IoU bounding box calculations for computer vision or regex checks for receipt figures) alongside peer spot-checks. Contributors maintain an accuracy quality score (target 95%+). High-performing contributors qualify for VIP survey queues and priority verification.'
+      },
+      {
+        category: 'quality',
+        question: 'How does Gideon Global Tasks comply with Google AdSense and privacy regulations?',
+        answer: 'Our platform strictly complies with Google Publisher Policies, GDPR, and CCPA. We do not sell personally identifiable information. Contextual advertisements served via Google AdSense use standard cookies that users can manage or opt out of via Google Ads Settings or aboutads.info. We maintain transparent terms, an active contact desk (nigideon36@gmail.com), and rigorous human content standards.'
+      }
+    ];
+  }, [selectedCountry]);
+
+  const filteredFaqs = faqs.filter((f) => filter === 'all' || f.category === filter);
 
   const toggle = (idx: number) => {
     setOpenIndex((curr) => (curr === idx ? null : idx));
@@ -86,7 +105,7 @@ export const FAQView: React.FC = () => {
             filter === 'all' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          All Questions ({FAQS.length})
+          All Questions ({faqs.length})
         </button>
         <button
           onClick={() => setFilter('general')}
@@ -102,7 +121,7 @@ export const FAQView: React.FC = () => {
             filter === 'passes' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Worker Passes (KES 50–200)
+          Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)})
         </button>
         <button
           onClick={() => setFilter('payouts')}
@@ -110,7 +129,7 @@ export const FAQView: React.FC = () => {
             filter === 'payouts' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Payouts & M-PESA ($20+)
+          Payouts & M-PESA ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}+)
         </button>
         <button
           onClick={() => setFilter('quality')}

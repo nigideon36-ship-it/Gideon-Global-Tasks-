@@ -1,7 +1,9 @@
 import React from 'react';
 import { Task } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
-import { ArrowRight, Clock, Star, CheckCircle, Check } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd, formatCurrencyFromKes, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
+import { ArrowRight, Star, Check, Lock } from 'lucide-react';
 
 interface Props {
   task: Task;
@@ -9,8 +11,10 @@ interface Props {
 }
 
 export const TaskCard: React.FC<Props> = ({ task, onSelect }) => {
-  const { userStats } = useTasks();
+  const { userStats, activePackage, dailyQuotaStatus } = useTasks();
+  const { selectedCountry } = useRegion();
   const isCompleted = userStats.completedTaskIds.includes(task.id);
+  const eligibility = dailyQuotaStatus.canDoTask(task);
 
   const categoryNameMap: Record<string, string> = {
     survey: 'Survey',
@@ -18,6 +22,7 @@ export const TaskCard: React.FC<Props> = ({ task, onSelect }) => {
     'data-entry': 'Data Entry',
     writing: 'Writing',
     'meme-content': 'Meme & Content',
+    'creator-campaign': 'Creator Campaign',
     micro: 'Micro Task'
   };
 
@@ -43,9 +48,19 @@ export const TaskCard: React.FC<Props> = ({ task, onSelect }) => {
         </h3>
 
         {/* Description */}
-        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-4">
+        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">
           {task.description}
         </p>
+
+        {task.creatorCampaignConfig && (
+          <div className="text-[11px] text-slate-500 font-medium mb-3">
+            <span>{task.creatorCampaignConfig.allowedPlatforms.join(' / ')}</span>
+            <span aria-hidden="true"> · </span>
+            <span className="capitalize">
+              {task.creatorCampaignConfig.allowedFormats.map((f) => f.replace('-', ' ')).join(', ')}
+            </span>
+          </div>
+        )}
 
         {/* Requester details and tags */}
         <div className="flex items-center justify-between text-xs text-slate-500 pb-4 border-b border-slate-100">
@@ -65,13 +80,13 @@ export const TaskCard: React.FC<Props> = ({ task, onSelect }) => {
       </div>
 
       {/* Card Footer: Reward & Action CTA */}
-      <div className="pt-4 flex items-center justify-between">
+      <div className="pt-4 flex items-center justify-between gap-2">
         <div>
           <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">
             Earn Bounty
           </span>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
-            ${task.reward.toFixed(2)}
+            {formatCurrencyFromUsd(task.reward, selectedCountry)}
           </div>
         </div>
 
@@ -84,13 +99,32 @@ export const TaskCard: React.FC<Props> = ({ task, onSelect }) => {
             <Check className="w-3.5 h-3.5" />
             <span>Completed</span>
           </button>
+        ) : !eligibility.allowed ? (
+          <button
+            type="button"
+            onClick={() => onSelect(task)}
+            title={eligibility.reason}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+            <span>
+              {eligibility.reasonCode === 'DAILY_LIMIT_REACHED' ||
+              eligibility.reasonCode === 'VIP_SURVEY_LIMIT_REACHED'
+                ? `Limit (${dailyQuotaStatus.usedToday}/${dailyQuotaStatus.rule.dailyLimit})`
+                : eligibility.requiredMinTier === 'starter'
+                ? `Starter (${formatCurrencyFromKes(50, selectedCountry)})`
+                : eligibility.requiredMinTier === 'pro'
+                ? `2nd Pass (${formatCurrencyFromKes(100, selectedCountry)})`
+                : `VIP Pass (${formatCurrencyFromKes(200, selectedCountry)})`}
+            </span>
+          </button>
         ) : (
           <button
             type="button"
             onClick={() => onSelect(task)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shadow-xs group/btn"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shadow-xs group/btn cursor-pointer"
           >
-            <span>Start Task</span>
+            <span>{!activePackage && task.reward <= MAX_TASK_REWARD_USD ? 'Start Free Task' : 'Start Task'}</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         )}

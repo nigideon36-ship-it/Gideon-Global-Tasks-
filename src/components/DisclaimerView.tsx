@@ -1,9 +1,12 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, MAX_TASK_REWARD_KES, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { AlertTriangle, ArrowLeft, ShieldCheck, ExternalLink, HelpCircle } from 'lucide-react';
 
 export const DisclaimerView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { selectedCountry } = useRegion();
 
   return (
     <article className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-200 text-slate-800">
@@ -41,7 +44,7 @@ export const DisclaimerView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">1. Earnings & Income Representation Disclaimer</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Gideon Global Tasks provides an open crowdsourcing and multimodal data annotation marketplace. Any earnings examples, reward estimates ($1.20–$15.00+ per task), or daily bonus projections cited across the website or contributor guides are illustrative of what high-accuracy, diligent contributors can potentially generate and do not represent a guarantee of earnings.
+          Gideon Global Tasks provides an open crowdsourcing and multimodal data annotation marketplace. Any earnings examples, reward estimates (up to {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per completed task), or daily bonus projections cited across the website or contributor guides are illustrative of what high-accuracy, diligent contributors can potentially generate and do not represent a guarantee of earnings.
         </p>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
           Your individual earnings depend on factors including the volume of available task bounties from enterprise requesters, your accuracy audit scores, task completion speed, worker pass category access, and geographic eligibility. Gideon Global Tasks does not represent itself as a "get-rich-quick" scheme, permanent full-time employment, or passive financial investment.
@@ -52,7 +55,7 @@ export const DisclaimerView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">2. Withdrawal Milestones & Currency Processing</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Withdrawals are unlocked once a contributor reaches the approved balance threshold of <strong>$20.00 USD</strong>. While Gideon Global Tasks does not charge platform cash-out fees on approved $20+ withdrawals, foreign exchange conversion rates applied by intermediary telecommunications operators (e.g., Safaricom M-PESA) or international banking partners (e.g., Wise) are determined by market rates at the time of transfer.
+          Withdrawals begin once a contributor reaches the approved balance threshold of <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong>. While Gideon Global Tasks does not charge platform cash-out fees on approved payouts, foreign exchange conversion rates applied by intermediary telecommunications operators (e.g., Safaricom M-PESA) or international banking partners (e.g., Wise) are determined by market rates at the time of transfer.
         </p>
       </section>
 

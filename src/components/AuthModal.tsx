@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Phone,
@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   ArrowRight,
   Globe,
+  BookmarkCheck,
+  Trash2,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, type CustomerWithdrawalMethod } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
 import { EAST_AFRICA_COUNTRIES, isEastAfricaPhone } from '../lib/eastAfrica';
 
@@ -26,6 +28,8 @@ export const AuthModal: React.FC = () => {
     registerWithPhone,
     loginWithPhone,
     verifyTwoFactorLogin,
+    rememberedAccount,
+    clearRememberedAccount,
   } = useAuth();
   const { selectedCountry, setSelectedCountryCode } = useRegion();
 
@@ -34,7 +38,13 @@ export const AuthModal: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [city, setCity] = useState('');
+  const [withdrawalMethod, setWithdrawalMethod] = useState<CustomerWithdrawalMethod>('M-PESA');
+  const [withdrawalAccount, setWithdrawalAccount] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [password, setPassword] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [regOtpCode, setRegOtpCode] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
@@ -42,13 +52,19 @@ export const AuthModal: React.FC = () => {
   const [challengeMethod, setChallengeMethod] = useState<'sms' | 'totp'>('sms');
   const [maskedPhone, setMaskedPhone] = useState('');
   const [previewSmsCode, setPreviewSmsCode] = useState<string | null>(null);
+  const [twoFaCarrierDelivered, setTwoFaCarrierDelivered] = useState(false);
+  const [twoFaProviderLabel, setTwoFaProviderLabel] = useState('');
   const [regMaskedPhone, setRegMaskedPhone] = useState('');
   const [regPreviewCode, setRegPreviewCode] = useState<string | null>(null);
-  const [regSmsMode, setRegSmsMode] = useState<string>('');
+  const [regCarrierDelivered, setRegCarrierDelivered] = useState<boolean>(false);
+  const [regProviderLabel, setRegProviderLabel] = useState<string>('');
+  const [regFallbackReason, setRegFallbackReason] = useState<string>('');
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const loginPasswordRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (authModalOpen) {
@@ -57,17 +73,71 @@ export const AuthModal: React.FC = () => {
       setRegStep('details');
       setRegOtpCode('');
       setRegPreviewCode(null);
+      setRegCarrierDelivered(false);
+      setRegFallbackReason('');
+      try {
+        const pendingRef = localStorage.getItem('gideon_pending_ref_code_v1');
+        if (pendingRef) setReferralCode(pendingRef.toUpperCase());
+      } catch {}
+      if (rememberedAccount) {
+        setMode('login');
+        setLoginIdentifier(rememberedAccount.phone || rememberedAccount.email || '');
+        if (rememberedAccount.countryCode) {
+          setSelectedCountryCode(rememberedAccount.countryCode as any);
+        }
+      }
     }
   }, [authModalOpen]);
 
   useEffect(() => {
-    setPhone('');
-    setRegStep('details');
-    setRegOtpCode('');
-    setRegPreviewCode(null);
+    setWithdrawalMethod(selectedCountry.code === 'KE' ? 'M-PESA' : 'Airtel / MTN MoMo');
+    if (regStep === 'otp') {
+      setRegStep('details');
+      setRegOtpCode('');
+      setRegPreviewCode(null);
+    }
   }, [selectedCountry.code]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
   if (!authModalOpen) return null;
+
+  const normalizeClientPhone = (raw: string) => {
+    let cleaned = raw.trim().replace(/[\s\-().]/g, '');
+    if (!cleaned) return '';
+    if (cleaned.startsWith('00')) cleaned = `+${cleaned.slice(2)}`;
+    if (cleaned.startsWith('+')) {
+      return cleaned.replace(/^\+(254|256|255|250|257|211|251|252)0+(\d+)/, '+$1$2');
+    }
+    if (/^(254|256|255|250|257|211|251|252)/.test(cleaned)) {
+      return `+${cleaned}`.replace(/^\+(254|256|255|250|257|211|251|252)0+(\d+)/, '+$1$2');
+    }
+    if (cleaned.startsWith('0')) {
+      return `${selectedCountry.dialCode}${cleaned.slice(1)}`;
+    }
+    return `${selectedCountry.dialCode}${cleaned}`;
+  };
+
+  const isDuplicateError = Boolean(errorMsg && /already registered|duplicate/i.test(errorMsg));
+
+  const handleUseSavedAccount = () => {
+    if (!rememberedAccount) return;
+    setMode('login');
+    setLoginIdentifier(rememberedAccount.phone || rememberedAccount.email || '');
+    if (rememberedAccount.countryCode) {
+      setSelectedCountryCode(rememberedAccount.countryCode as any);
+    }
+    setErrorMsg(null);
+    window.setTimeout(() => {
+      loginPasswordRef.current?.focus();
+    }, 50);
+  };
 
   const sendRegSmsOtp = async () => {
     setErrorMsg(null);
@@ -79,11 +149,7 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
-    const normalizedPreview = cleanedPhone.startsWith('+')
-      ? cleanedPhone
-      : cleanedPhone.startsWith('0')
-      ? `${selectedCountry.dialCode}${cleanedPhone.slice(1)}`
-      : `${selectedCountry.dialCode}${cleanedPhone}`;
+    const normalizedPreview = normalizeClientPhone(cleanedPhone);
 
     if (!isEastAfricaPhone(normalizedPreview)) {
       setErrorMsg(`Enter a valid ${selectedCountry.name} mobile number (${selectedCountry.dialCode}...).`);
@@ -97,7 +163,7 @@ export const AuthModal: React.FC = () => {
 
     setLoading(true);
     const otpRes = await requestRegistrationOtp({
-      phone: cleanedPhone,
+      phone: normalizedPreview,
       countryCode: selectedCountry.code,
       email: email.trim() || undefined,
       password,
@@ -105,16 +171,28 @@ export const AuthModal: React.FC = () => {
     setLoading(false);
 
     if (!otpRes.success) {
-      setErrorMsg(otpRes.error || 'Could not send SMS verification OTP.');
+      setErrorMsg(otpRes.error || 'Could not send verification OTP.');
       return;
     }
 
     setRegMaskedPhone(otpRes.maskedPhone || normalizedPreview);
-    setRegSmsMode(otpRes.smsDeliveryMode || 'sms');
+    setRegCarrierDelivered(Boolean(otpRes.carrierDelivered));
+    setRegProviderLabel(otpRes.providerLabel || 'SMS Gateway');
+    setRegFallbackReason(otpRes.fallbackReason || '');
     setRegPreviewCode(otpRes.previewCode || null);
     setRegOtpCode('');
     setRegStep('otp');
-    setSuccessMsg(`A 6-digit SMS OTP has been sent to ${otpRes.maskedPhone || normalizedPreview}.`);
+    setResendCooldown(30);
+
+    if (otpRes.carrierDelivered) {
+      setSuccessMsg(
+        `Live SMS OTP dispatched via ${otpRes.providerLabel || 'SMS Gateway'} to ${otpRes.maskedPhone || normalizedPreview}.`
+      );
+    } else {
+      setSuccessMsg(
+        `Instant verification code ready for ${otpRes.maskedPhone || normalizedPreview}. Click "Fill Code" or enter it below.`
+      );
+    }
   };
 
   const handleRequestRegOtpSubmit = async (e: React.FormEvent) => {
@@ -138,8 +216,14 @@ export const AuthModal: React.FC = () => {
       countryCode: selectedCountry.code,
       email: email.trim() || undefined,
       displayName: displayName.trim() || undefined,
+      city: city.trim() || undefined,
       password,
       otpCode: regOtpCode.trim(),
+      withdrawalMethod,
+      withdrawalAccount: withdrawalAccount.trim() || phone.trim(),
+      withdrawalAccountHolder: displayName.trim() || undefined,
+      referralCode: referralCode.trim().toUpperCase() || undefined,
+      rememberMe,
     });
     setLoading(false);
 
@@ -148,7 +232,7 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
-    setSuccessMsg('Phone verified via SMS OTP and account created!');
+    setSuccessMsg('Phone verified via SMS OTP and credentials saved securely on the portal!');
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -156,16 +240,18 @@ export const AuthModal: React.FC = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!phone.trim() || !password) {
-      setErrorMsg('Enter your registered mobile number and password/PIN.');
+    const idToUse = loginIdentifier.trim() || phone.trim();
+    if (!idToUse || !password) {
+      setErrorMsg('Enter your registered mobile number or email and password/PIN.');
       return;
     }
 
     setLoading(true);
     const result = await loginWithPhone({
-      phone: phone.trim(),
+      identifier: idToUse,
       countryCode: selectedCountry.code,
       password,
+      rememberMe,
     });
     setLoading(false);
 
@@ -177,7 +263,9 @@ export const AuthModal: React.FC = () => {
     if (result.requires2FA && result.challengeToken) {
       setChallengeToken(result.challengeToken);
       setChallengeMethod(result.twoFactorMethod || 'sms');
-      setMaskedPhone(result.maskedPhone || phone);
+      setMaskedPhone(result.maskedPhone || idToUse);
+      setTwoFaCarrierDelivered(Boolean(result.carrierDelivered));
+      setTwoFaProviderLabel(result.providerLabel || 'SMS Gateway');
       setPreviewSmsCode(result.previewCode || null);
       setOtpCode('');
       setMode('2fa');
@@ -194,7 +282,7 @@ export const AuthModal: React.FC = () => {
     }
 
     setLoading(true);
-    const result = await verifyTwoFactorLogin(challengeToken, otpCode.trim());
+    const result = await verifyTwoFactorLogin(challengeToken, otpCode.trim(), rememberMe);
     setLoading(false);
 
     if (!result.success) {
@@ -219,10 +307,10 @@ export const AuthModal: React.FC = () => {
                   ? regStep === 'otp'
                     ? 'Verify SMS Registration OTP'
                     : 'Customer Mobile Registration'
-                  : 'Customer Sign In'}
+                  : 'Customer Portal Sign In'}
               </h2>
               <p className="text-[11px] text-blue-100">
-                East Africa Mobile Registration &amp; Mandatory SMS OTP
+                Credentials saved on portal · Duplicate accounts prevented
               </p>
             </div>
           </div>
@@ -259,6 +347,9 @@ export const AuthModal: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setMode('login');
+                  if (!loginIdentifier && (phone || rememberedAccount?.phone)) {
+                    setLoginIdentifier(phone || rememberedAccount?.phone || '');
+                  }
                   setErrorMsg(null);
                   setSuccessMsg(null);
                 }}
@@ -274,7 +365,7 @@ export const AuthModal: React.FC = () => {
           )}
 
           {mode === 'register' && regStep === 'details' && (
-            <form onSubmit={handleRequestRegOtpSubmit} className="space-y-3.5">
+            <form onSubmit={handleRequestRegOtpSubmit} method="post" className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   East Africa Country
@@ -294,12 +385,15 @@ export const AuthModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mobile Number <span className="text-rose-600">*</span>
+                  Real Mobile Number <span className="text-rose-600">*</span>{' '}
+                  <span className="text-slate-400 font-normal">(Locked after registration)</span>
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
                   <input
                     type="tel"
+                    name="username"
+                    autoComplete="tel"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -308,18 +402,20 @@ export const AuthModal: React.FC = () => {
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Mandatory: We will send a 6-digit SMS OTP to this number before your account is created.
+                  Mandatory 6-digit SMS OTP sent before activation. 1 account per real mobile number &amp; email.
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Email Address <span className="text-slate-400 font-normal">(Optional)</span>
+                  Email Address <span className="text-slate-400 font-normal">(Optional · also enables Email Sign In)</span>
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com (optional)"
@@ -328,20 +424,76 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Full Name <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Real Full Name <span className="text-slate-400 font-normal">(Editable in My Account)</span>
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      name="name"
+                      autoComplete="name"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="e.g. Amina Wanjiku"
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 text-slate-900 focus:border-blue-600 outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    City / Town <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
                   <input
                     type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. Amina Wanjiku"
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 text-slate-900 focus:border-blue-600 outline-hidden"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. Nairobi, Kampala"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 text-slate-900 focus:border-blue-600 outline-hidden"
                   />
                 </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-600" />
+                    <span>Locked Payout / Withdrawal Account</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500">Locked upon signup</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={withdrawalMethod}
+                    onChange={(e) => setWithdrawalMethod(e.target.value as CustomerWithdrawalMethod)}
+                    className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 font-semibold outline-hidden focus:border-blue-600"
+                  >
+                    <option value="M-PESA">M-PESA</option>
+                    <option value="Airtel / MTN MoMo">Airtel / MTN MoMo</option>
+                    <option value="East Africa Bank">East Africa Bank</option>
+                    <option value="Wise">Wise</option>
+                    <option value="Crypto USDT">Crypto USDT</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={withdrawalAccount}
+                    onChange={(e) => setWithdrawalAccount(e.target.value)}
+                    placeholder={
+                      withdrawalMethod === 'M-PESA' || withdrawalMethod === 'Airtel / MTN MoMo'
+                        ? 'Leave blank to lock registered mobile'
+                        : withdrawalMethod === 'Wise'
+                        ? 'Wise recipient email'
+                        : 'Bank Account / USDT TRC-20'
+                    }
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono text-slate-900 outline-hidden focus:border-blue-600"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  For payout security, your real mobile number and withdrawal details cannot be changed by customers after registration and are used for all withdrawals in My Account.
+                </p>
               </div>
 
               <div>
@@ -352,6 +504,8 @@ export const AuthModal: React.FC = () => {
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="password"
+                    name="new-password"
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={password}
@@ -362,10 +516,49 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Referral / Invite Code <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. GIDEON-EA-894"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 font-mono uppercase text-slate-900 focus:border-blue-600 outline-hidden"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-[11px] text-slate-700 cursor-pointer select-none pt-0.5">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>Save my portal account details on this device for 1-tap login</span>
+              </label>
+
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{errorMsg}</span>
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{errorMsg}</span>
+                  </div>
+                  {isDuplicateError && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginIdentifier(phone.trim() || email.trim());
+                        setMode('login');
+                        setErrorMsg(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      <span>Go to Sign In Instead</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -382,30 +575,58 @@ export const AuthModal: React.FC = () => {
 
           {mode === 'register' && regStep === 'otp' && (
             <form onSubmit={handleCompleteRegistrationSubmit} className="space-y-4">
-              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1.5">
-                <div className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>SMS OTP Required for Registration</span>
-                </div>
-                <p className="text-[11px] text-blue-800">
-                  Enter the 6-digit SMS code sent to <strong className="font-mono">{regMaskedPhone}</strong> ({regSmsMode === 'preview' ? 'SMS Gateway Preview' : 'Mobile SMS'}) to verify your phone and create your account.
-                </p>
-                {regPreviewCode && (
-                  <p className="text-[11px] font-mono bg-white border border-blue-200 rounded-lg px-2.5 py-1.5 text-blue-900">
-                    SMS Test OTP Code: <strong>{regPreviewCode}</strong>
+              {regCarrierDelivered ? (
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>Live SMS OTP Sent via {regProviderLabel}</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800">
+                    Enter the 6-digit SMS code sent to <strong className="font-mono">{regMaskedPhone}</strong>. SMS typically arrives within 5–30 seconds (expires in 10 minutes).
                   </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                    <ShieldCheck className="w-4 h-4 text-amber-700" />
+                    <span>Instant On-Screen OTP Verification</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    Live carrier SMS to <strong className="font-mono">{regMaskedPhone}</strong> is not active right now
+                    {regFallbackReason ? ` (${regFallbackReason})` : ''}. Use the verified 6-digit code below to activate your account immediately:
+                  </p>
+                  {regPreviewCode && (
+                    <div className="flex items-center justify-between gap-2 bg-white border border-amber-300 rounded-xl px-3 py-2">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">
+                          Your 6-Digit OTP Code
+                        </span>
+                        <span className="text-lg font-mono font-extrabold tracking-[0.25em] text-blue-900">
+                          {regPreviewCode}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRegOtpCode(regPreviewCode)}
+                        className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold cursor-pointer shrink-0"
+                      >
+                        Auto-Fill Code
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Enter 6-Digit SMS OTP <span className="text-rose-600">*</span>
+                  Enter 6-Digit Verification OTP <span className="text-rose-600">*</span>
                 </label>
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
                   <input
                     type="text"
                     inputMode="numeric"
+                    autoComplete="one-time-code"
                     maxLength={6}
                     required
                     value={regOtpCode}
@@ -444,11 +665,13 @@ export const AuthModal: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  disabled={loading}
+                  disabled={loading || (regCarrierDelivered && resendCooldown > 0)}
                   onClick={() => void sendRegSmsOtp()}
                   className="text-blue-700 hover:text-blue-900 font-bold cursor-pointer disabled:opacity-50"
                 >
-                  Resend SMS OTP
+                  {regCarrierDelivered && resendCooldown > 0
+                    ? `Resend OTP in ${resendCooldown}s`
+                    : 'Generate / Resend OTP'}
                 </button>
               </div>
 
@@ -458,13 +681,47 @@ export const AuthModal: React.FC = () => {
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer disabled:opacity-60"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{loading ? 'Verifying OTP & Creating Account...' : 'Verify SMS OTP & Complete Registration'}</span>
+                <span>{loading ? 'Verifying OTP & Saving Account...' : 'Verify SMS OTP & Complete Registration'}</span>
               </button>
             </form>
           )}
 
           {mode === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-3.5">
+            <form onSubmit={handleLoginSubmit} method="post" className="space-y-3.5">
+              {rememberedAccount && (
+                <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={handleUseSavedAccount}
+                    className="flex items-center gap-2.5 text-left min-w-0 flex-1 cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <BookmarkCheck className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700">
+                        {rememberedAccount.displayName}
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-600 truncate">
+                        {rememberedAccount.phone}
+                        {rememberedAccount.email ? ` · ${rememberedAccount.email}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearRememberedAccount();
+                      setLoginIdentifier('');
+                    }}
+                    title="Forget saved account from this device"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   East Africa Country
@@ -484,16 +741,18 @@ export const AuthModal: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Registered Mobile Number
+                  Registered Mobile Number or Email
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
                   <input
-                    type="tel"
+                    type="text"
+                    name="username"
+                    autoComplete="username"
                     required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder={selectedCountry.samplePhone}
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    placeholder={`${selectedCountry.samplePhone} or email@example.com`}
                     className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 font-mono text-slate-900 focus:border-blue-600 outline-hidden"
                   />
                 </div>
@@ -506,7 +765,10 @@ export const AuthModal: React.FC = () => {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
+                    ref={loginPasswordRef}
                     type="password"
+                    name="password"
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -515,6 +777,16 @@ export const AuthModal: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 text-[11px] text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>Keep my portal account remembered for quick login</span>
+              </label>
 
               {errorMsg && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
@@ -528,7 +800,7 @@ export const AuthModal: React.FC = () => {
                 disabled={loading}
                 className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer disabled:opacity-60"
               >
-                <span>{loading ? 'Signing In...' : 'Sign In with Mobile Number'}</span>
+                <span>{loading ? 'Signing In...' : 'Sign In to Portal'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -536,26 +808,47 @@ export const AuthModal: React.FC = () => {
 
           {mode === '2fa' && (
             <form onSubmit={handleVerify2faSubmit} className="space-y-4">
-              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>
+              {challengeMethod === 'totp' || twoFaCarrierDelivered ? (
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>
+                      {challengeMethod === 'totp'
+                        ? 'Authenticator App Code Required'
+                        : `Live SMS Sent via ${twoFaProviderLabel} to ${maskedPhone}`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-800">
                     {challengeMethod === 'totp'
-                      ? 'Authenticator App Code Required'
-                      : `SMS Code Sent to ${maskedPhone}`}
-                  </span>
-                </div>
-                <p className="text-[11px] text-blue-800">
-                  {challengeMethod === 'totp'
-                    ? 'Open Google Authenticator / Authy and enter the 6-digit code for Gideon Global Tasks.'
-                    : 'Enter the 6-digit SMS code delivered to your East Africa mobile line.'}
-                </p>
-                {previewSmsCode && (
-                  <p className="text-[11px] font-mono bg-white border border-blue-200 rounded-lg px-2.5 py-1.5 text-blue-900 mt-1">
-                    SMS Test Code: <strong>{previewSmsCode}</strong>
+                      ? 'Open Google Authenticator / Authy and enter the 6-digit code for Gideon Global Tasks.'
+                      : 'Enter the 6-digit SMS code delivered to your East Africa mobile line.'}
                   </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                    <ShieldCheck className="w-4 h-4 text-amber-700" />
+                    <span>Instant On-Screen 2FA Verification ({maskedPhone})</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900">
+                    Live SMS carrier is not active right now. Enter or auto-fill your 6-digit verification code below:
+                  </p>
+                  {previewSmsCode && (
+                    <div className="flex items-center justify-between gap-2 bg-white border border-amber-300 rounded-xl px-3 py-2">
+                      <span className="text-base font-mono font-extrabold tracking-[0.25em] text-blue-900">
+                        {previewSmsCode}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setOtpCode(previewSmsCode)}
+                        className="px-3 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                      >
+                        Auto-Fill Code
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -566,6 +859,7 @@ export const AuthModal: React.FC = () => {
                   <input
                     type="text"
                     inputMode="numeric"
+                    autoComplete="one-time-code"
                     maxLength={6}
                     required
                     value={otpCode}
@@ -620,6 +914,22 @@ export const AuthModal: React.FC = () => {
               </button>
             </div>
           )}
+
+          <div className="pt-2 border-t border-slate-100 text-[11px] text-center text-slate-600">
+            Experiencing issues?{' '}
+            <a href="tel:+254712727558" className="font-mono font-bold text-blue-700 hover:underline">
+              Call: +254712727558
+            </a>
+            {' · '}
+            <a
+              href="https://wa.me/254785909543"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono font-bold text-emerald-700 hover:underline"
+            >
+              WhatsApp: 0785909543
+            </a>
+          </div>
         </div>
       </div>
     </div>

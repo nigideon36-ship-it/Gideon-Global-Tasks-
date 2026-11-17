@@ -1,9 +1,12 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
-import { FileText, ShieldAlert, ArrowLeft, CheckCircle2, DollarSign } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, MAX_TASK_REWARD_KES, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
+import { FileText, ShieldAlert, ArrowLeft, CheckCircle2, Wallet } from 'lucide-react';
 
 export const TermsOfServiceView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { selectedCountry } = useRegion();
 
   return (
     <article className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-200 text-slate-800">
@@ -53,16 +56,16 @@ export const TermsOfServiceView: React.FC = () => {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">Starter Pass (KES 50 / ~$0.38)</h3>
-            <p className="text-slate-500 text-[11px]">Grants up to 25 tasks daily across consumer market surveys and micro tasks.</p>
+            <h3 className="font-bold text-slate-900">Starter Pass ({formatCurrencyFromKes(50, selectedCountry)})</h3>
+            <p className="text-slate-500 text-[11px]">Grants 2 tasks daily (Free tier grants 1 daily task), with each completed task capped at {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} max.</p>
           </div>
           <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-emerald-950">Pro Pass (KES 100 / ~$0.77)</h3>
-            <p className="text-emerald-900 text-[11px]">Unlocks 75 tasks daily, autonomous AI computer vision annotation, receipt OCR, and meme studio bounties.</p>
+            <h3 className="font-bold text-emerald-950">Pro Pass ({formatCurrencyFromKes(100, selectedCountry)})</h3>
+            <p className="text-emerald-900 text-[11px]">Unlocks 3 tasks daily across AI computer vision annotation, receipt OCR, and meme studio bounties (max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per task).</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">VIP Pass (KES 200 / ~$1.54)</h3>
-            <p className="text-slate-500 text-[11px]">Unlimited daily tasks, technical copywriting, priority queue, and 0% withdrawal transaction fees.</p>
+            <h3 className="font-bold text-slate-900">VIP Pass ({formatCurrencyFromKes(200, selectedCountry)})</h3>
+            <p className="text-slate-500 text-[11px]">Unlocks 4 surveys daily, technical copywriting, priority queue, and 0% withdrawal transaction fees (max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per task).</p>
           </div>
         </div>
       </section>
@@ -88,11 +91,11 @@ export const TermsOfServiceView: React.FC = () => {
         </p>
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-700">
           <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-            <DollarSign className="w-4 h-4 text-emerald-600" />
-            <span>Minimum Payout Milestone: $20.00 USD</span>
+            <Wallet className="w-4 h-4 text-emerald-600" />
+            <span>Minimum Payout Milestone: {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</span>
           </p>
           <p className="text-slate-600 leading-relaxed">
-            Due to fixed banking routing surcharges on cross-border financial transactions, withdrawals unlock once your approved wallet balance reaches <strong>$20.00 USD</strong>.
+            Due to fixed banking routing surcharges on cross-border financial transactions, withdrawals start once your approved wallet balance reaches <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong>.
           </p>
           <p className="text-slate-600 leading-relaxed">
             Disbursements are processed within 24–48 hours via <strong>M-PESA</strong> (direct STK mobile money to verified East African phone numbers) and <strong>Wise</strong> (international bank rails covering 80+ currencies).
@@ -104,7 +107,7 @@ export const TermsOfServiceView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">5. 20% Referral Commission Program</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Contributors receive a dedicated affiliate tracking link. When a new user creates an account via your link and purchases a worker pass, you receive a guaranteed 20% commission (KES 10 / ~$0.08 on Starter, KES 20 / ~$0.15 on Pro, KES 40 / ~$0.31 on VIP) credited directly to your withdrawable wallet balance.
+          Contributors receive a dedicated affiliate tracking link. When a new user creates an account via your link and purchases a worker pass, you receive a guaranteed 20% commission ({formatCurrencyFromKes(10, selectedCountry)} on Starter, {formatCurrencyFromKes(20, selectedCountry)} on Pro, {formatCurrencyFromKes(40, selectedCountry)} on VIP) credited directly to your withdrawable wallet balance.
         </p>
       </section>
 

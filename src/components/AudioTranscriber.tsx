@@ -1,9 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
 import { Mic, MicOff, Play, Pause, RotateCcw, Copy, Check, Sparkles, FileAudio, AlertCircle } from 'lucide-react';
 
 export const AudioTranscriber: React.FC = () => {
   const { completeTask, userStats } = useTasks();
+  const { selectedCountry } = useRegion();
+  const bountyFormatted = formatCurrencyFromUsd(MAX_TASK_REWARD_USD, selectedCountry);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -111,7 +115,7 @@ export const AudioTranscriber: React.FC = () => {
 
   const handleClaimBounty = () => {
     if (bountyClaimed) return;
-    completeTask('task-audio-transcribe-bonus', 2.20, 'Voice Audio Transcription Verification');
+    completeTask('task-audio-transcribe-bonus', MAX_TASK_REWARD_USD, 'Voice Audio Transcription Verification');
     setBountyClaimed(true);
   };
 
@@ -145,7 +149,7 @@ export const AudioTranscriber: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
-          <span>Earn $2.20 Transcription Bounty</span>
+          <span>Earn {bountyFormatted} Transcription Bounty</span>
         </div>
       </div>
 
@@ -275,7 +279,7 @@ export const AudioTranscriber: React.FC = () => {
                 disabled={bountyClaimed}
                 className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-200 text-white rounded-xl text-xs font-semibold transition-colors"
               >
-                {bountyClaimed ? 'Bounty Claimed (+$2.20)' : 'Claim $2.20 Bounty'}
+                {bountyClaimed ? `Bounty Claimed (+${bountyFormatted})` : `Claim ${bountyFormatted} Bounty`}
               </button>
             )}
           </div>

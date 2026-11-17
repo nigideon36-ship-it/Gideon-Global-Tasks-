@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,10 +14,22 @@ try {
   console.warn('Could not read firebase-applet-config.json', e);
 }
 
-if (!getApps().length) {
-  initializeApp({
-    projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'jovial-loader-fvc14',
-  });
+const app = getApps().length
+  ? getApps()[0]
+  : initializeApp({
+      projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'jovial-loader-fvc14',
+    });
+
+export const adminAuth = getAuth(app);
+
+let adminDbInstance: Firestore | null = null;
+try {
+  adminDbInstance = firebaseConfig.firestoreDatabaseId
+    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(app);
+} catch (err) {
+  console.warn('Firestore Admin client not initialized:', (err as Error)?.message || err);
+  adminDbInstance = null;
 }
 
-export const adminAuth = getAuth();
+export const adminDb = adminDbInstance;

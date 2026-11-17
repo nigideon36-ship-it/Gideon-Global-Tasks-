@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Task } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, Zap, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
 interface Props {
@@ -10,6 +12,7 @@ interface Props {
 
 export const MicroTaskWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
   const { completeTask } = useTasks();
+  const { selectedCountry } = useRegion();
   const config = task.microConfig;
 
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -46,7 +49,7 @@ export const MicroTaskWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
                 <span aria-hidden="true">·</span>
                 <span>{task.estimatedMinutes} min job</span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono text-emerald-600 font-semibold">${task.reward.toFixed(2)} Instant</span>
+                <span className="font-mono text-emerald-600 font-semibold">{formatCurrencyFromUsd(task.reward, selectedCountry)} Instant</span>
               </div>
               <h2 className="text-base font-semibold text-slate-900 leading-tight">
                 {task.title}
@@ -159,7 +162,7 @@ export const MicroTaskWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
             className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
           >
             <Sparkles className="w-4 h-4" />
-            <span>{isSubmitting ? 'Recording Vote...' : `Submit & Earn ($${task.reward.toFixed(2)})`}</span>
+            <span>{isSubmitting ? 'Recording Vote...' : `Submit & Earn (${formatCurrencyFromUsd(task.reward, selectedCountry)})`}</span>
           </button>
         </div>
       </div>

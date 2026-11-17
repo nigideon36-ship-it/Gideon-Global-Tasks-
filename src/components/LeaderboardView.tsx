@@ -1,9 +1,12 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { Trophy, Globe, Award, CheckCircle } from 'lucide-react';
 
 export const LeaderboardView: React.FC = () => {
   const { leaderboard, userStats } = useTasks();
+  const { selectedCountry } = useRegion();
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-10">
@@ -27,7 +30,7 @@ export const LeaderboardView: React.FC = () => {
           <div>
             <div className="font-semibold text-slate-800">Your Current Status:</div>
             <div className="text-slate-600">
-              Rank #14 · <strong className="text-amber-700 font-mono tabular-nums">${userStats.lifetimeEarned.toFixed(2)} Earned</strong> · {userStats.qualityScore}% Quality
+              Rank #14 · <strong className="text-amber-700 font-mono tabular-nums">{formatCurrencyFromUsd(userStats.lifetimeEarned, selectedCountry)} Earned</strong> · {userStats.qualityScore}% Quality
             </div>
           </div>
         </div>
@@ -83,7 +86,7 @@ export const LeaderboardView: React.FC = () => {
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Earnings</span>
                 <span className="font-mono font-bold text-emerald-600 text-sm tabular-nums">
-                  ${user.earnings.toFixed(2)}
+                  {formatCurrencyFromUsd(user.earnings, selectedCountry)}
                 </span>
               </div>
               <div className="text-right">
@@ -140,7 +143,7 @@ export const LeaderboardView: React.FC = () => {
                   {user.accuracyRate}%
                 </td>
                 <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-900 tabular-nums">
-                  ${user.earnings.toFixed(2)}
+                  {formatCurrencyFromUsd(user.earnings, selectedCountry)}
                 </td>
               </tr>
             ))}

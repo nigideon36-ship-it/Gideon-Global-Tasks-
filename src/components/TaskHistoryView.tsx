@@ -1,10 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import {
+  convertUsdToLocal,
+  formatCurrencyFromUsd,
+  WITHDRAWAL_THRESHOLD_USD,
+} from '../lib/eastAfrica';
 import { TaskCategory } from '../types/tasks';
 import { History, Search, Download, CheckCircle2, Clock, Filter, ArrowUpRight, DollarSign, Award, Check } from 'lucide-react';
 
 export const TaskHistoryView: React.FC = () => {
   const { taskHistory, userStats, setWalletOpen } = useTasks();
+  const { selectedCountry } = useRegion();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -37,14 +44,14 @@ export const TaskHistoryView: React.FC = () => {
   }, [taskHistory]);
 
   const handleExportCSV = () => {
-    const headers = ['Transaction Ref', 'Task Title', 'Category', 'Completed At', 'Accuracy Score (%)', 'Reward (USD)', 'Status'];
+    const headers = ['Transaction Ref', 'Task Title', 'Category', 'Completed At', 'Accuracy Score (%)', `Reward (${selectedCountry.currency})`, 'Status'];
     const rows = filteredHistory.map((h) => [
       h.transactionRef,
       `"${h.taskTitle.replace(/"/g, '""')}"`,
       h.category,
       `"${h.completedAt}"`,
       `${h.accuracyScore}%`,
-      `$${h.reward.toFixed(2)}`,
+      `${convertUsdToLocal(h.reward, selectedCountry)}`,
       h.status
     ]);
 
@@ -103,7 +110,7 @@ export const TaskHistoryView: React.FC = () => {
             onClick={() => setWalletOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors whitespace-nowrap"
           >
-            <span>Withdraw Balance (${userStats.balance.toFixed(2)})</span>
+            <span>Withdraw Balance ({formatCurrencyFromUsd(userStats.balance, selectedCountry)})</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -128,7 +135,7 @@ export const TaskHistoryView: React.FC = () => {
             Total Approved Rewards
           </span>
           <div className="text-2xl font-bold font-mono text-emerald-600 tabular-nums">
-            ${totalRewardsApproved.toFixed(2)}
+            {formatCurrencyFromUsd(totalRewardsApproved, selectedCountry)}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
             Directly credited to wallet
@@ -152,10 +159,10 @@ export const TaskHistoryView: React.FC = () => {
             Withdrawal Threshold
           </span>
           <div className="text-2xl font-bold font-mono text-slate-800 tabular-nums">
-            $20.00
+            {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            Starting from $20 via M-PESA & Mobile Money
+            Starting from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} via M-PESA &amp; Mobile Money
           </div>
         </div>
       </div>
@@ -252,7 +259,7 @@ export const TaskHistoryView: React.FC = () => {
                     {item.accuracyScore.toFixed(1)}%
                   </td>
                   <td className="py-2.5 px-5 text-right font-mono font-bold text-emerald-600 tabular-nums">
-                    +${item.reward.toFixed(2)}
+                    +{formatCurrencyFromUsd(item.reward, selectedCountry)}
                   </td>
                   <td className="py-2.5 px-5 text-right">
                     <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">

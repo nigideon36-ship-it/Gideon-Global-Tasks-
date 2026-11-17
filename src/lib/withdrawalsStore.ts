@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { adminDb } from './firebase-admin.ts';
 
 export type WithdrawalMethod =
   | 'M-PESA'
@@ -32,7 +33,39 @@ export interface WithdrawalRecord {
 
 const DATA_DIR = path.resolve(process.cwd(), '.data');
 const WITHDRAWALS_FILE = path.join(DATA_DIR, 'withdrawals.json');
+const FIRESTORE_WITHDRAWALS_COLLECTION = 'withdrawals_store';
 const withdrawalsById = new Map<string, WithdrawalRecord>();
+
+function syncWithdrawalToFirestore(rec: WithdrawalRecord) {
+  if (!adminDb) return;
+  try {
+    adminDb
+      .collection(FIRESTORE_WITHDRAWALS_COLLECTION)
+      .doc(rec.id)
+      .set(JSON.parse(JSON.stringify(rec)), { merge: true })
+      .catch(() => {});
+  } catch {
+    // non-blocking
+  }
+}
+
+export async function hydrateWithdrawalsFromFirestore(): Promise<void> {
+  if (!adminDb) return;
+  try {
+    const snap = await adminDb.collection(FIRESTORE_WITHDRAWALS_COLLECTION).get();
+    let changed = false;
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as WithdrawalRecord | undefined;
+      if (data && data.id && !withdrawalsById.has(data.id)) {
+        withdrawalsById.set(data.id, data);
+        changed = true;
+      }
+    });
+    if (changed) persistWithdrawalsToDisk();
+  } catch {
+    // non-blocking
+  }
+}
 
 function loadWithdrawalsFromDisk() {
   try {
@@ -89,7 +122,7 @@ export function createWithdrawalRequest(params: {
 }): WithdrawalRecord {
   const amount = Number(params.amountUsd);
   if (!Number.isFinite(amount) || amount < 20) {
-    throw new Error('Minimum withdrawal threshold is $20.00.');
+    throw new Error('Minimum withdrawal threshold is KSh 2,600 (20-unit equivalent in your local currency).');
   }
   const method = params.method as WithdrawalMethod;
   if (!VALID_METHODS.has(method)) {
@@ -117,7 +150,7 @@ export function createWithdrawalRequest(params: {
     customerEmail: params.customerEmail ? String(params.customerEmail).slice(0, 160) : undefined,
     customerName: params.customerName ? String(params.customerName).slice(0, 120) : undefined,
     countryCode: String(params.countryCode || 'KE').toUpperCase().slice(0, 4),
-    amountUsd: +amount.toFixed(2),
+    amountUsd: +amount.toFixed(4),
     method,
     accountDetails: details,
     status: 'Processing',
@@ -128,6 +161,7 @@ export function createWithdrawalRequest(params: {
 
   withdrawalsById.set(record.id, record);
   persistWithdrawalsToDisk();
+  syncWithdrawalToFirestore(record);
   return record;
 }
 
@@ -139,6 +173,10 @@ export function listAllWithdrawals(): WithdrawalRecord[] {
 
 export function listCustomerWithdrawals(userUid: string): WithdrawalRecord[] {
   return listAllWithdrawals().filter((w) => w.userUid === userUid);
+}
+
+export function getWithdrawalById(id: string): WithdrawalRecord | null {
+  return withdrawalsById.get(id) || null;
 }
 
 export function approveWithdrawalRequest(params: {

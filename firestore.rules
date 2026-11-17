@@ -98,6 +98,41 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidTestimonial(data) {
+      return data.keys().hasAll(['id', 'userUid', 'authorName', 'city', 'countryCode', 'rating', 'headline', 'message', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userUid', 'authorName', 'city', 'countryCode', 'rating', 'headline', 'message', 'experienceCategory', 'verifiedCustomer', 'status', 'ownerReply', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 64
+        && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 80
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 60
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.headline is string && data.headline.size() >= 4 && data.headline.size() <= 120
+        && data.message is string && data.message.size() >= 12 && data.message.size() <= 1000
+        && data.status in ['Published', 'Featured', 'Hidden']
+        && (!('experienceCategory' in data) || (data.experienceCategory is string && data.experienceCategory.size() <= 60))
+        && (!('ownerReply' in data) || (data.ownerReply is string && data.ownerReply.size() <= 500))
+        && (!('verifiedCustomer' in data) || data.verifiedCustomer is bool);
+    }
+
+    function isValidInvestment(data) {
+      return data.keys().hasAll(['id', 'userUid', 'planId', 'amountKes', 'depositMethod', 'paymentReference', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'transactionId', 'userUid', 'customerName', 'customerPhone', 'customerEmail', 'countryCode',
+          'planId', 'planName', 'amountKes', 'amountUsd', 'returnPct', 'expectedReturnKes', 'expectedReturnUsd',
+          'durationDays', 'depositMethod', 'payToNumber', 'senderPhone', 'paymentReference', 'screenshotDataUrl',
+          'screenshotFileName', 'status', 'ownerNotes', 'payoutReceipt', 'reviewedBy', 'reviewedAt',
+          'maturesAt', 'settledAt', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 64
+        && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.planId in ['starter-7d', 'growth-14d', 'vip-30d']
+        && data.amountKes is number && data.amountKes >= 50
+        && data.depositMethod in ['Manual M-PESA 0758727558', 'Paystack M-PESA STK', 'Paystack Card', 'Mobile Money']
+        && data.paymentReference is string && data.paymentReference.size() >= 2 && data.paymentReference.size() <= 120
+        && data.status in ['Pending Owner Approval', 'Active', 'Matured & Paid', 'Rejected'];
+    }
+
     // Users collection: PII strictly isolated to document owner or Platform Owner
     match /users/{userId} {
       allow get: if isValidId(userId) && (
@@ -144,7 +179,7 @@ service cloud.firestore {
       allow update, delete: if isValidId(taskId) && isPlatformOwner();
     }
 
-    // Withdrawals: Customers can submit Pending withdrawal requests (>= $20) and read their own; only Owner can approve/modify
+    // Withdrawals: Customers can submit Pending withdrawal requests (>= 20 threshold) and read their own; only Owner can approve/modify
     match /withdrawals/{withdrawalId} {
       allow get: if isValidId(withdrawalId) && (
         isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
@@ -186,6 +221,52 @@ service cloud.firestore {
         && isValidPlatformSetting(incoming())
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(settingId) && isPlatformOwner();
+    }
+
+    // Testimonials: Publicly readable when Published or Featured; Platform Owner can moderate/edit/delete
+    match /testimonials/{testimonialId} {
+      allow get: if isValidId(testimonialId) && (
+        isPlatformOwner() || existing().status in ['Published', 'Featured']
+      );
+      allow list: if isPlatformOwner() || resource.data.status in ['Published', 'Featured'];
+      allow create: if isValidId(testimonialId)
+        && isVerifiedUser()
+        && isValidTestimonial(incoming())
+        && incoming().userUid == request.auth.uid
+        && incoming().status == 'Published';
+      allow update, delete: if isValidId(testimonialId) && isPlatformOwner();
+    }
+
+    // Investments: Deposit-only KES 50+ pools; Customers read/create own; Platform Owner approves, settles, edits, or deletes
+    match /investments/{investmentId} {
+      allow get: if isValidId(investmentId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
+      );
+      allow list: if isPlatformOwner() || (isVerifiedUser() && resource.data.userUid == request.auth.uid);
+      allow create: if isValidId(investmentId)
+        && isVerifiedUser()
+        && isValidInvestment(incoming())
+        && incoming().userUid == request.auth.uid
+        && incoming().status == 'Pending Owner Approval';
+      allow update, delete: if isValidId(investmentId) && isPlatformOwner();
+    }
+
+    // Customer Accounts: Isolated to the verified user or Platform Owner; full management by Owner
+    match /customer_accounts/{customerId} {
+      allow get: if isValidId(customerId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == customerId)
+      );
+      allow list: if isPlatformOwner();
+      allow create, update, delete: if isValidId(customerId) && isPlatformOwner();
+    }
+
+    // Persistent Customer States: Isolated to the verified owner of the state document or Platform Owner
+    match /customer_states/{stateId} {
+      allow get: if isValidId(stateId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == stateId)
+      );
+      allow list: if isPlatformOwner();
+      allow create, update, delete: if isValidId(stateId) && isPlatformOwner();
     }
   }
 }

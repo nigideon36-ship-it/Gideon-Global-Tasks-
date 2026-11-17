@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
 import { Download, Share2, ThumbsUp, DollarSign, Image as ImageIcon, Sparkles, Plus, Check } from 'lucide-react';
 
 const PRESET_TEMPLATES = [
@@ -21,7 +23,7 @@ const PRESET_TEMPLATES = [
     id: 'tpl-3',
     name: 'Focus Workspace',
     url: 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=600&auto=format&fit=crop&q=80',
-    defaultTop: 'WHEN THE SURVEY PAYS $3.50',
+    defaultTop: 'WHEN THE SURVEY PAYS 50 SHILLINGS',
     defaultBottom: 'AND TAKES EXACTLY 4 MINUTES'
   },
   {
@@ -35,6 +37,11 @@ const PRESET_TEMPLATES = [
 
 export const MemeStudioView: React.FC = () => {
   const { memes, addMeme, upvoteMeme, tipMeme, userStats, completeTask, tasks } = useTasks();
+  const { selectedCountry } = useRegion();
+  const memeTask = tasks.find((t) => t.id === 'task-meme-401');
+  const memeBountyUsd = Math.min(memeTask?.reward ?? MAX_TASK_REWARD_USD, MAX_TASK_REWARD_USD);
+  const memeBountyFormatted = formatCurrencyFromUsd(memeBountyUsd, selectedCountry);
+  const tipAmountFormatted = formatCurrencyFromUsd(0.10, selectedCountry);
 
   const [selectedTemplate, setSelectedTemplate] = useState(PRESET_TEMPLATES[0]);
   const [topText, setTopText] = useState(PRESET_TEMPLATES[0].defaultTop);
@@ -160,10 +167,10 @@ export const MemeStudioView: React.FC = () => {
       category: 'Community Original'
     });
 
-    // Check if meme bounty task is active, award $3.00!
-    const memeTask = tasks.find((t) => t.id === 'task-meme-401');
-    if (memeTask && !userStats.completedTaskIds.includes('task-meme-401')) {
-      completeTask(memeTask.id, memeTask.reward, memeTask.title);
+    // Check if meme bounty task is active, award capped bounty (<= 50 shillings)
+    const activeMemeTask = tasks.find((t) => t.id === 'task-meme-401');
+    if (activeMemeTask && !userStats.completedTaskIds.includes('task-meme-401')) {
+      completeTask(activeMemeTask.id, Math.min(activeMemeTask.reward, MAX_TASK_REWARD_USD), activeMemeTask.title);
     }
   };
 
@@ -205,7 +212,7 @@ export const MemeStudioView: React.FC = () => {
 
         <div className="flex items-center gap-2 text-xs text-slate-600 bg-indigo-50 border border-indigo-100 px-3 py-2 rounded-lg">
           <DollarSign className="w-4 h-4 text-emerald-600" />
-          <span>Active Meme Bounty: <strong>$3.00 / approved publish</strong></span>
+          <span>Active Meme Bounty: <strong>{memeBountyFormatted} / approved publish</strong></span>
         </div>
       </div>
 
@@ -235,7 +242,7 @@ export const MemeStudioView: React.FC = () => {
               className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-md"
             >
               <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
-              <span>Publish & Earn $3.00 Bounty</span>
+              <span>Publish &amp; Earn {memeBountyFormatted} Bounty</span>
             </button>
           </div>
         </div>
@@ -366,7 +373,7 @@ export const MemeStudioView: React.FC = () => {
               Community Meme & Viral Feed
             </h2>
             <p className="text-xs text-slate-500">
-              Created by verified Gideon Global Task contributors worldwide. Upvote your favorites or tip 10¢!
+              Created by verified Gideon Global Task contributors across East Africa. Upvote your favorites or tip {tipAmountFormatted}!
             </p>
           </div>
           <span className="text-xs text-slate-400 font-mono">
@@ -423,10 +430,10 @@ export const MemeStudioView: React.FC = () => {
                   type="button"
                   onClick={() => tipMeme(meme.id, 0.10)}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium"
-                  title="Send $0.10 tip from your wallet"
+                  title={`Send ${tipAmountFormatted} tip from your wallet`}
                 >
                   <DollarSign className="w-3.5 h-3.5" />
-                  <span>Tip 10¢ (${meme.tipsEarned.toFixed(2)})</span>
+                  <span>Tip {tipAmountFormatted} ({formatCurrencyFromUsd(meme.tipsEarned, selectedCountry)})</span>
                 </button>
 
                 {/* Share */}

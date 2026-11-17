@@ -2,7 +2,8 @@ import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
-import { Wallet, Globe, Flame, LogIn, LogOut, ShieldCheck, Smartphone, Zap, MapPin, Lock } from 'lucide-react';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
+import { Wallet, Globe, Flame, LogIn, LogOut, ShieldCheck, Smartphone, Zap, MapPin, Lock, Bot, User } from 'lucide-react';
 import { ThemeColorPicker } from './ThemeColorPicker';
 
 export const Navbar: React.FC = () => {
@@ -14,13 +15,14 @@ export const Navbar: React.FC = () => {
     isAuthenticated,
     setAuthModalOpen,
     setSecurityModalOpen,
+    openMyAccount,
     signOutUser
   } = useAuth();
   const { selectedCountry, setSelectorOpen } = useRegion();
 
   const displayIdentity =
-    user?.displayName ||
     customerProfile?.displayName ||
+    user?.displayName ||
     customerProfile?.phone ||
     user?.email?.split('@')[0] ||
     'Member';
@@ -62,6 +64,18 @@ export const Navbar: React.FC = () => {
             }`}
           >
             Tasks
+          </a>
+          <a
+            href="/dashboard"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('dashboard');
+            }}
+            className={`whitespace-nowrap shrink-0 transition-colors ${
+              activeTab === 'dashboard' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
+            }`}
+          >
+            Dashboard
           </a>
           <a
             href="/guides"
@@ -121,7 +135,31 @@ export const Navbar: React.FC = () => {
               activeTab === 'packages' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
             }`}
           >
-            Worker Passes
+            Passes
+          </a>
+          <a
+            href="/investments"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('investments');
+            }}
+            className={`whitespace-nowrap shrink-0 transition-colors ${
+              activeTab === 'investments' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
+            }`}
+          >
+            Invest (50+)
+          </a>
+          <a
+            href="/testimonials"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('testimonials');
+            }}
+            className={`whitespace-nowrap shrink-0 transition-colors ${
+              activeTab === 'testimonials' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
+            }`}
+          >
+            Reviews
           </a>
           <a
             href="/about"
@@ -260,11 +298,21 @@ export const Navbar: React.FC = () => {
           </button>
 
           <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('gideon:open-ai-chat'))}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-white bg-blue-700 hover:bg-blue-600 border border-blue-400/50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            title="Ask Live AI Support"
+          >
+            <Bot className="w-3.5 h-3.5 text-sky-300" />
+            <span>Ask AI</span>
+          </button>
+
+          <button
             onClick={() => setWalletOpen(true)}
             className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-blue-950 bg-white hover:bg-blue-50 rounded-lg transition-colors whitespace-nowrap shadow-sm cursor-pointer"
           >
             <Wallet className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-            <span className="tabular-nums font-mono font-bold">${userStats.balance.toFixed(2)}</span>
+            <span className="tabular-nums font-mono font-bold">{formatCurrencyFromUsd(userStats.balance, selectedCountry)}</span>
             <span className="hidden sm:inline text-blue-400">·</span>
             <span className="hidden sm:inline">Withdraw</span>
           </button>
@@ -287,6 +335,16 @@ export const Navbar: React.FC = () => {
             <div className="flex items-center gap-2 pl-2 border-l border-blue-700">
               <button
                 type="button"
+                onClick={() => openMyAccount('details')}
+                title="Open My Account: update your details, view locked phone/payout info & request withdrawals"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border bg-white/10 text-white border-blue-400/40 hover:bg-white/20 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <User className="w-3 h-3 text-sky-200" />
+                <span>My Account</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setSecurityModalOpen(true)}
                 title="Manage Two-Factor Authentication (SMS or Authenticator App)"
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
@@ -299,7 +357,12 @@ export const Navbar: React.FC = () => {
                 <span>{twoFactorActive ? '2FA On' : 'Enable 2FA'}</span>
               </button>
 
-              <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => openMyAccount('details')}
+                className="flex items-center gap-1.5 text-left hover:opacity-90 transition-opacity cursor-pointer"
+                title="Open My Account"
+              >
                 {user?.photoURL ? (
                   <img
                     src={user.photoURL}
@@ -323,7 +386,7 @@ export const Navbar: React.FC = () => {
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
               <button
                 type="button"
                 onClick={signOutUser}

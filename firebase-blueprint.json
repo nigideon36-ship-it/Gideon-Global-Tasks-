@@ -76,6 +76,76 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["updatedBy", "updatedAt"]
+    },
+    "Testimonial": {
+      "title": "Testimonial",
+      "description": "Customer platform testimonial and owner reply",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "userUid": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 80 },
+        "city": { "type": "string", "maxLength": 60 },
+        "countryCode": { "type": "string", "maxLength": 4 },
+        "rating": { "type": "number" },
+        "headline": { "type": "string", "maxLength": 120 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "experienceCategory": { "type": "string", "maxLength": 60 },
+        "verifiedCustomer": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["Published", "Featured", "Hidden"] },
+        "ownerReply": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userUid", "authorName", "city", "countryCode", "rating", "headline", "message", "status", "createdAt", "updatedAt"]
+    },
+    "Investment": {
+      "title": "Investment",
+      "description": "Deposit-only customer investment starting from KES 50+ (no wallet balance)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "userUid": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "planId": { "type": "string", "enum": ["starter-7d", "growth-14d", "vip-30d"] },
+        "amountKes": { "type": "number" },
+        "amountUsd": { "type": "number" },
+        "expectedReturnKes": { "type": "number" },
+        "depositMethod": { "type": "string", "enum": ["Manual M-PESA 0758727558", "Paystack M-PESA STK", "Paystack Card", "Mobile Money"] },
+        "paymentReference": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["Pending Owner Approval", "Active", "Matured & Paid", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userUid", "planId", "amountKes", "depositMethod", "paymentReference", "status", "createdAt", "updatedAt"]
+    },
+    "CustomerAccount": {
+      "title": "CustomerAccount",
+      "description": "Verified East Africa contributor account with locked registration details and owner admin flags",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "countryCode": { "type": "string", "maxLength": 4 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "banned": { "type": "boolean" },
+        "deactivated": { "type": "boolean" },
+        "adminAssignedPass": { "type": "string", "enum": ["free", "starter", "pro", "vip"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "phone", "countryCode", "displayName", "createdAt"]
+    },
+    "CustomerState": {
+      "title": "CustomerState",
+      "description": "Monotonic persisted customer wallet balance, task history, referrals, VIP referral count, and active pass state",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "vipReferralCount": { "type": "number" },
+        "activePackageId": { "type": "string", "maxLength": 32 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "vipReferralCount", "updatedAt"]
     }
   },
   "firestore": {
@@ -98,6 +168,22 @@
     "/platform_settings/{settingId}": {
       "schema": "PlatformSetting",
       "description": "Owner-managed site and AdSense settings"
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": "Testimonial",
+      "description": "Customer testimonials and owner replies"
+    },
+    "/investments/{investmentId}": {
+      "schema": "Investment",
+      "description": "Deposit-only KES 50+ customer investments"
+    },
+    "/customer_accounts/{customerId}": {
+      "schema": "CustomerAccount",
+      "description": "Verified customer registration records and owner status flags"
+    },
+    "/customer_states/{stateId}": {
+      "schema": "CustomerState",
+      "description": "Persistent non-resetting customer earnings, task history, and referral progression state"
     }
   }
 }

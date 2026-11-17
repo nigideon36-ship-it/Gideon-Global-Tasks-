@@ -1,4 +1,6 @@
 import React from 'react';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { X, ShieldCheck, FileText, CheckCircle2 } from 'lucide-react';
 
 interface PrivacyTermsModalProps {
@@ -13,6 +15,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
   onClose
 }) => {
   const [tab, setTab] = React.useState<'privacy' | 'terms'>(initialTab);
+  const { selectedCountry } = useRegion();
 
   React.useEffect(() => {
     setTab(initialTab);
@@ -109,7 +112,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
             <>
               <h3 className="text-sm font-bold text-slate-900">1. East Africa Contributor Eligibility &amp; Worker Passes</h3>
               <p>
-                Gideon Global Tasks is restricted exclusively to residents in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Users unlock task categories by activating a Starter (KES 50), Pro (KES 100), or VIP (KES 200) worker pass in their local East African currency via M-PESA, Airtel / MTN MoMo, East Africa Card, or Wallet balance.
+                Gideon Global Tasks is restricted exclusively to residents in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Users unlock task categories by activating a Starter ({formatCurrencyFromKes(50, selectedCountry)}), Pro ({formatCurrencyFromKes(100, selectedCountry)}), or VIP ({formatCurrencyFromKes(200, selectedCountry)}) worker pass strictly via fresh deposit in their local East African currency (M-PESA 0758727558, Paystack STK, Airtel / MTN MoMo, or East Africa Card). Wallet balance cannot be used to purchase Worker Passes or Investments.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">2. Task Approval &amp; Quality Standards</h3>
@@ -119,7 +122,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
 
               <h3 className="text-sm font-bold text-slate-900">3. Payout Thresholds &amp; Methods</h3>
               <p>
-                Withdrawals start from a minimum threshold of <strong>$20.00 USD</strong> to maintain high liquidity and reduce transaction fees. Payouts are disbursed to verified East Africa M-PESA, Airtel / MTN MoMo, and East Africa Bank accounts.
+                Withdrawals start from a minimum threshold of <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> to maintain high liquidity and reduce transaction fees. Payouts are disbursed to verified East Africa M-PESA, Airtel / MTN MoMo, and East Africa Bank accounts.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">4. Referral Program</h3>

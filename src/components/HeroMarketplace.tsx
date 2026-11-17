@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { Search, Flame } from 'lucide-react';
 import heroWorkforceImg from '../assets/images/hero_global_workforce_1794041820709.jpg';
 
@@ -25,9 +27,11 @@ export const HeroMarketplace: React.FC<Props> = ({
   onSortChange
 }) => {
   const { userStats, setWalletOpen, setStreakModalOpen } = useTasks();
+  const { selectedCountry } = useRegion();
 
   const CATEGORIES: { id: string; label: string }[] = [
     { id: 'all', label: 'All Tasks' },
+    { id: 'creator-campaign', label: 'Creator Campaigns' },
     { id: 'survey', label: 'I Survey' },
     { id: 'annotation', label: 'Data Annotation' },
     { id: 'data-entry', label: 'Data Entry' },
@@ -37,6 +41,9 @@ export const HeroMarketplace: React.FC<Props> = ({
   ];
 
   const streakMultiplierPercent = userStats.streakDays >= 7 ? 20 : 10;
+  const totalPaidToContributors = (userStats.payoutHistory || [])
+    .filter((p) => p.status === 'Completed')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   return (
     <div className="space-y-8 text-slate-900">
@@ -59,19 +66,19 @@ export const HeroMarketplace: React.FC<Props> = ({
           </button>
 
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-slate-900 text-balance leading-tight">
-            Earn Across East Africa with Surveys, AI Annotation &amp; Micro Tasks
+            Earn Across East Africa with Creator Campaigns, Surveys &amp; Micro Tasks
           </h1>
 
           <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-xl">
-            Exclusively built for remote earners across East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia &amp; Somalia). Complete paid questionnaires, label computer vision datasets, digitize receipts, and withdraw via M-PESA, Airtel/MTN MoMo &amp; East Africa Bank rails.
+            Exclusively built for remote earners and content creators across East Africa. Get paid for product Reels, Videos, and Text Posts on Facebook, Instagram, TikTok &amp; WhatsApp, complete paid surveys, label AI datasets, and cash out via M-PESA &amp; MoMo.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <button
-              onClick={() => onSelectCategory('annotation')}
+              onClick={() => onSelectCategory('creator-campaign')}
               className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm whitespace-nowrap"
             >
-              Explore AI Labelling
+              Explore Creator Campaigns
             </button>
             <button
               onClick={() => onSelectCategory('survey')}
@@ -83,7 +90,7 @@ export const HeroMarketplace: React.FC<Props> = ({
               onClick={() => setWalletOpen(true)}
               className="text-xs text-brand-600 hover:text-brand-800 font-semibold hover:underline"
             >
-              View Your Wallet (${userStats.balance.toFixed(2)}) →
+              View Your Wallet ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) →
             </button>
           </div>
         </div>
@@ -111,7 +118,7 @@ export const HeroMarketplace: React.FC<Props> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
         <div className="p-3 text-center border-r border-slate-100 last:border-r-0">
           <div className="text-xl md:text-2xl font-bold font-mono text-slate-900 tabular-nums">
-            $184,200+
+            {formatCurrencyFromUsd(totalPaidToContributors, selectedCountry)}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">Paid to Contributors</div>
         </div>

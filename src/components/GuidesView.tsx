@@ -1,5 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import {
+  EastAfricaCountry,
+  formatCurrencyFromKes,
+  formatCurrencyFromUsd,
+  MAX_TASK_REWARD_KES,
+  WITHDRAWAL_THRESHOLD_USD,
+} from '../lib/eastAfrica';
 import { BookOpen, Sparkles, CheckCircle2, ArrowRight, Clock, User, Bookmark, ChevronRight } from 'lucide-react';
 
 interface GuideArticle {
@@ -17,7 +25,12 @@ interface GuideArticle {
   }[];
 }
 
-const GUIDES: GuideArticle[] = [
+const getGuides = (country: EastAfricaCountry): GuideArticle[] => {
+  const maxTaskCap = formatCurrencyFromKes(MAX_TASK_REWARD_KES, country);
+  const pass50 = formatCurrencyFromKes(50, country);
+  const pass100 = formatCurrencyFromKes(100, country);
+  const threshold = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, country);
+  return [
   {
     id: 'ai-data-annotation-manual',
     title: 'The 2026 Manual for AI Training Data: From Pixels to Autonomous Bounding Boxes',
@@ -71,7 +84,7 @@ const GUIDES: GuideArticle[] = [
         takeaways: [
           'Enterprises value thoughtful, comprehensive open-ended qualitative feedback over one-word answers.',
           'Attention check questions (e.g., "Select option 3 to prove you are reading") safeguard data integrity.',
-          'Consistent quality scores above 95% unlock higher-paying enterprise focus group questionnaires ($5–$15+).'
+          'Consistent quality scores above 95% unlock VIP survey queues (up to ' + maxTaskCap + ' per completed survey).'
         ]
       },
       {
@@ -82,7 +95,7 @@ const GUIDES: GuideArticle[] = [
         takeaways: [
           'Never rush through questions—survey algorithms flag answers completed faster than human reading speeds.',
           'Check the Tasks Marketplace daily for newly published morning quotas.',
-          'Combine survey rewards with the Starter (KES 50) or Pro (KES 100) pass to unlock full daily task allowances.'
+          `Combine survey rewards with the Starter (${pass50}) or Pro (${pass100}) pass to expand daily task allowances.`
         ]
       }
     ]
@@ -104,7 +117,7 @@ const GUIDES: GuideArticle[] = [
         ],
         takeaways: [
           'Always key in the pre-tax subtotal and total balance due exactly as printed on the receipt.',
-          'Do not type currency symbols (e.g., $, €, KSh) into numeric form fields unless requested.',
+          'Do not type currency symbols (e.g., KSh, USh, TSh, FRw) into numeric form fields unless requested.',
           'If a receipt is partially torn, transcribe all legible line items and flag the document as damaged.'
         ]
       }
@@ -112,8 +125,8 @@ const GUIDES: GuideArticle[] = [
   },
   {
     id: 'micropayments-mpesa-wise-explained',
-    title: 'Demystifying Remote Micropayments: How M-PESA & Wise Power Borderless Work',
-    subtitle: 'Why mobile money and instant international transfers are replacing traditional banking for remote digital workers.',
+    title: 'Demystifying Remote Micropayments: How M-PESA & Mobile Money Power Borderless Work',
+    subtitle: 'Why mobile money and instant regional transfers are replacing traditional banking for remote digital workers.',
     category: 'FinTech & Payouts',
     readTime: '6 min read',
     author: 'Treasury & Payments Ops',
@@ -123,21 +136,25 @@ const GUIDES: GuideArticle[] = [
         heading: '1. The Challenge of Cross-Border Digital Remittances',
         body: [
           'Across East Africa, traditional wire transfers and legacy PayPal links often impose steep fees, holds, or verification roadblocks. For digital workers earning micro-rewards from surveys and annotations, reliable local mobile money is essential.',
-          'Gideon Global Tasks solved this problem by focusing exclusively on East Africa and integrating direct **M-PESA STK Push**, **Airtel / MTN MoMo**, and **Paystack Card** checkout alongside zero-fee $20.00+ withdrawals.'
+          `Gideon Global Tasks solved this problem by focusing exclusively on East Africa and integrating direct M-PESA STK Push, Airtel / MTN MoMo, and Paystack Card checkout alongside zero-fee ${threshold}+ withdrawals.`
         ],
         takeaways: [
-          'The $20.00 minimum withdrawal threshold protects platform liquidity and ensures 0% fee disbursement.',
+          `The ${threshold} minimum withdrawal threshold protects platform liquidity and ensures 0% fee disbursement.`,
           'M-PESA payouts generate immediate confirmation codes (e.g., QJH89K2P0L) for real-time mobile verification.',
-          'Contributors can also reinvest wallet balances directly into VIP Taskmaster passes without external card fees.'
+          'Worker Passes and Investment deposits are funded strictly via external mobile money or card deposits so your wallet earnings stay protected.'
         ]
       }
     ]
   }
 ];
+};
 
 export const GuidesView: React.FC = () => {
   const { setActiveTab } = useTasks();
-  const [selectedGuide, setSelectedGuide] = useState<GuideArticle>(GUIDES[0]);
+  const { selectedCountry } = useRegion();
+  const guides = useMemo(() => getGuides(selectedCountry), [selectedCountry]);
+  const [selectedGuideId, setSelectedGuideId] = useState<string>('ai-data-annotation-manual');
+  const selectedGuide = guides.find((g) => g.id === selectedGuideId) || guides[0];
 
   return (
     <div className="space-y-10 animate-in fade-in duration-200">
@@ -162,12 +179,12 @@ export const GuidesView: React.FC = () => {
             Featured Platform Manuals
           </span>
           <div className="space-y-2">
-            {GUIDES.map((guide) => {
+            {guides.map((guide) => {
               const isSelected = guide.id === selectedGuide.id;
               return (
                 <button
                   key={guide.id}
-                  onClick={() => setSelectedGuide(guide)}
+                  onClick={() => setSelectedGuideId(guide.id)}
                   className={`w-full text-left p-4 rounded-2xl transition-all cursor-pointer border ${
                     isSelected
                       ? 'bg-white border-brand-500 shadow-md ring-1 ring-brand-500'
@@ -190,7 +207,7 @@ export const GuidesView: React.FC = () => {
             <Sparkles className="w-5 h-5 text-emerald-400" />
             <h4 className="font-bold text-xs">Ready to Apply These Techniques?</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Activate your Starter (KES 50), Pro (KES 100), or VIP (KES 200) worker pass to start completing paid tasks right now.
+              Activate your Starter ({formatCurrencyFromKes(50, selectedCountry)}), Pro ({formatCurrencyFromKes(100, selectedCountry)}), or VIP ({formatCurrencyFromKes(200, selectedCountry)}) worker pass to start completing paid tasks right now.
             </p>
             <button
               onClick={() => setActiveTab('packages')}

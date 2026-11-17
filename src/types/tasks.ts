@@ -4,9 +4,44 @@ export type TaskCategory =
   | 'data-entry' 
   | 'writing' 
   | 'meme-content' 
+  | 'creator-campaign'
   | 'micro';
 
 export type TaskDifficulty = 'Beginner' | 'Intermediate' | 'Expert';
+
+export type CampaignPlatform = 'Facebook' | 'Instagram' | 'TikTok' | 'WhatsApp';
+
+export type CampaignContentFormat = 'reel' | 'video' | 'text-post';
+
+export interface CreatorCampaignConfig {
+  productName: string;
+  productCategory: string;
+  allowedPlatforms: CampaignPlatform[];
+  allowedFormats: CampaignContentFormat[];
+  campaignBrief: string;
+  talkingPoints: string[];
+  requiredHashtags: string[];
+  minDurationSeconds?: number;
+  minWordCount?: number;
+  productTagline?: string;
+}
+
+export interface CreatorCampaignSubmission {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  productName: string;
+  platform: CampaignPlatform;
+  format: CampaignContentFormat;
+  creatorHandle: string;
+  postUrl?: string;
+  captionText: string;
+  whatsappProofAttached?: boolean;
+  rewardUsd: number;
+  countryCode: string;
+  submittedAt: string;
+  status: 'Approved' | 'Under Review';
+}
 
 export interface SurveyQuestion {
   id: string;
@@ -89,6 +124,7 @@ export interface Task {
   dataEntryConfig?: DataEntryConfig;
   writingConfig?: WritingConfig;
   microConfig?: MicroTaskConfig;
+  creatorCampaignConfig?: CreatorCampaignConfig;
 }
 
 export interface PayoutRecord {
@@ -153,15 +189,17 @@ export interface LeaderboardUser {
 
 export interface ReferralRecord {
   id: string;
+  referredUserUid?: string;
+  packageId?: string;
   refereeName: string;
   refereeEmailMasked: string;
   refereeCountry: string;
   dateJoined: string;
-  passPurchased: string; // e.g. "Starter Pass (KES 50)", "Pro Tasker Pass (KES 100)", "VIP Taskmaster Pass (KES 200)"
+  passPurchased: string;
   passPrice: number;
-  commissionRate: number; // e.g. 0.20 (20%)
-  commissionEarned: number; // e.g. 0.15 USD (~KES 20)
-  paymentMethod: 'M-PESA' | 'Card' | 'Wallet';
+  commissionRate: number;
+  commissionEarned: number;
+  paymentMethod: 'M-PESA' | 'Card' | 'Mobile Money';
   status: 'Credited' | 'Pending';
   transactionId: string;
 }
@@ -174,7 +212,7 @@ export interface ReferralStats {
   passesPurchasedCount: number;
   totalCommissionEarned: number;
   pendingCommission: number;
-  commissionPercentage: number; // e.g. 20
-  vipTierBonusPercent: number; // e.g. 5
+  commissionPercentage: number;
+  vipTierBonusPercent: number;
+  vipReferralCount?: number;
 }
-

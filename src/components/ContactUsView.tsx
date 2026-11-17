@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
-import { Mail, Clock, ShieldCheck, Send, CheckCircle2, MessageSquare, AlertCircle, HelpCircle } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
+import { Mail, Clock, ShieldCheck, Send, CheckCircle2, MessageSquare, AlertCircle, HelpCircle, Phone } from 'lucide-react';
 
 export const ContactUsView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { selectedCountry } = useRegion();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [category, setCategory] = useState<'worker' | 'requester' | 'billing' | 'partnership'>('worker');
@@ -85,6 +88,38 @@ export const ContactUsView: React.FC = () => {
               </div>
 
               <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-sky-400">
+                  <Phone className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block">If Customers Experience Issues (Call)</span>
+                  <a
+                    href="tel:+254712727558"
+                    className="font-mono text-sky-300 hover:underline font-semibold"
+                  >
+                    +254712727558
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-emerald-400">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Customer Support WhatsApp</span>
+                  <a
+                    href="https://wa.me/254785909543"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-emerald-300 hover:underline font-semibold"
+                  >
+                    0785909543
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-brand-400">
                   <Clock className="w-4 h-4" />
                 </div>
@@ -110,14 +145,31 @@ export const ContactUsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick FAQ card */}
+          {/* Live AI Chat & Quick FAQ card */}
+          <div className="p-6 bg-blue-900 text-white rounded-3xl border border-blue-700 space-y-3 text-xs shadow-sm">
+            <h4 className="font-bold text-white flex items-center gap-1.5">
+              <MessageSquare className="w-4 h-4 text-sky-300" />
+              <span>Instant Live AI Customer Chat</span>
+            </h4>
+            <p className="text-blue-100 text-[11px] leading-relaxed">
+              Have a question right now about SMS OTP registration, Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)}), or {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} payouts? Ask our Live AI assistant 24/7.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('gideon:open-ai-chat'))}
+              className="w-full py-2.5 px-4 bg-white text-blue-950 hover:bg-blue-50 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+            >
+              Ask Live AI Chatbot Now →
+            </button>
+          </div>
+
           <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-3 text-xs">
             <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
               <HelpCircle className="w-4 h-4 text-brand-600" />
               <span>Looking for Quick Answers?</span>
             </h4>
             <p className="text-slate-500 text-[11px] leading-relaxed">
-              Before submitting a ticket, check our detailed FAQ covering minimum withdrawal limits ($20), pass tiers (KES 50–KES 200), and daily streak bonuses.
+              Before submitting a ticket, check our detailed FAQ covering minimum withdrawal limits ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}), pass tiers ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)}), and daily streak bonuses.
             </p>
             <button
               onClick={() => setActiveTab('faq')}

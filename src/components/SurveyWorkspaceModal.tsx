@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Task, SurveyQuestion } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, CheckCircle, ArrowRight, ArrowLeft, ShieldCheck, HelpCircle } from 'lucide-react';
 
 interface Props {
@@ -10,6 +12,7 @@ interface Props {
 
 export const SurveyWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
   const { completeTask } = useTasks();
+  const { selectedCountry } = useRegion();
   const questions: SurveyQuestion[] = task.surveyQuestions || [];
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -105,7 +108,7 @@ export const SurveyWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
               <span aria-hidden="true">·</span>
               <span>{task.requesterName}</span>
               <span aria-hidden="true">·</span>
-              <span className="font-mono text-emerald-600 font-semibold">${task.reward.toFixed(2)} Reward</span>
+              <span className="font-mono text-emerald-600 font-semibold">{formatCurrencyFromUsd(task.reward, selectedCountry)} Reward</span>
             </div>
             <h2 className="text-base font-semibold text-slate-900 mt-0.5 line-clamp-1">
               {task.title}

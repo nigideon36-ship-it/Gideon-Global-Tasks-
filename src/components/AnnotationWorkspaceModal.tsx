@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task, BoundingBox } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, Trash2, Crosshair, CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 import annotationStreetSample from '../assets/images/annotation_sample_street_1794041822257.jpg';
 
@@ -18,6 +20,7 @@ const CLASS_COLORS: Record<string, { stroke: string; bg: string }> = {
 
 export const AnnotationWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
   const { completeTask } = useTasks();
+  const { selectedCountry } = useRegion();
   const annoConfig = task.annotationConfig?.[0];
 
   const isSentimentTask = annoConfig?.type === 'sentiment';
@@ -151,7 +154,7 @@ export const AnnotationWorkspaceModal: React.FC<Props> = ({ task, onClose }) => 
                 <span aria-hidden="true">·</span>
                 <span>{task.requesterName}</span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono text-emerald-600 font-semibold">${task.reward.toFixed(2)} Bounty</span>
+                <span className="font-mono text-emerald-600 font-semibold">{formatCurrencyFromUsd(task.reward, selectedCountry)} Bounty</span>
               </div>
               <h2 className="text-base font-semibold text-slate-900 leading-tight">
                 {task.title}
@@ -421,7 +424,7 @@ export const AnnotationWorkspaceModal: React.FC<Props> = ({ task, onClose }) => 
                 className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isSubmitting ? 'Validating Labelling...' : `Submit Annotation ($${task.reward.toFixed(2)})`}</span>
+                <span>{isSubmitting ? 'Validating Labelling...' : `Submit Annotation (${formatCurrencyFromUsd(task.reward, selectedCountry)})`}</span>
               </button>
             </div>
           </div>

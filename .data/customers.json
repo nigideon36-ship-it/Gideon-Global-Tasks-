@@ -12,5 +12,20 @@
     "createdAt": "2026-11-14T06:01:12.494Z",
     "updatedAt": "2026-11-14T06:01:13.168Z",
     "pendingTotpSecret": "CM7SNPUGVZ6BRUDX2QHRINXQFQEMXRS2"
+  },
+  {
+    "uid": "Wxejg66hxCMjKK0ukxPnwpan8ma2",
+    "phone": "",
+    "countryCode": "KE",
+    "email": "nigideon36@gmail.com",
+    "displayName": "GIDEON KIPLANGAT",
+    "passwordHash": "",
+    "twoFactorEnabled": false,
+    "twoFactorMethod": "none",
+    "phoneVerified": false,
+    "loginCount": 1,
+    "lastLoginAt": "2026-11-16T14:27:58.780Z",
+    "createdAt": "2026-11-16T14:27:58.780Z",
+    "updatedAt": "2026-11-16T14:27:58.780Z"
   }
 ]

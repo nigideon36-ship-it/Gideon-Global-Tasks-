@@ -3,10 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { RegionProvider } from './context/RegionContext';
+import { RegionProvider, useRegion } from './context/RegionContext';
+import {
+  formatCurrencyFromUsd,
+  formatCurrencyFromKes,
+  MAX_TASK_REWARD_KES,
+  WITHDRAWAL_THRESHOLD_USD,
+} from './lib/eastAfrica';
 import { Navbar } from './components/Navbar';
 import { HeroMarketplace } from './components/HeroMarketplace';
 import { TaskCard } from './components/TaskCard';
@@ -15,6 +21,7 @@ import { AnnotationWorkspaceModal } from './components/AnnotationWorkspaceModal'
 import { DataEntryWorkspaceModal } from './components/DataEntryWorkspaceModal';
 import { WritingWorkspaceModal } from './components/WritingWorkspaceModal';
 import { MicroTaskWorkspaceModal } from './components/MicroTaskWorkspaceModal';
+import { CreatorCampaignWorkspaceModal } from './components/CreatorCampaignWorkspaceModal';
 import { MemeStudioView } from './components/MemeStudioView';
 import { LeaderboardView } from './components/LeaderboardView';
 import { WalletModal } from './components/WalletModal';
@@ -22,6 +29,9 @@ import { NotificationToast } from './components/NotificationToast';
 import { Footer } from './components/Footer';
 import { GeminiChatbot } from './components/GeminiChatbot';
 import { TaskHistoryView } from './components/TaskHistoryView';
+import { CustomerDashboard } from './components/CustomerDashboard';
+import { InvestmentsView } from './components/InvestmentsView';
+import { TestimonialsView } from './components/TestimonialsView';
 import { EmployerPortal } from './components/EmployerPortal';
 
 const AudioTranscriber = lazy(() => import('./components/AudioTranscriber').then(m => ({ default: m.AudioTranscriber })));
@@ -38,6 +48,7 @@ import { IntasendModal } from './components/IntasendModal';
 import { PaystackModal } from './components/PaystackModal';
 import { RegionGateModal } from './components/RegionGateModal';
 import { AuthModal } from './components/AuthModal';
+import { CustomerProfileModal } from './components/CustomerProfileModal';
 import { TwoFactorModal } from './components/TwoFactorModal';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
 import { AdSenseBanner } from './components/AdSenseBanner';
@@ -52,10 +63,11 @@ import { DisclaimerView } from './components/DisclaimerView';
 import { HTMLSitemapView } from './components/HTMLSitemapView';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { Task } from './types/tasks';
-import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users } from 'lucide-react';
+import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users, LayoutDashboard } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { isOwner } = useAuth();
+  const { selectedCountry } = useRegion();
   const {
     tasks,
     activeTab,
@@ -65,6 +77,9 @@ const MainAppContent: React.FC = () => {
     activePackage,
     packagesModalOpen,
     setPackagesModalOpen,
+    purchasePackage,
+    dailyQuotaStatus,
+    showNotification,
     streakModalOpen,
     setStreakModalOpen,
     userStats,
@@ -83,7 +98,11 @@ const MainAppContent: React.FC = () => {
   } = useTasks();
 
   // Marketplace filter states
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all';
+    const cat = new URLSearchParams(window.location.search).get('category');
+    return cat || 'all';
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('highest-reward');
@@ -91,6 +110,88 @@ const MainAppContent: React.FC = () => {
 
   // Sub-view toggle for 3D Globe vs Game
   const [interactiveMode, setInteractiveMode] = useState<'globe' | 'game'>('globe');
+  const paystackRedirectHandledRef = useRef<string | null>(null);
+
+  // Automatic verification when returning from a Paystack Payment Page or Paystack Card Checkout
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const reference = (params.get('reference') || params.get('trxref') || '').trim();
+    const pkgParam = (params.get('paystack_pkg') || '').trim().toLowerCase();
+
+    if (!reference || paystackRedirectHandledRef.current === reference) return;
+    paystackRedirectHandledRef.current = reference;
+
+    const cleanUrlParams = () => {
+      try {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.delete('reference');
+        nextUrl.searchParams.delete('trxref');
+        nextUrl.searchParams.delete('paystack_pkg');
+        window.history.replaceState({}, document.title, nextUrl.pathname + nextUrl.search + nextUrl.hash);
+      } catch {}
+    };
+
+    try {
+      const raw = localStorage.getItem('gideon_verified_ps_refs');
+      const verifiedRefs: string[] = raw ? JSON.parse(raw) : [];
+      if (verifiedRefs.includes(reference)) {
+        cleanUrlParams();
+        return;
+      }
+    } catch {}
+
+    showNotification(`Verifying your Paystack payment (${reference})...`);
+
+    fetch(`/api/paystack/verify/${encodeURIComponent(reference)}`, {
+      headers: {
+        'x-ea-country': selectedCountry.code,
+        'x-ea-verified': 'true',
+      },
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        cleanUrlParams();
+        if (!ok || data?.status !== 'success') {
+          showNotification(
+            data?.error ||
+              `Paystack payment ${reference} status is "${data?.status || 'pending'}". Open Passes → Paystack Link to re-verify.`
+          );
+          return;
+        }
+
+        const pendingPkg = (() => {
+          try {
+            return localStorage.getItem('gideon_pending_paystack_pkg') || '';
+          } catch {
+            return '';
+          }
+        })();
+
+        const resolvedCandidate = String(data.packageId || pkgParam || pendingPkg || 'pro').toLowerCase();
+        const resolvedPkg: 'starter' | 'pro' | 'vip' =
+          resolvedCandidate === 'starter' || resolvedCandidate === 'vip' ? resolvedCandidate : 'pro';
+
+        try {
+          const raw = localStorage.getItem('gideon_verified_ps_refs');
+          const verifiedRefs: string[] = raw ? JSON.parse(raw) : [];
+          if (!verifiedRefs.includes(reference)) {
+            localStorage.setItem('gideon_verified_ps_refs', JSON.stringify([...verifiedRefs, reference]));
+          }
+          localStorage.removeItem('gideon_pending_paystack_pkg');
+        } catch {}
+
+        purchasePackage(
+          resolvedPkg,
+          'Paystack Page',
+          `${data.customerEmail || selectedCountry.code} (Ref: ${reference})`
+        );
+      })
+      .catch(() => {
+        cleanUrlParams();
+        showNotification(`Could not verify Paystack reference ${reference}. You can verify it inside Worker Passes → Paystack Link.`);
+      });
+  }, [selectedCountry.code, purchasePackage, showNotification]);
 
   const filteredTasks = useMemo(() => {
     return tasks
@@ -122,9 +223,12 @@ const MainAppContent: React.FC = () => {
   }, [tasks, selectedCategory, difficultyFilter, searchQuery, sortBy]);
 
   const handleSelectTask = (task: Task) => {
-    // Check if worker has an active package that unlocks this category
-    if (!activePackage || !activePackage.unlockedCategories.includes(task.category)) {
-      setRequiredCategoryPrompt(`${task.category.toUpperCase().replace('-', ' ')}`);
+    const eligibility = dailyQuotaStatus.canDoTask(task);
+    if (!eligibility.allowed) {
+      if (eligibility.reason) {
+        showNotification(eligibility.reason);
+      }
+      setRequiredCategoryPrompt(`${task.category.toUpperCase().replace('-', ' ')} (${formatCurrencyFromUsd(task.reward, selectedCountry)})`);
       setPackagesModalOpen(true);
       return;
     }
@@ -149,12 +253,22 @@ const MainAppContent: React.FC = () => {
                 <Zap className="w-4 h-4 text-sky-200" />
               </div>
               <div>
-                <div className="text-xs font-bold text-white flex items-center gap-2">
-                  <span>Pass Tier: {activePackage?.name || 'Active Contributor'} (KES {activePackage?.priceKes || 200})</span>
-                  <span className="text-sky-300 font-mono text-[11px] font-semibold">· East Africa Exclusive · M-PESA &amp; Mobile Money</span>
+                <div className="text-xs font-bold text-white flex flex-wrap items-center gap-2">
+                  <span>
+                    {activePackage
+                      ? `Pass Tier: ${activePackage.name} (${formatCurrencyFromKes(activePackage.priceKes, selectedCountry)})`
+                      : isOwner
+                      ? 'Pass Tier: Owner Console Access'
+                      : `Free Tier: Only 1 Free Task Daily (Max ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)})`}
+                  </span>
+                  <span className="text-sky-300 font-mono text-[11px] font-semibold">
+                    · Today: {dailyQuotaStatus.usedToday}/{dailyQuotaStatus.rule.dailyLimit} used (Max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}/task)
+                  </span>
                 </div>
                 <div className="text-[11px] text-blue-100">
-                  {activePackage?.taskAllowance} · Minimum withdrawal: <strong className="text-white font-mono">$20.00</strong>
+                  {activePackage
+                    ? activePackage.taskAllowance
+                    : `Starter ${formatCurrencyFromKes(50, selectedCountry)} (2/day) · 2nd Pass ${formatCurrencyFromKes(100, selectedCountry)} (3/day) · VIP ${formatCurrencyFromKes(200, selectedCountry)} (4 surveys/day) · Max ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}/task`} · Pay Pass via M-PESA: <strong className="text-emerald-300 font-extrabold font-mono text-xs tracking-wide">0758727558</strong>
                 </div>
               </div>
             </div>
@@ -167,6 +281,15 @@ const MainAppContent: React.FC = () => {
               >
                 <Flame className="w-3.5 h-3.5 fill-current text-amber-300" />
                 <span>{userStats.streakDays}-Day Streak ({userStats.streakDays >= 7 ? '+20%' : '+10%'})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('dashboard')}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Customer Dashboard</span>
               </button>
 
               <button
@@ -187,7 +310,9 @@ const MainAppContent: React.FC = () => {
                 className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-blue-50 text-blue-950 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                <span>Worker Passes (KES 50, 100, 200)</span>
+                <span>
+                  Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)})
+                </span>
               </button>
             </div>
           </div>
@@ -213,6 +338,13 @@ const MainAppContent: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <span>Customer Dashboard →</span>
+                  </button>
+                  <button
                     onClick={() => setActiveTab('task-history')}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors"
                   >
@@ -227,9 +359,21 @@ const MainAppContent: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setActiveTab('packages')}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors"
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                   >
-                    Contributor Passes (KES 50, 100, 200) →
+                    Contributor Passes ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)}) →
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('investments')}
+                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Invest Pools ({formatCurrencyFromKes(50, selectedCountry)}+) →
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('testimonials')}
+                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Customer Testimonials →
                   </button>
                   <button
                     onClick={() => setActiveTab('ai-media')}
@@ -268,7 +412,7 @@ const MainAppContent: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-xs text-blue-100 font-medium">
                   <span>Showing {filteredTasks.length} Available East Africa Tasks</span>
-                  <span className="font-mono">Withdrawals start from $20.00</span>
+                  <span className="font-mono">Withdrawals start from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</span>
                 </div>
 
                 {filteredTasks.length === 0 ? (
@@ -318,6 +462,13 @@ const MainAppContent: React.FC = () => {
             </div>
           )}
 
+          {/* 1b. CUSTOMER DASHBOARD */}
+          {activeTab === 'dashboard' && (
+            <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
+              <CustomerDashboard />
+            </div>
+          )}
+
           {/* 2. TASK HISTORY VIEW */}
           {activeTab === 'task-history' && (
             <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
@@ -329,6 +480,20 @@ const MainAppContent: React.FC = () => {
           {activeTab === 'referrals' && (
             <div className="bg-white/95 rounded-3xl p-6 md:p-8 shadow-xl border border-blue-300/30 text-slate-900">
               <ReferralDashboard />
+            </div>
+          )}
+
+          {/* 3b. DEPOSIT-ONLY INVESTMENTS (KES 50+ MINIMUM) */}
+          {activeTab === 'investments' && (
+            <div className="bg-slate-50 rounded-3xl p-4 md:p-6 shadow-xl border border-blue-300/30 text-slate-900">
+              <InvestmentsView />
+            </div>
+          )}
+
+          {/* 3c. CUSTOMER TESTIMONIALS & REVIEWS */}
+          {activeTab === 'testimonials' && (
+            <div className="bg-slate-50 rounded-3xl p-4 md:p-6 shadow-xl border border-blue-300/30 text-slate-900">
+              <TestimonialsView />
             </div>
           )}
 
@@ -529,6 +694,13 @@ const MainAppContent: React.FC = () => {
         />
       )}
 
+      {selectedTask && selectedTask.category === 'creator-campaign' && (
+        <CreatorCampaignWorkspaceModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
+
       {/* Global Wallet Modal */}
       <WalletModal />
 
@@ -591,6 +763,9 @@ const MainAppContent: React.FC = () => {
 
       {/* Mobile Number + Optional Email Registration / Sign-In Modal */}
       <AuthModal />
+
+      {/* Customer Profile Editor & Locked Registration / Payout Details Modal */}
+      <CustomerProfileModal />
 
       {/* Two-Factor Authentication (SMS / Authenticator App) Modal */}
       <TwoFactorModal />

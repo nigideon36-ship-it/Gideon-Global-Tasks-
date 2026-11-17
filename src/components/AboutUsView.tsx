@@ -1,9 +1,12 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { ShieldCheck, Globe, Users, Award, CheckCircle2, ArrowRight, Mail, Sparkles, Building2, Lock } from 'lucide-react';
 
 export const AboutUsView: React.FC = () => {
   const { setActiveTab } = useTasks();
+  const { selectedCountry } = useRegion();
 
   return (
     <div className="space-y-12 animate-in fade-in duration-200">
@@ -49,7 +52,7 @@ export const AboutUsView: React.FC = () => {
             Every day, enterprise artificial intelligence models require millions of human-verified data points—ranging from 2D bounding boxes on urban crosswalks to receipt digitizations and subjective sentiment ratings. Traditional platforms lock out international workers with exorbitant transaction fees, arbitrary account bans, and payment delays.
           </p>
           <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-            Gideon Global Tasks was architected from the ground up to serve East Africa cleanly without unreliable international PayPal hurdles. By integrating native mobile micropayments through <strong>M-PESA</strong>, <strong>Airtel / MTN MoMo</strong>, and <strong>Paystack East Africa Cards</strong>, contributors across Nairobi, Kampala, Dar es Salaam, Kigali, and Addis Ababa receive dependable payouts starting from $20.
+            Gideon Global Tasks was architected from the ground up to serve East Africa cleanly without unreliable international PayPal hurdles. By integrating native mobile micropayments through <strong>M-PESA</strong>, <strong>Airtel / MTN MoMo</strong>, and <strong>Paystack East Africa Cards</strong>, contributors across Nairobi, Kampala, Dar es Salaam, Kigali, and Addis Ababa receive dependable payouts starting from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
@@ -198,7 +201,7 @@ export const AboutUsView: React.FC = () => {
               <span>Transparent Fee Guarantees</span>
             </h4>
             <p className="text-slate-500 text-[11px] leading-relaxed">
-              We never take hidden cuts from worker task rewards. Worker passes ($2 Starter, $5 Pro, $10 VIP) cover platform compute while 100% of task rewards go to contributors.
+              We never take hidden cuts from worker task rewards. Worker passes ({formatCurrencyFromKes(50, selectedCountry)} Starter, {formatCurrencyFromKes(100, selectedCountry)} Pro, {formatCurrencyFromKes(200, selectedCountry)} VIP) cover platform compute while 100% of task rewards go to contributors.
             </p>
           </div>
         </div>

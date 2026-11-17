@@ -1,11 +1,14 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { Map, ArrowLeft, ExternalLink, Globe, BookOpen, ShieldCheck, HelpCircle, FileText } from 'lucide-react';
 
 export const HTMLSitemapView: React.FC = () => {
   const { setActiveTab } = useTasks();
   const { isOwner } = useAuth();
+  const { selectedCountry } = useRegion();
 
   return (
     <article className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-200 text-slate-800">
@@ -96,7 +99,7 @@ export const HTMLSitemapView: React.FC = () => {
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                Worker Passes ($2 Starter, $5 Pro, $10 VIP)
+                Worker Passes ({formatCurrencyFromKes(50, selectedCountry)} Starter, {formatCurrencyFromKes(100, selectedCountry)} Pro, {formatCurrencyFromKes(200, selectedCountry)} VIP)
               </a>
               <span className="text-slate-400 block text-[11px]">Category gating tiers and allowance quotas.</span>
             </li>
@@ -249,7 +252,7 @@ export const HTMLSitemapView: React.FC = () => {
               >
                 Terms of Service & Rules
               </a>
-              <span className="text-slate-400 block text-[11px]">Contributor agreements, quality rules, and $20 payout milestones.</span>
+              <span className="text-slate-400 block text-[11px]">Contributor agreements, quality rules, and {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} payout milestones.</span>
             </li>
             <li>
               <a

@@ -21,9 +21,10 @@ interface PublisherModalProps {
   onOpenPrivacyTerms?: (tab: 'privacy' | 'terms') => void;
 }
 
-const PUBLIC_URL = typeof window !== 'undefined' && window.location.hostname.includes('gideon-global-tasks.ai.studio')
-  ? 'https://gideon-global-tasks.ai.studio'
-  : 'https://gideon-global-tasks.ai.studio';
+const PUBLIC_URL =
+  typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app';
 
 export const PublisherModal: React.FC<PublisherModalProps> = ({
   isOpen,

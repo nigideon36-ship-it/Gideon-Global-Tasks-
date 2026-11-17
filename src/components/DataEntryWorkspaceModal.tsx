@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Task } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, ZoomIn, ZoomOut, Check, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
 import receiptSampleScan from '../assets/images/receipt_sample_scan_1794041823242.jpg';
 
@@ -11,6 +13,7 @@ interface Props {
 
 export const DataEntryWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
   const { completeTask } = useTasks();
+  const { selectedCountry } = useRegion();
   const config = task.dataEntryConfig;
   const fields = config?.fields || [];
 
@@ -87,7 +90,7 @@ export const DataEntryWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
                 <span aria-hidden="true">·</span>
                 <span>{task.requesterName}</span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono text-emerald-600 font-semibold">${task.reward.toFixed(2)} Bounty</span>
+                <span className="font-mono text-emerald-600 font-semibold">{formatCurrencyFromUsd(task.reward, selectedCountry)} Bounty</span>
               </div>
               <h2 className="text-base font-semibold text-slate-900 leading-tight">
                 {task.title}
@@ -228,7 +231,7 @@ export const DataEntryWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isSubmitting ? 'Verifying Digits...' : `Submit Extraction ($${task.reward.toFixed(2)})`}</span>
+                <span>{isSubmitting ? 'Verifying Digits...' : `Submit Extraction (${formatCurrencyFromUsd(task.reward, selectedCountry)})`}</span>
               </button>
             </div>
           </div>

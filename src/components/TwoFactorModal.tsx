@@ -31,6 +31,9 @@ export const TwoFactorModal: React.FC = () => {
     qrCodeDataUrl?: string;
     secret?: string;
     maskedPhone?: string;
+    carrierDelivered?: boolean;
+    providerLabel?: string;
+    fallbackReason?: string;
     previewCode?: string;
   } | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
@@ -91,6 +94,9 @@ export const TwoFactorModal: React.FC = () => {
           qrCodeDataUrl: data.qrCodeDataUrl,
           secret: data.secret,
           maskedPhone: data.maskedPhone,
+          carrierDelivered: Boolean(data.carrierDelivered),
+          providerLabel: data.providerLabel,
+          fallbackReason: data.fallbackReason,
           previewCode: data.previewCode,
         });
       }
@@ -348,19 +354,39 @@ export const TwoFactorModal: React.FC = () => {
               )}
 
               {setupData.method === 'sms' && (
-                <div className="space-y-1 text-blue-900">
-                  <div className="font-bold">
-                    SMS Code Sent to {setupData.maskedPhone}
-                  </div>
-                  <p className="text-[11px] text-blue-800">
-                    Enter the 6-digit verification code sent to your mobile line.
-                  </p>
-                  {setupData.previewCode && (
-                    <div className="mt-1 px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-[11px]">
-                      SMS Test Code: <strong>{setupData.previewCode}</strong>
+                setupData.carrierDelivered ? (
+                  <div className="space-y-1 text-blue-900">
+                    <div className="font-bold">
+                      Live SMS Code Sent via {setupData.providerLabel || 'SMS Gateway'} to {setupData.maskedPhone}
                     </div>
-                  )}
-                </div>
+                    <p className="text-[11px] text-blue-800">
+                      Enter the 6-digit verification code sent to your mobile line.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-amber-950">
+                    <div className="font-bold text-amber-900">
+                      Instant On-Screen 2FA Verification ({setupData.maskedPhone})
+                    </div>
+                    <p className="text-[11px] text-amber-900 leading-relaxed">
+                      Live carrier SMS is not active yet{setupData.fallbackReason ? ` (${setupData.fallbackReason})` : ''}. Use this verified code to enable SMS 2FA:
+                    </p>
+                    {setupData.previewCode && (
+                      <div className="flex items-center justify-between gap-2 bg-white border border-amber-300 rounded-xl px-3 py-2">
+                        <span className="text-base font-mono font-extrabold tracking-[0.25em] text-blue-900">
+                          {setupData.previewCode}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setVerifyCode(setupData.previewCode || '')}
+                          className="px-3 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                        >
+                          Auto-Fill Code
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
               )}
 
               <div className="space-y-2">

@@ -6,7 +6,8 @@ export type TransactionKind =
   | 'withdrawal'
   | 'pass_purchase'
   | 'task_reward'
-  | 'referral_commission';
+  | 'referral_commission'
+  | 'investment_deposit';
 
 export interface PlatformTransaction {
   id: string;

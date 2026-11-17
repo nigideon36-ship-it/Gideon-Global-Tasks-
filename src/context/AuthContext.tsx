@@ -12,18 +12,64 @@ import {
 
 export const OWNER_EMAIL = 'nigideon36@gmail.com';
 const CUSTOMER_TOKEN_STORAGE_KEY = 'gideon_customer_token_v1';
+const REMEMBERED_ACCOUNT_KEY = 'gideon_remembered_account_v1';
+
+export interface RememberedPortalAccount {
+  phone: string;
+  email?: string;
+  displayName: string;
+  countryCode: string;
+  lastSignedInAt: string;
+}
+
+export type CustomerWithdrawalMethod =
+  | 'M-PESA'
+  | 'Airtel / MTN MoMo'
+  | 'East Africa Bank'
+  | 'Wise'
+  | 'Crypto USDT';
+
+export interface CustomerWithdrawalDetails {
+  method: CustomerWithdrawalMethod;
+  accountDetails: string;
+  accountHolderName: string;
+  locked: boolean;
+  lockedAt: string;
+}
+
+export interface CustomerSocialHandles {
+  facebook?: string;
+  instagram?: string;
+  tiktok?: string;
+  whatsapp?: string;
+}
 
 export interface CustomerProfile {
   uid: string;
   phone: string;
+  phoneLocked?: boolean;
   countryCode: string;
   email?: string;
   displayName: string;
+  city?: string;
+  bio?: string;
+  socialHandles?: CustomerSocialHandles;
+  withdrawalDetails?: CustomerWithdrawalDetails;
   role: 'customer';
   twoFactorEnabled: boolean;
   twoFactorMethod: 'none' | 'sms' | 'totp';
   phoneVerified: boolean;
+  banned?: boolean;
+  bannedReason?: string;
+  bannedAt?: string;
+  deactivated?: boolean;
+  deactivatedReason?: string;
+  deactivatedAt?: string;
+  adminAssignedPass?: 'free' | 'starter' | 'pro' | 'vip';
+  loginCount?: number;
+  lastLoginAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface LoginResult {
@@ -32,6 +78,9 @@ export interface LoginResult {
   twoFactorMethod?: 'sms' | 'totp';
   challengeToken?: string;
   maskedPhone?: string;
+  carrierDelivered?: boolean;
+  providerLabel?: string;
+  fallbackReason?: string;
   smsDeliveryMode?: string;
   previewCode?: string;
   error?: string;
@@ -40,6 +89,8 @@ export interface LoginResult {
 interface AuthContextType {
   user: User | null;
   customerProfile: CustomerProfile | null;
+  rememberedAccount: RememberedPortalAccount | null;
+  clearRememberedAccount: () => void;
   idToken: string | null;
   activeToken: string | null;
   loading: boolean;
@@ -49,6 +100,11 @@ interface AuthContextType {
   setAuthModalOpen: (open: boolean) => void;
   securityModalOpen: boolean;
   setSecurityModalOpen: (open: boolean) => void;
+  profileModalOpen: boolean;
+  setProfileModalOpen: (open: boolean) => void;
+  profileModalTab: 'details' | 'withdraw';
+  setProfileModalTab: (tab: 'details' | 'withdraw') => void;
+  openMyAccount: (tab?: 'details' | 'withdraw') => void;
   signInWithGoogle: () => Promise<void>;
   requestRegistrationOtp: (params: {
     phone: string;
@@ -58,6 +114,9 @@ interface AuthContextType {
   }) => Promise<{
     success: boolean;
     maskedPhone?: string;
+    carrierDelivered?: boolean;
+    providerLabel?: string;
+    fallbackReason?: string;
     smsDeliveryMode?: string;
     previewCode?: string;
     error?: string;
@@ -67,21 +126,58 @@ interface AuthContextType {
     countryCode: string;
     email?: string;
     displayName?: string;
+    city?: string;
     password: string;
     otpCode: string;
+    withdrawalMethod?: CustomerWithdrawalMethod;
+    withdrawalAccount?: string;
+    withdrawalAccountHolder?: string;
+    referralCode?: string;
+    rememberMe?: boolean;
   }) => Promise<{ success: boolean; error?: string }>;
   loginWithPhone: (params: {
-    phone: string;
+    identifier?: string;
+    phone?: string;
     countryCode: string;
     password: string;
+    rememberMe?: boolean;
   }) => Promise<LoginResult>;
-  verifyTwoFactorLogin: (challengeToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  verifyTwoFactorLogin: (
+    challengeToken: string,
+    code: string,
+    rememberMe?: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+  updateCustomerProfile: (params: {
+    displayName?: string;
+    email?: string;
+    city?: string;
+    bio?: string;
+    socialHandles?: CustomerSocialHandles;
+    phone?: string;
+    withdrawalMethod?: CustomerWithdrawalMethod;
+    withdrawalAccount?: string;
+    withdrawalAccountHolder?: string;
+  }) => Promise<{ success: boolean; message?: string; error?: string }>;
   refreshCustomerProfile: (overrideToken?: string) => Promise<void>;
   updateCustomerProfileLocal: (profile: CustomerProfile) => void;
   signOutUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function readRememberedAccount(): RememberedPortalAccount | null {
+  try {
+    const raw = localStorage.getItem(REMEMBERED_ACCOUNT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.phone || parsed.email)) {
+      return parsed as RememberedPortalAccount;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -94,9 +190,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [rememberedAccount, setRememberedAccount] = useState<RememberedPortalAccount | null>(() =>
+    readRememberedAccount()
+  );
   const [loading, setLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [securityModalOpen, setSecurityModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState<'details' | 'withdraw'>('details');
+
+  const openMyAccount = useCallback((tab: 'details' | 'withdraw' = 'details') => {
+    setProfileModalTab(tab);
+    setProfileModalOpen(true);
+  }, []);
 
   // STRICT: Only nigideon36@gmail.com with verified Google email has owner authority
   const isOwner = Boolean(
@@ -107,6 +213,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const activeToken = idToken || customerToken;
   const isAuthenticated = Boolean(user || customerProfile);
+
+  const saveRememberedFromProfile = useCallback((profile: CustomerProfile) => {
+    if (!profile?.phone && !profile?.email) return;
+    const saved: RememberedPortalAccount = {
+      phone: profile.phone,
+      email: profile.email,
+      displayName: profile.displayName,
+      countryCode: profile.countryCode || 'KE',
+      lastSignedInAt: new Date().toISOString(),
+    };
+    setRememberedAccount(saved);
+    try {
+      localStorage.setItem(REMEMBERED_ACCOUNT_KEY, JSON.stringify(saved));
+    } catch {}
+  }, []);
+
+  const clearRememberedAccount = useCallback(() => {
+    setRememberedAccount(null);
+    try {
+      localStorage.removeItem(REMEMBERED_ACCOUNT_KEY);
+    } catch {}
+  }, []);
 
   const refreshCustomerProfile = useCallback(async (overrideToken?: string) => {
     const tokenToUse = overrideToken || idToken || customerToken;
@@ -259,6 +387,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         success: true,
         maskedPhone: data.maskedPhone,
+        carrierDelivered: Boolean(data.carrierDelivered),
+        providerLabel: data.providerLabel,
+        fallbackReason: data.fallbackReason,
         smsDeliveryMode: data.smsDeliveryMode,
         previewCode: data.previewCode,
       };
@@ -272,10 +403,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     countryCode,
     email,
     displayName,
+    city,
     password,
     otpCode,
+    withdrawalMethod,
+    withdrawalAccount,
+    withdrawalAccountHolder,
+    referralCode,
+    rememberMe = true,
   }) => {
     try {
+      const pendingRef = (() => {
+        try {
+          return localStorage.getItem('gideon_pending_ref_code_v1') || '';
+        } catch {
+          return '';
+        }
+      })();
+      const resolvedRefCode = (referralCode || pendingRef).trim().toUpperCase() || undefined;
+
       const res = await fetch('/api/customer/register', {
         method: 'POST',
         headers: {
@@ -283,7 +429,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'x-ea-country': countryCode,
           'x-ea-verified': 'true',
         },
-        body: JSON.stringify({ phone, countryCode, email, displayName, password, otpCode }),
+        body: JSON.stringify({
+          phone,
+          countryCode,
+          email,
+          displayName,
+          city,
+          password,
+          otpCode,
+          withdrawalMethod,
+          withdrawalAccount,
+          withdrawalAccountHolder,
+          referralCode: resolvedRefCode,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -291,9 +449,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       try {
         localStorage.setItem(CUSTOMER_TOKEN_STORAGE_KEY, data.token);
+        localStorage.removeItem('gideon_pending_ref_code_v1');
       } catch {}
       setCustomerToken(data.token);
       setCustomerProfile(data.customer);
+      if (rememberMe && data.customer) {
+        saveRememberedFromProfile(data.customer);
+      }
       setAuthModalOpen(false);
       return { success: true };
     } catch (err: any) {
@@ -301,8 +463,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithPhone: AuthContextType['loginWithPhone'] = async ({ phone, countryCode, password }) => {
+  const loginWithPhone: AuthContextType['loginWithPhone'] = async ({
+    identifier,
+    phone,
+    countryCode,
+    password,
+    rememberMe = true,
+  }) => {
     try {
+      const loginId = (identifier || phone || '').trim();
       const res = await fetch('/api/customer/login', {
         method: 'POST',
         headers: {
@@ -310,7 +479,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'x-ea-country': countryCode,
           'x-ea-verified': 'true',
         },
-        body: JSON.stringify({ phone, countryCode, password }),
+        body: JSON.stringify({ identifier: loginId, phone: loginId, countryCode, password }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -323,6 +492,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           twoFactorMethod: data.twoFactorMethod,
           challengeToken: data.challengeToken,
           maskedPhone: data.maskedPhone,
+          carrierDelivered: Boolean(data.carrierDelivered),
+          providerLabel: data.providerLabel,
+          fallbackReason: data.fallbackReason,
           smsDeliveryMode: data.smsDeliveryMode,
           previewCode: data.previewCode,
         };
@@ -332,6 +504,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       setCustomerToken(data.token);
       setCustomerProfile(data.customer);
+      if (rememberMe && data.customer) {
+        saveRememberedFromProfile(data.customer);
+      } else if (!rememberMe) {
+        clearRememberedAccount();
+      }
       setAuthModalOpen(false);
       return { success: true, requires2FA: false };
     } catch (err: any) {
@@ -339,7 +516,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const verifyTwoFactorLogin: AuthContextType['verifyTwoFactorLogin'] = async (challengeToken, code) => {
+  const verifyTwoFactorLogin: AuthContextType['verifyTwoFactorLogin'] = async (
+    challengeToken,
+    code,
+    rememberMe = true
+  ) => {
     try {
       const res = await fetch('/api/customer/verify-2fa-login', {
         method: 'POST',
@@ -355,6 +536,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       setCustomerToken(data.token);
       setCustomerProfile(data.customer);
+      if (rememberMe && data.customer) {
+        saveRememberedFromProfile(data.customer);
+      }
       setAuthModalOpen(false);
       return { success: true };
     } catch (err: any) {
@@ -362,8 +546,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateCustomerProfile: AuthContextType['updateCustomerProfile'] = async (payload) => {
+    const tokenToUse = idToken || customerToken;
+    if (!tokenToUse) {
+      return { success: false, error: 'Please sign in first to update your profile.' };
+    }
+    try {
+      const res = await fetch('/api/customer/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenToUse}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Could not update profile.' };
+      }
+      if (data.customer) {
+        setCustomerProfile(data.customer);
+        if (rememberedAccount) {
+          saveRememberedFromProfile(data.customer);
+        }
+      }
+      return {
+        success: true,
+        message: data.message || 'Profile updated successfully.',
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating profile.' };
+    }
+  };
+
   const updateCustomerProfileLocal = (profile: CustomerProfile) => {
     setCustomerProfile(profile);
+    if (rememberedAccount) {
+      saveRememberedFromProfile(profile);
+    }
   };
 
   const signOutUser = async () => {
@@ -386,6 +606,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         customerProfile,
+        rememberedAccount,
+        clearRememberedAccount,
         idToken,
         activeToken,
         loading,
@@ -395,11 +617,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuthModalOpen,
         securityModalOpen,
         setSecurityModalOpen,
+        profileModalOpen,
+        setProfileModalOpen,
+        profileModalTab,
+        setProfileModalTab,
+        openMyAccount,
         signInWithGoogle,
         requestRegistrationOtp,
         registerWithPhone,
         loginWithPhone,
         verifyTwoFactorLogin,
+        updateCustomerProfile,
         refreshCustomerProfile,
         updateCustomerProfileLocal,
         signOutUser,

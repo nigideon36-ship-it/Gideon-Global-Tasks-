@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Task } from '../types/tasks';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { X, PenTool, CheckCircle2, AlertCircle, Sparkles, BookOpen, Clock } from 'lucide-react';
 
 interface Props {
@@ -10,6 +12,7 @@ interface Props {
 
 export const WritingWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
   const { completeTask } = useTasks();
+  const { selectedCountry } = useRegion();
   const config = task.writingConfig;
 
   const [content, setContent] = useState<string>(
@@ -77,7 +80,7 @@ export const WritingWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
                 <span aria-hidden="true">·</span>
                 <span>{task.requesterName}</span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono text-emerald-600 font-semibold">${task.reward.toFixed(2)} Bounty</span>
+                <span className="font-mono text-emerald-600 font-semibold">{formatCurrencyFromUsd(task.reward, selectedCountry)} Bounty</span>
               </div>
               <h2 className="text-base font-semibold text-slate-900 leading-tight">
                 {task.title}
@@ -167,7 +170,7 @@ export const WritingWorkspaceModal: React.FC<Props> = ({ task, onClose }) => {
                 className="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isSubmitting ? 'Evaluating Copy...' : `Submit Draft ($${task.reward.toFixed(2)})`}</span>
+                <span>{isSubmitting ? 'Evaluating Copy...' : `Submit Draft (${formatCurrencyFromUsd(task.reward, selectedCountry)})`}</span>
               </button>
             </div>
           </div>

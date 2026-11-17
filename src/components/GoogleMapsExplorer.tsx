@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromUsd, convertKesToUsd } from '../lib/eastAfrica';
 import { MapPin, Search, Navigation, ExternalLink, ShieldCheck, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
 
 interface LocalTask {
@@ -21,8 +23,8 @@ const LOCAL_FIELD_TASKS: LocalTask[] = [
     venueName: 'Target Supercenter',
     category: 'Price Check',
     address: '700 N Michigan Ave, Chicago, IL',
-    distance: '0.8 miles away',
-    reward: 8.50,
+    distance: '0.8 km away',
+    reward: convertKesToUsd(50),
     lat: 41.8953,
     lng: -87.6244
   },
@@ -32,8 +34,8 @@ const LOCAL_FIELD_TASKS: LocalTask[] = [
     venueName: 'Trader Joe’s Market',
     category: 'Mystery Audit',
     address: '44 E Ontario St, Chicago, IL',
-    distance: '1.2 miles away',
-    reward: 6.75,
+    distance: '1.2 km away',
+    reward: convertKesToUsd(45),
     lat: 41.8931,
     lng: -87.6267
   },
@@ -43,8 +45,8 @@ const LOCAL_FIELD_TASKS: LocalTask[] = [
     venueName: 'ChargePoint Station #104',
     category: 'Signage Verification',
     address: '350 E Grand Ave, Chicago, IL',
-    distance: '1.6 miles away',
-    reward: 9.00,
+    distance: '1.6 km away',
+    reward: convertKesToUsd(50),
     lat: 41.8918,
     lng: -87.6186
   },
@@ -54,8 +56,8 @@ const LOCAL_FIELD_TASKS: LocalTask[] = [
     venueName: 'Walgreens Pharmacy',
     category: 'Storefront Photo',
     address: '151 N State St, Chicago, IL',
-    distance: '2.1 miles away',
-    reward: 5.50,
+    distance: '2.1 km away',
+    reward: convertKesToUsd(40),
     lat: 41.8847,
     lng: -87.6278
   }
@@ -63,6 +65,7 @@ const LOCAL_FIELD_TASKS: LocalTask[] = [
 
 export const GoogleMapsExplorer: React.FC = () => {
   const { completeTask, userStats } = useTasks();
+  const { selectedCountry } = useRegion();
 
   const [searchQuery, setSearchQuery] = useState('Find nearby grocery markets and retail stores');
   const [selectedTask, setSelectedTask] = useState<LocalTask>(LOCAL_FIELD_TASKS[0]);
@@ -219,7 +222,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                       }`}
                     >
                       <MapPin className="w-3.5 h-3.5" />
-                      <span className="font-mono">${task.reward.toFixed(2)}</span>
+                      <span className="font-mono">{formatCurrencyFromUsd(task.reward, selectedCountry)}</span>
                     </div>
                   </button>
                 );
@@ -248,7 +251,7 @@ export const GoogleMapsExplorer: React.FC = () => {
             <div className="text-right">
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Reward</span>
               <span className="text-xl font-bold font-mono text-emerald-400 tabular-nums">
-                ${selectedTask.reward.toFixed(2)}
+                {formatCurrencyFromUsd(selectedTask.reward, selectedCountry)}
               </span>
             </div>
           </div>
@@ -288,7 +291,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                     </p>
                   </div>
                   <div className="text-right font-mono font-bold text-slate-900 tabular-nums text-sm">
-                    ${task.reward.toFixed(2)}
+                    {formatCurrencyFromUsd(task.reward, selectedCountry)}
                   </div>
                 </div>
 
@@ -311,7 +314,7 @@ export const GoogleMapsExplorer: React.FC = () => {
                       }}
                       className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors"
                     >
-                      Submit Audit ($)
+                      Submit Audit ({formatCurrencyFromUsd(task.reward, selectedCountry)})
                     </button>
                   )}
                 </div>

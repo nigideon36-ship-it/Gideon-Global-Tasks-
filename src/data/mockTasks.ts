@@ -9,7 +9,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Autonomous Driving CV: Tag Vehicles & Pedestrians',
     category: 'annotation',
     description: 'Draw 2D bounding boxes around all motorized vehicles, pedestrians on crosswalks, and bicycles from the urban intersection camera.',
-    reward: 4.50,
+    reward: 0.3462,
     estimatedMinutes: 5,
     difficulty: 'Intermediate',
     spotsRemaining: 18,
@@ -41,8 +41,8 @@ export const INITIAL_TASKS: Task[] = [
     id: 'task-entry-201',
     title: 'Apex Tech Retail Receipt Digitization & Extraction',
     category: 'data-entry',
-    description: 'Extract store location, date, transaction ID, items sold, and exact dollar figures from high-resolution scanned paper receipts.',
-    reward: 3.40,
+    description: 'Extract store location, date, transaction ID, items sold, and exact numeric figures from high-resolution scanned paper receipts.',
+    reward: 0.3077,
     estimatedMinutes: 4,
     difficulty: 'Beginner',
     spotsRemaining: 42,
@@ -55,7 +55,7 @@ export const INITIAL_TASKS: Task[] = [
     instructions: [
       'Inspect the scanned receipt document on the left viewer.',
       'Fill in the corresponding field values in the entry form.',
-      'Ensure currency amounts do not include dollar signs in raw inputs.',
+      'Ensure currency amounts contain numeric digits only without currency symbols.',
       'Double-check the total amount due against the printed subtotal.'
     ],
     dataEntryConfig: {
@@ -92,17 +92,17 @@ export const INITIAL_TASKS: Task[] = [
         },
         {
           key: 'subtotal',
-          label: 'Subtotal ($)',
+          label: 'Subtotal Amount',
           type: 'currency',
           expectedValue: '219.43',
-          hint: 'Exact dollar amount before tax'
+          hint: 'Exact printed figure before tax'
         },
         {
           key: 'totalAmount',
-          label: 'Total Amount Due ($)',
+          label: 'Total Amount Due',
           type: 'currency',
           expectedValue: '235.33',
-          hint: 'Final billed charge'
+          hint: 'Final billed figure'
         },
         {
           key: 'surveyCode',
@@ -121,7 +121,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Global Remote Work & AI Tooling Survey 2026',
     category: 'survey',
     description: 'Share your perspective on how generative AI tools, async communication, and work-from-home policies impact your productivity.',
-    reward: 2.80,
+    reward: 0.3462,
     estimatedMinutes: 5,
     difficulty: 'Beginner',
     spotsRemaining: 73,
@@ -184,7 +184,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Remote Work & Freelancer Meme Challenge',
     category: 'meme-content',
     description: 'Use the built-in Gideon Meme Studio to generate a humorous, high-engagement meme about client revisions, deadlines, or coding quirks.',
-    reward: 3.00,
+    reward: 0.3846,
     estimatedMinutes: 4,
     difficulty: 'Beginner',
     spotsRemaining: 29,
@@ -208,7 +208,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Product Copywriting: "HyperCharge 140W Gallium Nitride Hub"',
     category: 'writing',
     description: 'Write an engaging 90–140 word e-commerce product summary highlighting fast charging, compact size, and thermal dissipation.',
-    reward: 5.50,
+    reward: 0.3846,
     estimatedMinutes: 8,
     difficulty: 'Intermediate',
     spotsRemaining: 14,
@@ -243,7 +243,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Rapid A/B Usability Poll: Fintech Dark Mode Button',
     category: 'micro',
     description: 'Quickly evaluate two button styles for a global remittance app and choose which provides superior tap readability.',
-    reward: 0.75,
+    reward: 0.1538,
     estimatedMinutes: 1,
     difficulty: 'Beginner',
     spotsRemaining: 88,
@@ -277,10 +277,10 @@ export const INITIAL_TASKS: Task[] = [
   // 7. ANOTHER SURVEY
   {
     id: 'task-surv-302',
-    title: 'Cross-Border Money Transfer & Crypto Adoption Survey',
+    title: 'Cross-Border Money Transfer & Mobile Wallet Survey',
     category: 'survey',
-    description: 'Provide feedback on how international freelancers and workers receive payments, transaction fees incurred, and preferred payout methods.',
-    reward: 3.20,
+    description: 'Provide feedback on how East African freelancers and workers receive payments, transaction fees incurred, and preferred payout methods.',
+    reward: 0.3846,
     estimatedMinutes: 6,
     difficulty: 'Intermediate',
     spotsRemaining: 34,
@@ -288,7 +288,7 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'Fintech Borderless Alliance',
     requesterRating: 4.8,
     requesterVerified: true,
-    tags: ['Fintech', 'Payouts', 'Global Economy'],
+    tags: ['Fintech', 'Payouts', 'Local Economy'],
     createdAt: '4 hours ago',
     instructions: [
       'Reflect on your personal payment methods over the past 12 months.',
@@ -316,7 +316,7 @@ export const INITIAL_TASKS: Task[] = [
       {
         id: 's2_q3',
         type: 'single-choice',
-        question: 'Would you prefer instant daily micropayments (under $5) or consolidated weekly batch payouts?',
+        question: 'Would you prefer instant daily micropayments (under 650 shillings) or consolidated weekly batch payouts?',
         options: ['Instant daily payouts (even with small fees)', 'Weekly batch payouts (zero fees)', 'Monthly consolidated payment'],
         required: true
       },
@@ -336,7 +336,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Customer Sentiment & Intent Tagging (5 Conversations)',
     category: 'annotation',
     description: 'Classify tone (Urgent, Satisfied, Frustrated, Inquiring) and detect primary request intent for e-commerce customer dialogues.',
-    reward: 2.25,
+    reward: 0.2692,
     estimatedMinutes: 3,
     difficulty: 'Beginner',
     spotsRemaining: 55,
@@ -367,7 +367,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Quick Verification: Is this Product Image Authentic?',
     category: 'micro',
     description: 'Inspect a marketplace listing photo to verify if watermarks, AI distortions, or misleading crop artifacts are present.',
-    reward: 0.60,
+    reward: 0.1538,
     estimatedMinutes: 1,
     difficulty: 'Beginner',
     spotsRemaining: 112,
@@ -396,6 +396,347 @@ export const INITIAL_TASKS: Task[] = [
         'Contains Watermark / Copyright Violation'
       ]
     }
+  },
+
+  // 10. CREATOR CAMPAIGN: INSTAGRAM & TIKTOK REELS (SOLAR HOME HUB)
+  {
+    id: 'task-creator-701',
+    title: 'Creator Reel Campaign: SunKing Solar Home Hub Pro (IG & TikTok)',
+    category: 'creator-campaign',
+    description: 'Film and publish a 20–45 second vertical product Reel on Instagram or TikTok demonstrating how the SunKing Solar Home Hub Pro powers home lighting and phone charging.',
+    reward: 0.3462,
+    estimatedMinutes: 15,
+    difficulty: 'Intermediate',
+    spotsRemaining: 40,
+    totalSpots: 100,
+    requesterName: 'SunKing East Africa Products',
+    requesterRating: 4.9,
+    requesterVerified: true,
+    tags: ['Instagram', 'TikTok', 'Reel', 'Product Campaign'],
+    createdAt: '20 mins ago',
+    instructions: [
+      'Feature ONLY the SunKing Solar Home Hub Pro product according to the campaign talking points.',
+      'Publish a vertical 9:16 Reel or short Video (20–45 seconds) on Instagram or TikTok.',
+      'Include the mandatory product hashtags #SunKingEA and #SolarProductDemo in your caption.',
+      'Paste your published Reel/Video link and exact post caption in the verification workspace.'
+    ],
+    creatorCampaignConfig: {
+      productName: 'SunKing Solar Home Hub Pro',
+      productCategory: 'Clean Energy Consumer Product',
+      productTagline: '24/7 bright LED lighting & USB fast phone charging from one compact solar kit.',
+      allowedPlatforms: ['Instagram', 'TikTok'],
+      allowedFormats: ['reel', 'video'],
+      campaignBrief: 'Create an authentic product showcase Reel showing clean solar home lighting and charging a smartphone. Focus exclusively on SunKing Solar Home Hub Pro benefits — do not include unrelated brand promotions.',
+      talkingPoints: [
+        'Mention zero electricity bill dependency for rural and urban East African homes',
+        'Highlight dual USB phone-charging ports and 3 bright LED bulbs included',
+        'Show a clear call-to-action directing followers to SunKing authorized shops'
+      ],
+      requiredHashtags: ['#SunKingEA', '#SolarProductDemo'],
+      minDurationSeconds: 20
+    }
+  },
+
+  // 11. CREATOR CAMPAIGN: TIKTOK, FACEBOOK & INSTAGRAM VIDEO (LIPAQUICK WALLET)
+  {
+    id: 'task-creator-702',
+    title: 'Product Walkthrough Video: LipaQuick Merchant Pay (FB, IG & TikTok)',
+    category: 'creator-campaign',
+    description: 'Publish a short product explainer video or Reel demonstrating instant Till & Paybill checkout for East African small businesses on TikTok, Instagram, or Facebook.',
+    reward: 0.3462,
+    estimatedMinutes: 18,
+    difficulty: 'Intermediate',
+    spotsRemaining: 35,
+    totalSpots: 80,
+    requesterName: 'LipaQuick Commerce',
+    requesterRating: 5.0,
+    requesterVerified: true,
+    tags: ['Facebook', 'Instagram', 'TikTok', 'Video', 'Reel'],
+    createdAt: '45 mins ago',
+    instructions: [
+      'Follow the LipaQuick Merchant Pay product script strictly (product-focused content only).',
+      'Post your Video or Reel publicly on Facebook, Instagram, or TikTok.',
+      'Include #LipaQuickPay and #EABusinessTools in your post caption.',
+      'Submit your public Video/Reel link and published caption to unlock your creator payout.'
+    ],
+    creatorCampaignConfig: {
+      productName: 'LipaQuick Merchant Pay App',
+      productCategory: 'Merchant Payment Product',
+      productTagline: 'Instant mobile money settlement and digital receipts for East African shops.',
+      allowedPlatforms: ['TikTok', 'Instagram', 'Facebook'],
+      allowedFormats: ['video', 'reel'],
+      campaignBrief: 'Walk shop owners through how LipaQuick generates instant digital customer receipts and tracks daily M-PESA/MoMo sales without manual notebooks. Content must highlight the LipaQuick product only.',
+      talkingPoints: [
+        'Explain instant SMS payment alerts for cashiers and shopkeepers',
+        'Highlight automated daily sales totals across M-PESA and Airtel Money',
+        'Keep visuals crisp and strictly focused on the LipaQuick product workflow'
+      ],
+      requiredHashtags: ['#LipaQuickPay', '#EABusinessTools'],
+      minDurationSeconds: 25
+    }
+  },
+
+  // 12. CREATOR CAMPAIGN: FACEBOOK & WHATSAPP TEXT POST (ZURI BOTANICALS SERUM)
+  {
+    id: 'task-creator-703',
+    title: 'Product Launch Text Post: Zuri Shea & Moringa Serum (FB & WhatsApp)',
+    category: 'creator-campaign',
+    description: 'Write and publish a high-converting product recommendation text post on Facebook or your WhatsApp Status/Channel introducing Zuri Shea & Moringa Repair Serum.',
+    reward: 0.2692,
+    estimatedMinutes: 8,
+    difficulty: 'Beginner',
+    spotsRemaining: 64,
+    totalSpots: 150,
+    requesterName: 'Zuri Botanicals Kenya',
+    requesterRating: 4.8,
+    requesterVerified: true,
+    tags: ['Facebook', 'WhatsApp', 'Text Post', 'Product Launch'],
+    createdAt: '1 hour ago',
+    instructions: [
+      'Craft an original product text post (at least 30 words) following the Zuri Serum key benefits.',
+      'Publish ONLY on Facebook or WhatsApp (Status, Business Broadcast, or WhatsApp Channel).',
+      'Include the campaign tags #ZuriBotanicals and #GlowWithShea in your post.',
+      'Submit your Facebook post URL or WhatsApp Channel link / Status proof screenshot alongside the text posted.'
+    ],
+    creatorCampaignConfig: {
+      productName: 'Zuri Shea & Moringa Repair Serum',
+      productCategory: 'Natural Skincare Product',
+      productTagline: 'Cold-pressed East African shea & moringa hydration formulated for daily skin barrier care.',
+      allowedPlatforms: ['Facebook', 'WhatsApp'],
+      allowedFormats: ['text-post'],
+      campaignBrief: 'Publish an engaging product story/text post sharing why cold-pressed shea and moringa oil keeps skin hydrated without greasy residue. Promote only the Zuri Serum product.',
+      talkingPoints: [
+        'Mention 100% cold-pressed Ugandan shea & Kenyan moringa ingredients',
+        'Highlight lightweight non-greasy absorption for humid & dry climates',
+        'Share pricing availability and direct order call-to-action'
+      ],
+      requiredHashtags: ['#ZuriBotanicals', '#GlowWithShea'],
+      minWordCount: 30
+    }
+  },
+
+  // 13. CREATOR CAMPAIGN: ALL 4 PLATFORMS BLITZ (VOLTMAX POWERBANK)
+  {
+    id: 'task-creator-704',
+    title: 'Multi-Channel Product Blitz: VoltMax 20K Fast Powerbank (FB, IG, TikTok, WA)',
+    category: 'creator-campaign',
+    description: 'Create a Reel, Video, or Text Post showcasing the VoltMax 20,000mAh PD Powerbank across Facebook, Instagram, TikTok, or WhatsApp.',
+    reward: 0.3846,
+    estimatedMinutes: 15,
+    difficulty: 'Intermediate',
+    spotsRemaining: 28,
+    totalSpots: 90,
+    requesterName: 'VoltMax Accessories EA',
+    requesterRating: 4.9,
+    requesterVerified: true,
+    tags: ['Facebook', 'Instagram', 'TikTok', 'WhatsApp', 'Reel', 'Video', 'Text Post'],
+    createdAt: '2 hours ago',
+    instructions: [
+      'Pick ONE content format (Reel, Video, or detailed Text Post) highlighting the VoltMax 20,000mAh PD Powerbank.',
+      'Publish exclusively on Facebook, Instagram, TikTok, or WhatsApp using the product brief.',
+      'Include #VoltMax20K and #StayPoweredEA in your post or WhatsApp Status caption.',
+      'Verify your published post URL or WhatsApp Status/Channel proof to earn your creator reward (up to 50 shillings max).'
+    ],
+    creatorCampaignConfig: {
+      productName: 'VoltMax 20,000mAh 65W PD Powerbank',
+      productCategory: 'Mobile Electronics Product',
+      productTagline: 'Charge phones 4x or power laptops on the move with 65W USB-C Power Delivery.',
+      allowedPlatforms: ['Instagram', 'TikTok', 'Facebook', 'WhatsApp'],
+      allowedFormats: ['reel', 'video', 'text-post'],
+      campaignBrief: 'Show creators, students, and remote workers how VoltMax 20K keeps phones and USB-C laptops running during travel or power outages. Feature the VoltMax Powerbank product exclusively.',
+      talkingPoints: [
+        '65W USB-C fast charging capable of charging laptops and phones simultaneously',
+        '20,000mAh airline-safe high-density battery with LED charge percentage readout',
+        'Built-in surge & thermal protection for long battery health'
+      ],
+      requiredHashtags: ['#VoltMax20K', '#StayPoweredEA'],
+      minDurationSeconds: 15,
+      minWordCount: 25
+    }
+  },
+
+  // 14. FREE-ELIGIBLE MINI SURVEY (Max 50 shillings)
+  {
+    id: 'task-surv-300',
+    title: 'East Africa Quick App Experience Check (3 Questions)',
+    category: 'survey',
+    description: 'Answer 3 quick questions about mobile banking reliability and app speed in your city (eligible for 1 Free daily task, max 50 shillings).',
+    reward: 0.2308,
+    estimatedMinutes: 2,
+    difficulty: 'Beginner',
+    spotsRemaining: 140,
+    totalSpots: 400,
+    requesterName: 'Nairobi UX Labs',
+    requesterRating: 4.9,
+    requesterVerified: true,
+    tags: ['Free Tier Eligible', 'Quick Survey', 'Mobile UX'],
+    createdAt: '5 mins ago',
+    instructions: [
+      'Answer all 3 questions based on your experience this week.',
+      'Free tier members may complete 1 free task daily not exceeding 50 shillings.'
+    ],
+    surveyQuestions: [
+      {
+        id: 'f_q1',
+        type: 'single-choice',
+        question: 'Which East African payment method gives you the fastest checkout speed?',
+        options: ['M-PESA', 'Airtel Money', 'MTN MoMo', 'Bank Card'],
+        required: true
+      },
+      {
+        id: 'f_q2',
+        type: 'scale',
+        question: 'Rate your mobile internet reliability when working online today (1-10):',
+        scaleMin: 1,
+        scaleMax: 10,
+        scaleMinLabel: 'Slow / Unstable',
+        scaleMaxLabel: 'Very Fast',
+        required: true
+      },
+      {
+        id: 'f_q3',
+        type: 'text',
+        question: 'In one sentence, what improvement would make mobile payments even easier?',
+        required: true,
+        minChars: 15
+      }
+    ]
+  },
+
+  // 15. STARTER PASS SURVEY (Max 50 shillings)
+  {
+    id: 'task-surv-303',
+    title: 'Starter Survey: Mobile Data Bundles & Social Usage Habits',
+    category: 'survey',
+    description: 'Share how much you spend weekly on mobile bundles and which apps consume most of your work data (max 50 shillings).',
+    reward: 0.3077,
+    estimatedMinutes: 3,
+    difficulty: 'Beginner',
+    spotsRemaining: 95,
+    totalSpots: 250,
+    requesterName: 'EA Telecom Insights',
+    requesterRating: 4.8,
+    requesterVerified: true,
+    tags: ['Starter Pass', 'Survey', 'Telecom'],
+    createdAt: '25 mins ago',
+    instructions: [
+      'Select your primary telecom network and weekly data spending range.',
+      'Eligible for Starter (2/day), Pro (3/day), and VIP (4 surveys/day) passes — max 50 shillings per completed task.'
+    ],
+    surveyQuestions: [
+      {
+        id: 'st_q1',
+        type: 'single-choice',
+        question: 'Which network do you primarily rely on for daily remote tasks?',
+        options: ['Safaricom', 'Airtel', 'MTN', 'Vodacom / Halotel / Other'],
+        required: true
+      },
+      {
+        id: 'st_q2',
+        type: 'single-choice',
+        question: 'How often do you buy daily or weekly data bundles?',
+        options: ['Daily', 'Every 2-3 days', 'Weekly', 'Monthly Wi-Fi / Fiber'],
+        required: true
+      },
+      {
+        id: 'st_q3',
+        type: 'text',
+        question: 'What matters most when choosing an affordable bundle for online work?',
+        required: true,
+        minChars: 20
+      }
+    ]
+  },
+
+  // 16. STARTER PASS MICRO TASK (Max 50 shillings)
+  {
+    id: 'task-micro-603',
+    title: 'Starter Micro Check: Verify Mobile Checkout Clarity & Fees',
+    category: 'micro',
+    description: 'Inspect a simulated merchant checkout screen and flag unclear hidden fees or missing M-PESA confirmation labels.',
+    reward: 0.1923,
+    estimatedMinutes: 2,
+    difficulty: 'Beginner',
+    spotsRemaining: 110,
+    totalSpots: 300,
+    requesterName: 'PayClear Audit EA',
+    requesterRating: 4.9,
+    requesterVerified: true,
+    tags: ['Starter Pass', 'Micro Audit', 'Mobile Money'],
+    createdAt: '35 mins ago',
+    instructions: [
+      'Review the checkout transparency criteria.',
+      'Select the option that best matches clear East Africa fee disclosure.'
+    ],
+    microConfig: {
+      type: 'ui-audit',
+      title: 'Which fee breakdown screen is clearest before clicking Pay?',
+      steps: [
+        'Compare visible local currency amount & charges',
+        'Verify M-PESA recipient digits are clearly highlighted',
+        'Submit your audit rating'
+      ],
+      options: [
+        'Bold Recipient Number + Exact Shillings Amount Shown Upfront',
+        'Total Hidden Until SMS Prompt Arrives',
+        'Requires Extra Fee Calculation'
+      ]
+    }
+  },
+
+  // 17. VIP PASS SURVEY (Max 50 shillings)
+  {
+    id: 'task-surv-304',
+    title: 'VIP Survey: East Africa Digital Banking & Instant Credit Study',
+    category: 'survey',
+    description: 'In-depth financial study evaluating digital savings wallets, Fuliza/MoMo loans, and merchant QR adoption across East Africa (max 50 shillings).',
+    reward: 0.3846,
+    estimatedMinutes: 6,
+    difficulty: 'Intermediate',
+    spotsRemaining: 60,
+    totalSpots: 180,
+    requesterName: 'Kigali & Nairobi Fintech Council',
+    requesterRating: 5.0,
+    requesterVerified: true,
+    tags: ['VIP Survey', 'Digital Banking', 'East Africa'],
+    createdAt: '12 mins ago',
+    instructions: [
+      'Complete all 4 questions carefully with real-world East Africa context.',
+      'Designed for VIP Worker Pass (up to 4 surveys daily, max 50 shillings per survey).'
+    ],
+    surveyQuestions: [
+      {
+        id: 'vip_q1',
+        type: 'single-choice',
+        question: 'Which digital banking or wallet service do you trust most for saving earnings?',
+        options: ['M-PESA M-Shwari / Ziidi', 'KCB / Equity Mobile App', 'Airtel / MTN MoMo Vault', 'MTN / Wise Multi-Currency'],
+        required: true
+      },
+      {
+        id: 'vip_q2',
+        type: 'multiple-choice',
+        question: 'Which digital payment features do you use weekly?',
+        options: ['Pochi la Biashara / Till Pay', 'Paybill Bills Payment', 'International Remittance', 'Savings Goal Lock'],
+        required: true
+      },
+      {
+        id: 'vip_q3',
+        type: 'scale',
+        question: 'How likely are you to switch banks/wallets for instant zero-fee withdrawals?',
+        scaleMin: 1,
+        scaleMax: 10,
+        scaleMinLabel: 'Unlikely',
+        scaleMaxLabel: 'Definitely Switching',
+        required: true
+      },
+      {
+        id: 'vip_q4',
+        type: 'text',
+        question: 'Describe one security or verification feature that gives you confidence when sending money.',
+        required: true,
+        minChars: 25
+      }
+    ]
   }
 ];
 

@@ -1,7 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { convertKesToLocal } from '../lib/eastAfrica';
+import {
+  convertUsdToLocal,
+  formatCurrencyFromUsd,
+  formatCurrencyFromKes,
+  WITHDRAWAL_THRESHOLD_USD,
+} from '../lib/eastAfrica';
 import {
   Share2,
   Copy,
@@ -34,9 +39,16 @@ export const ReferralDashboard: React.FC = () => {
     setActiveTab
   } = useTasks();
   const { selectedCountry } = useRegion();
-  const starterLocal = convertKesToLocal(50, selectedCountry);
-  const proLocal = convertKesToLocal(100, selectedCountry);
-  const vipLocal = convertKesToLocal(200, selectedCountry);
+  const starterLabel = formatCurrencyFromKes(50, selectedCountry);
+  const proLabel = formatCurrencyFromKes(100, selectedCountry);
+  const vipLabel = formatCurrencyFromKes(200, selectedCountry);
+  const vipReferralCount =
+    referralStats.vipReferralCount ??
+    referralHistory.filter(
+      (r) =>
+        (r.packageId === 'vip' || r.passPurchased.toLowerCase().includes('vip')) &&
+        r.status === 'Credited'
+    ).length;
 
   const [copied, setCopied] = useState(false);
   const [editingCode, setEditingCode] = useState(false);
@@ -77,15 +89,15 @@ export const ReferralDashboard: React.FC = () => {
   }, [referralHistory, searchFilter, tierFilter]);
 
   const handleExportCSV = () => {
-    const headers = ['Transaction ID', 'Referee Name', 'Country', 'Date Joined', 'Pass Tier', 'Pass Price ($)', 'Commission ($)', 'Method', 'Status'];
+    const headers = ['Transaction ID', 'Referee Name', 'Country', 'Date Joined', 'Pass Tier', `Pass Price (${selectedCountry.currency})`, `Commission (${selectedCountry.currency})`, 'Method', 'Status'];
     const rows = filteredHistory.map((r) => [
       r.transactionId,
       r.refereeName,
       r.refereeCountry,
       r.dateJoined,
       r.passPurchased,
-      r.passPrice.toFixed(2),
-      r.commissionEarned.toFixed(2),
+      convertUsdToLocal(r.passPrice, selectedCountry),
+      convertUsdToLocal(r.commissionEarned, selectedCountry),
       r.paymentMethod,
       r.status
     ]);
@@ -120,7 +132,7 @@ export const ReferralDashboard: React.FC = () => {
               Referral Partner Dashboard
             </h1>
             <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-              Share your unique invite link with friends, students, and remote workers across East Africa. Whenever a referred user signs up and purchases a <strong className="text-slate-800">Worker Pass (KES 50, KES 100, or KES 200)</strong>, you earn an instant <strong className="text-slate-800">20% commission</strong> credited directly to your balance.
+              Share your unique invite link with friends, students, and remote workers across East Africa. Whenever a referred user signs up and purchases a <strong className="text-slate-800">Worker Pass ({starterLabel}, {proLabel}, or {vipLabel})</strong>, you earn an instant <strong className="text-slate-800">20% commission</strong> credited directly to your balance.
             </p>
           </div>
 
@@ -130,7 +142,7 @@ export const ReferralDashboard: React.FC = () => {
               onClick={() => setWalletOpen(true)}
               className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs"
             >
-              Withdraw Earnings (${userStats.balance.toFixed(2)}) →
+              Withdraw Earnings ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) →
             </button>
           </div>
         </div>
@@ -244,7 +256,7 @@ export const ReferralDashboard: React.FC = () => {
         <div className="p-3 border-r border-slate-100 last:border-r-0">
           <div className="text-xs text-slate-500 font-medium">Total Commission Earned</div>
           <div className="text-2xl font-bold font-mono text-emerald-600 tabular-nums mt-1">
-            ${referralStats.totalCommissionEarned.toFixed(2)}
+            {formatCurrencyFromUsd(referralStats.totalCommissionEarned, selectedCountry)}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">Credited to wallet balance</div>
         </div>
@@ -254,7 +266,7 @@ export const ReferralDashboard: React.FC = () => {
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.commissionPercentage}%
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">On all pass tiers (KES 50–200)</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">On all pass tiers ({starterLabel}–{vipLabel})</div>
         </div>
 
         <div className="p-3 border-r border-slate-100 last:border-r-0">
@@ -262,7 +274,9 @@ export const ReferralDashboard: React.FC = () => {
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.passesPurchasedCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Converted contributors</div>
+          <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+            {vipReferralCount} VIP ({vipLabel}) activated
+          </div>
         </div>
 
         <div className="p-3">
@@ -279,13 +293,13 @@ export const ReferralDashboard: React.FC = () => {
         <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900">Starter Pass Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">KES 50 ({selectedCountry.currency} {starterLocal.toLocaleString()})</span>
+            <span className="text-xs font-mono font-bold text-slate-700">{starterLabel}</span>
           </div>
           <div className="text-xl font-bold font-mono text-emerald-600 tabular-nums">
-            +KES 10 (~$0.08)
+            +{formatCurrencyFromKes(10, selectedCountry)}
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            When your invitee activates the KES 50 Starter Pass for survey access, you instantly receive 20% in your wallet.
+            When your invitee activates the {starterLabel} Starter Pass for survey access, you instantly receive 20% in your wallet.
           </p>
         </div>
 
@@ -295,26 +309,26 @@ export const ReferralDashboard: React.FC = () => {
               <span className="text-xs font-bold text-brand-950">Pro Tasker Referral</span>
               <span className="text-[10px] font-bold text-brand-600">Most Popular</span>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-700">KES 100 ({selectedCountry.currency} {proLocal.toLocaleString()})</span>
+            <span className="text-xs font-mono font-bold text-slate-700">{proLabel}</span>
           </div>
           <div className="text-xl font-bold font-mono text-brand-600 tabular-nums">
-            +KES 20 (~$0.15)
+            +{formatCurrencyFromKes(20, selectedCountry)}
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn KES 20 (~$0.15) each time a referral unlocks AI Annotation, Receipt Entry, and Meme Bounties with the KES 100 Pro Pass.
+            Earn {formatCurrencyFromKes(20, selectedCountry)} each time a referral unlocks AI Annotation, Receipt Entry, and Meme Bounties with the {proLabel} Pro Pass.
           </p>
         </div>
 
         <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900">VIP Taskmaster Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">KES 200 ({selectedCountry.currency} {vipLocal.toLocaleString()})</span>
+            <span className="text-xs font-mono font-bold text-slate-700">{vipLabel}</span>
           </div>
           <div className="text-xl font-bold font-mono text-amber-600 tabular-nums">
-            +KES 40 (~$0.31)
+            +{formatCurrencyFromKes(40, selectedCountry)}
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn KES 40 (~$0.31) commission when top freelancers purchase the KES 200 VIP Pass for copywriting and unlimited task quotas.
+            Earn {formatCurrencyFromKes(40, selectedCountry)} commission when top freelancers purchase the {vipLabel} VIP Pass for copywriting and 4 daily surveys.
           </p>
         </div>
       </div>
@@ -344,7 +358,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'starter' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Starter (KES 50)
+                Starter ({starterLabel})
               </button>
               <button
                 type="button"
@@ -353,7 +367,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'pro' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Pro (KES 100)
+                Pro ({proLabel})
               </button>
               <button
                 type="button"
@@ -362,7 +376,7 @@ export const ReferralDashboard: React.FC = () => {
                   simulatedTier === 'vip' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                VIP (KES 200)
+                VIP ({vipLabel})
               </button>
             </div>
 
@@ -373,7 +387,7 @@ export const ReferralDashboard: React.FC = () => {
             >
               <Zap className="w-4 h-4 fill-current" />
               <span>
-                Simulate Purchase (+${simulatedTier === 'starter' ? '0.08' : simulatedTier === 'vip' ? '0.31' : '0.15'})
+                Simulate Purchase (+{formatCurrencyFromKes(simulatedTier === 'starter' ? 10 : simulatedTier === 'vip' ? 40 : 20, selectedCountry)})
               </span>
             </button>
           </div>
@@ -412,9 +426,9 @@ export const ReferralDashboard: React.FC = () => {
               className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 outline-hidden"
             >
               <option value="all">All Passes</option>
-              <option value="starter">Starter Pass (KES 50)</option>
-              <option value="pro">Pro Pass (KES 100)</option>
-              <option value="vip">VIP Pass (KES 200)</option>
+              <option value="starter">Starter Pass ({starterLabel})</option>
+              <option value="pro">Pro Pass ({proLabel})</option>
+              <option value="vip">VIP Pass ({vipLabel})</option>
             </select>
 
             {/* Export CSV */}
@@ -475,7 +489,7 @@ export const ReferralDashboard: React.FC = () => {
                     </td>
 
                     <td className="py-3 text-right font-mono font-bold text-emerald-600 tabular-nums">
-                      +${item.commissionEarned.toFixed(2)}
+                      +{formatCurrencyFromUsd(item.commissionEarned, selectedCountry)}
                     </td>
 
                     <td className="py-3 text-right">
@@ -499,7 +513,7 @@ export const ReferralDashboard: React.FC = () => {
           <div className="flex items-center gap-2 text-slate-600">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              All referral commissions are combined with task earnings toward your <strong>$20.00 withdrawal milestone</strong>.
+              All referral commissions are combined with task earnings toward your <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} withdrawal milestone</strong>.
             </span>
           </div>
 
