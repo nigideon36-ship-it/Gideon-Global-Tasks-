@@ -1,3 +1,5 @@
+import { CANONICAL_PLATFORM_ORIGIN, resolvePlatformOrigin } from './platformUrl.ts';
+
 export interface SitemapEntry {
   url: string;
   changefreq: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
@@ -5,8 +7,7 @@ export interface SitemapEntry {
   lastmod?: string;
 }
 
-const DEFAULT_PUBLIC_BASE_URL =
-  'https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app';
+const DEFAULT_PUBLIC_BASE_URL = CANONICAL_PLATFORM_ORIGIN;
 
 function escapeXml(value: string): string {
   return value
@@ -18,16 +19,18 @@ function escapeXml(value: string): string {
 }
 
 export function generateSitemapXml(baseUrl: string = DEFAULT_PUBLIC_BASE_URL): string {
-  const cleanBase = (baseUrl || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
+  const cleanBase = resolvePlatformOrigin(baseUrl);
   const today = new Date().toISOString().split('T')[0];
 
   const entries: SitemapEntry[] = [
     // 1. Core Marketplace Root & Primary App Routes
     { url: `${cleanBase}/`, changefreq: 'daily', priority: '1.0', lastmod: today },
-    { url: `${cleanBase}/packages`, changefreq: 'weekly', priority: '0.9', lastmod: today },
     { url: `${cleanBase}/referrals`, changefreq: 'weekly', priority: '0.9', lastmod: today },
     { url: `${cleanBase}/task-history`, changefreq: 'daily', priority: '0.8', lastmod: today },
     { url: `${cleanBase}/leaderboard`, changefreq: 'daily', priority: '0.8', lastmod: today },
+    { url: `${cleanBase}/auctions`, changefreq: 'daily', priority: '0.9', lastmod: today },
+    { url: `${cleanBase}/pay-per-view`, changefreq: 'daily', priority: '0.9', lastmod: today },
+    { url: `${cleanBase}/investments`, changefreq: 'weekly', priority: '0.8', lastmod: today },
     { url: `${cleanBase}/employer`, changefreq: 'weekly', priority: '0.8', lastmod: today },
 
     // 2. Task Category Filtering Hubs

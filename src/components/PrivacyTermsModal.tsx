@@ -82,7 +82,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
 
               <h3 className="text-sm font-bold text-slate-900">1. Information We Collect</h3>
               <p>
-                Gideon Global Tasks collects information you provide directly to us when creating an account, authenticating via Google OAuth or East Africa mobile number, verifying regional eligibility, purchasing contributor passes (KES 50, KES 100, KES 200), completing tasks, and requesting withdrawals via M-PESA, Airtel/MTN MoMo, or East Africa Bank. This includes your name, phone number, optional email address, transaction identifiers, and task responses.
+                Gideon Global Tasks collects information you provide directly to us when creating an account, authenticating via Google OAuth or East Africa mobile number, verifying regional eligibility, completing Front and Back National ID KYC verification for withdrawals, participating in 50% PayPal escrow auctions, completing daily tasks, and requesting withdrawals strictly via PayPal. This includes your name, phone number, National ID metadata, PayPal email address, transaction identifiers, and task responses.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">2. Google AdSense & Third-Party Cookies</h3>
@@ -110,24 +110,24 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
             </>
           ) : (
             <>
-              <h3 className="text-sm font-bold text-slate-900">1. East Africa Contributor Eligibility &amp; Worker Passes</h3>
+              <h3 className="text-sm font-bold text-slate-900">1. East Africa Access, Free Participation &amp; 8:00 AM EAT Daily Drop</h3>
               <p>
-                Gideon Global Tasks is restricted exclusively to residents in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Users unlock task categories by activating a Starter ({formatCurrencyFromKes(50, selectedCountry)}), Pro ({formatCurrencyFromKes(100, selectedCountry)}), or VIP ({formatCurrencyFromKes(200, selectedCountry)}) worker pass strictly via fresh deposit in their local East African currency (M-PESA 0758727558, Paystack STK, Airtel / MTN MoMo, or East Africa Card). Wallet balance cannot be used to purchase Worker Passes or Investments.
+                Gideon Global Tasks serves East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia) with 100% free contributor access—no Worker Pass or paid tier is required. Exactly 1 vetted task drops daily at 08:00 AM EAT (UTC+3), with rewards determined by the task type and sponsoring merchant budget. All platform deposits and investment pools use PayPal exclusively; wallet balance cannot be used to fund external pools or escrow deposits.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">2. Task Approval &amp; Quality Standards</h3>
+              <h3 className="text-sm font-bold text-slate-900">2. Task Quality &amp; 50% PayPal Auction Escrow Protection</h3>
               <p>
-                All completed tasks undergo automated and human quality audits. Contributors maintain a quality score (target 95%+). Honest completion is required; automated bots, non-East Africa VPN usage, or fraudulent submissions will result in immediate pass revocation.
+                All completed tasks undergo automated and human quality audits. On Product Auctions, both sellers and first-time bidders/buyers must pay a 50% security escrow deposit via PayPal first to safeguard real-item trades and enable buyer/seller compensation if any auction dispute arises.
               </p>
 
-              <h3 className="text-sm font-bold text-slate-900">3. Payout Thresholds &amp; Methods</h3>
+              <h3 className="text-sm font-bold text-slate-900">3. PayPal Withdrawals &amp; Strict Front/Back National ID KYC</h3>
               <p>
-                Withdrawals start from a minimum threshold of <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> to maintain high liquidity and reduce transaction fees. Payouts are disbursed to verified East Africa M-PESA, Airtel / MTN MoMo, and East Africa Bank accounts.
+                Withdrawals start from <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> (150 Kenyan Shillings converted accurately across East Africa currencies) and are disbursed exclusively via verified PayPal. To unlock withdrawals, customers must upload clear Front and Back images of their country&apos;s National ID for Platform Owner KYC approval.
               </p>
 
               <h3 className="text-sm font-bold text-slate-900">4. Referral Program</h3>
               <p>
-                Users earn a guaranteed 20% commission on any worker pass purchased by people joining through their unique referral link. Commissions are credited immediately upon payment confirmation.
+                Members earn a 20% referral share on verified qualifying platform commissions from users joining through their unique referral link.
               </p>
             </>
           )}

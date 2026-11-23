@@ -11,11 +11,7 @@ import {
 } from './customerAuth.ts';
 
 export type InvestmentPlanId = 'starter-7d' | 'growth-14d' | 'vip-30d';
-export type InvestmentDepositMethod =
-  | 'Manual M-PESA 0758727558'
-  | 'Paystack M-PESA STK'
-  | 'Paystack Card'
-  | 'Mobile Money';
+export type InvestmentDepositMethod = 'PayPal' | 'PayPal International';
 
 export type InvestmentStatus =
   | 'Pending Owner Approval'
@@ -82,7 +78,6 @@ export interface CustomerInvestmentRecord {
   expectedReturnUsd: number;
   durationDays: number;
   depositMethod: InvestmentDepositMethod;
-  payToNumber?: '0758727558';
   senderPhone?: string;
   paymentReference: string;
   screenshotDataUrl?: string;
@@ -188,10 +183,8 @@ loadInvestmentsFromDisk();
 void hydrateInvestmentsFromFirestore();
 
 const ALLOWED_DEPOSIT_METHODS = new Set<InvestmentDepositMethod>([
-  'Manual M-PESA 0758727558',
-  'Paystack M-PESA STK',
-  'Paystack Card',
-  'Mobile Money',
+  'PayPal',
+  'PayPal International',
 ]);
 
 export function createInvestmentDeposit(params: {
@@ -210,14 +203,14 @@ export function createInvestmentDeposit(params: {
   screenshotFileName?: string;
   verifiedGatewayStatus?: 'Active';
 }): CustomerInvestmentRecord {
-  const methodRaw = String(params.depositMethod || '').trim();
+  const methodRaw = String(params.depositMethod || 'PayPal').trim();
 
   if (
     params.useWalletBalance === true ||
     methodRaw.toLowerCase().includes('wallet')
   ) {
     throw new InvestmentValidationError(
-      'Investments cannot be funded using your Wallet Balance. You must deposit fresh funds starting from KES 50+ via M-PESA (0758727558), Paystack STK, or Card.',
+      'Investments cannot be funded using your Wallet Balance. You must deposit fresh funds starting from KES 50+ via PayPal.',
       400
     );
   }
@@ -225,7 +218,7 @@ export function createInvestmentDeposit(params: {
   const depositMethod = methodRaw as InvestmentDepositMethod;
   if (!ALLOWED_DEPOSIT_METHODS.has(depositMethod)) {
     throw new InvestmentValidationError(
-      'Select a valid deposit method (Manual M-PESA 0758727558, Paystack M-PESA STK, Paystack Card, or Mobile Money). Wallet balance is not accepted.',
+      'Only PayPal deposits are accepted for Investment Pools. Wallet balance is not accepted.',
       400
     );
   }
@@ -274,37 +267,19 @@ export function createInvestmentDeposit(params: {
   }
 
   const cleanRef = String(params.paymentReference || '').trim().toUpperCase();
-  const isManual =
-    depositMethod === 'Manual M-PESA 0758727558' || depositMethod === 'Mobile Money';
-
-  if (isManual) {
-    if (!/^[A-Z0-9_-]{6,30}$/.test(cleanRef)) {
+  if (!/^[A-Z0-9_-]{6,40}$/.test(cleanRef)) {
+    throw new InvestmentValidationError(
+      'Enter your valid PayPal Transaction ID (6–40 characters) after completing PayPal checkout.',
+      400
+    );
+  }
+  for (const existing of investmentsById.values()) {
+    if (existing.paymentReference === cleanRef && existing.status !== 'Rejected') {
       throw new InvestmentValidationError(
-        'Enter your valid M-PESA / Mobile Money confirmation code (6–30 characters) paid to 0758727558.',
-        400
+        `PayPal reference ${cleanRef} has already been submitted for another investment.`,
+        409
       );
     }
-    const cleanScreenshot = String(params.screenshotDataUrl || '').trim();
-    if (!cleanScreenshot.startsWith('data:image/') || cleanScreenshot.length < 100) {
-      throw new InvestmentValidationError(
-        'Upload a clear payment screenshot showing your KES deposit to 0758727558.',
-        400
-      );
-    }
-
-    for (const existing of investmentsById.values()) {
-      if (
-        existing.paymentReference === cleanRef &&
-        existing.status !== 'Rejected'
-      ) {
-        throw new InvestmentValidationError(
-          `M-PESA confirmation code ${cleanRef} has already been submitted for another investment.`,
-          409
-        );
-      }
-    }
-  } else if (!cleanRef) {
-    throw new InvestmentValidationError('Missing verified payment gateway reference.', 400);
   }
 
   const normalizedSender = params.senderPhone
@@ -345,7 +320,6 @@ export function createInvestmentDeposit(params: {
     expectedReturnUsd,
     durationDays: plan.durationDays,
     depositMethod,
-    ...(isManual ? { payToNumber: '0758727558' as const } : {}),
     senderPhone: normalizedSender,
     paymentReference: cleanRef,
     screenshotDataUrl: params.screenshotDataUrl ? String(params.screenshotDataUrl) : undefined,
@@ -456,7 +430,7 @@ export function rejectInvestment(params: {
   rec.reviewedAt = nowIso;
   rec.ownerNotes =
     String(params.reason || '').trim().slice(0, 240) ||
-    'Deposit payment proof could not be verified on 0758727558.';
+    'PayPal payment proof could not be verified.';
   rec.updatedAt = nowIso;
 
   investmentsById.set(rec.id, rec);

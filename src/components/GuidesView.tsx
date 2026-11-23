@@ -1,300 +1,345 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
+import { formatCurrencyFromKes } from '../lib/eastAfrica';
 import {
-  EastAfricaCountry,
-  formatCurrencyFromKes,
-  formatCurrencyFromUsd,
-  MAX_TASK_REWARD_KES,
-  WITHDRAWAL_THRESHOLD_USD,
-} from '../lib/eastAfrica';
-import { BookOpen, Sparkles, CheckCircle2, ArrowRight, Clock, User, Bookmark, ChevronRight } from 'lucide-react';
-
-interface GuideArticle {
-  id: string;
-  title: string;
-  subtitle: string;
-  category: string;
-  readTime: string;
-  author: string;
-  date: string;
-  content: {
-    heading: string;
-    body: string[];
-    takeaways: string[];
-  }[];
-}
-
-const getGuides = (country: EastAfricaCountry): GuideArticle[] => {
-  const maxTaskCap = formatCurrencyFromKes(MAX_TASK_REWARD_KES, country);
-  const pass50 = formatCurrencyFromKes(50, country);
-  const pass100 = formatCurrencyFromKes(100, country);
-  const threshold = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, country);
-  return [
-  {
-    id: 'ai-data-annotation-manual',
-    title: 'The 2026 Manual for AI Training Data: From Pixels to Autonomous Bounding Boxes',
-    subtitle: 'How human-in-the-loop annotation bridges the gap between raw camera streams and safe autonomous vehicle perception.',
-    category: 'Computer Vision & AI',
-    readTime: '6 min read',
-    author: 'AI Research Team, Gideon Global',
-    date: 'Updated November 2026',
-    content: [
-      {
-        heading: '1. Why Autonomous Vehicles Require Ground-Truth Human Labeling',
-        body: [
-          'Modern deep learning perception architectures (such as Vision Transformers and Convolutional Neural Networks) are only as dependable as the labeled ground truth on which they are trained. While synthetic data generation has advanced, real-world edge cases—such as low-light pedestrians wearing raincoats, partial occlusions behind delivery vans, and reflective road puddles—routinely cause automated detectors to fail.',
-          'Human contributors on Gideon Global Tasks perform spatial localization using strict 2D bounding boxes. By drawing tight rectangular boundaries around target class instances (vehicles, pedestrians, cyclists, and traffic signals), human labelers supply the mathematical coordinates (x_min, y_min, x_max, y_max) needed to calculate Intersection over Union (IoU) loss during neural network backpropagation.'
-        ],
-        takeaways: [
-          'Tight bounding box margins prevent neural networks from learning background noise as object features.',
-          'Occluded objects must be labeled if at least 20% of the visible geometry is identifiable.',
-          'Class separation between pedestrians, scooters, and cyclists prevents severe trajectory prediction errors.'
-        ]
-      },
-      {
-        heading: '2. Avoiding Common Annotation Failure Modes',
-        body: [
-          'A frequent error in computer vision annotation is "loose bounding," where excess pavement or sky is captured within the box. This degrades detection accuracy by diluting the feature vector gradient. Contributors should ensure boundaries touch the outermost edge of tires, mirrors, and extremities without cutting off essential parts.',
-          'At Gideon Global Tasks, our Pro and VIP Contributor passes unlock autonomous driving verification suites featuring automated IoU threshold checks, guaranteeing requesters receive at least 98.5% precision on all delivered datasets.'
-        ],
-        takeaways: [
-          'Maintain a minimum IoU of 0.85 against master gold-standard verification frames.',
-          'Always classify emergency vehicles separately from commercial transport.',
-          'Use the 7-day streak multiplier bonus to maximize hourly earnings on long annotation sessions.'
-        ]
-      }
-    ]
-  },
-  {
-    id: 'market-research-survey-science',
-    title: 'How Global Consumer Surveys Power Billion-Dollar Product Strategy',
-    subtitle: 'Inside the quantitative mechanics of demographic sampling, attention checks, and representative polling.',
-    category: 'Consumer Intelligence',
-    readTime: '5 min read',
-    author: 'Market Research Directorate',
-    date: 'November 2026',
-    content: [
-      {
-        heading: '1. The Economics of Real-Time Global Polling',
-        body: [
-          'Before launching a consumer software product, physical beverage, or financial service, global enterprises invest millions validating consumer intent. Blind product development carries catastrophic failure rates; surveyed consumer feedback reduces market risk by matching features to verified consumer pain points.',
-          'Gideon Global Tasks distributes surveys exclusively across verified demographics in East Africa (Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia). Rather than relying on outdated telephone polling or easily gamed bot farms, our platform combines cryptographic Google account verification with randomized trap questions to ensure 100% authentic human sentiment.'
-        ],
-        takeaways: [
-          'Enterprises value thoughtful, comprehensive open-ended qualitative feedback over one-word answers.',
-          'Attention check questions (e.g., "Select option 3 to prove you are reading") safeguard data integrity.',
-          'Consistent quality scores above 95% unlock VIP survey queues (up to ' + maxTaskCap + ' per completed survey).'
-        ]
-      },
-      {
-        heading: '2. Tips for Contributors to Maximize Survey Earnings',
-        body: [
-          'To maintain an active survey qualification status, contributors must provide consistent demographic responses. Inconsistencies in age, country, or profession trigger automated security audits. Answering questions patiently and thoroughly ensures faster task approvals and priority placement in the global task queue.'
-        ],
-        takeaways: [
-          'Never rush through questions—survey algorithms flag answers completed faster than human reading speeds.',
-          'Check the Tasks Marketplace daily for newly published morning quotas.',
-          `Combine survey rewards with the Starter (${pass50}) or Pro (${pass100}) pass to expand daily task allowances.`
-        ]
-      }
-    ]
-  },
-  {
-    id: 'receipt-digitization-ocr-guide',
-    title: 'Receipt & Invoice OCR Digitization: Achieving 99.5%+ Precision in Accounting',
-    subtitle: 'A practical breakdown of optical character recognition limitations and human document extraction queues.',
-    category: 'Data Extraction & FinTech',
-    readTime: '5 min read',
-    author: 'Document Verification Group',
-    date: 'November 2026',
-    content: [
-      {
-        heading: '1. The Fragility of Optical Character Recognition (OCR)',
-        body: [
-          'While automated OCR engines (such as Tesseract or proprietary cloud vision APIs) excel on crisp digital PDFs, they routinely stumble when processing crinkled paper receipts, thermal printed register rolls, and skewed mobile camera snapshots. Characters like "8" and "B", or "0" and "O" are frequently swapped, which in accounting audits can introduce disastrous discrepancies.',
-          'Gideon Global Tasks deploys a hybrid pipeline: raw documents are pre-parsed by OCR, and human data entry specialists verify and correct transaction numbers, tax values, and merchant names. This human-in-the-loop workflow elevates overall data extraction accuracy from ~85% to over 99.5%.'
-        ],
-        takeaways: [
-          'Always key in the pre-tax subtotal and total balance due exactly as printed on the receipt.',
-          'Do not type currency symbols (e.g., KSh, USh, TSh, FRw) into numeric form fields unless requested.',
-          'If a receipt is partially torn, transcribe all legible line items and flag the document as damaged.'
-        ]
-      }
-    ]
-  },
-  {
-    id: 'micropayments-mpesa-wise-explained',
-    title: 'Demystifying Remote Micropayments: How M-PESA & Mobile Money Power Borderless Work',
-    subtitle: 'Why mobile money and instant regional transfers are replacing traditional banking for remote digital workers.',
-    category: 'FinTech & Payouts',
-    readTime: '6 min read',
-    author: 'Treasury & Payments Ops',
-    date: 'November 2026',
-    content: [
-      {
-        heading: '1. The Challenge of Cross-Border Digital Remittances',
-        body: [
-          'Across East Africa, traditional wire transfers and legacy PayPal links often impose steep fees, holds, or verification roadblocks. For digital workers earning micro-rewards from surveys and annotations, reliable local mobile money is essential.',
-          `Gideon Global Tasks solved this problem by focusing exclusively on East Africa and integrating direct M-PESA STK Push, Airtel / MTN MoMo, and Paystack Card checkout alongside zero-fee ${threshold}+ withdrawals.`
-        ],
-        takeaways: [
-          `The ${threshold} minimum withdrawal threshold protects platform liquidity and ensures 0% fee disbursement.`,
-          'M-PESA payouts generate immediate confirmation codes (e.g., QJH89K2P0L) for real-time mobile verification.',
-          'Worker Passes and Investment deposits are funded strictly via external mobile money or card deposits so your wallet earnings stay protected.'
-        ]
-      }
-    ]
-  }
-];
-};
+  getEditorialGuides,
+  GuideArticle,
+  GuideCategoryKey,
+} from '../data/editorialGuides';
+import {
+  BookOpen,
+  CheckCircle2,
+  ArrowRight,
+  Clock,
+  User,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
 
 export const GuidesView: React.FC = () => {
   const { setActiveTab } = useTasks();
   const { selectedCountry } = useRegion();
-  const guides = useMemo(() => getGuides(selectedCountry), [selectedCountry]);
-  const [selectedGuideId, setSelectedGuideId] = useState<string>('ai-data-annotation-manual');
-  const selectedGuide = guides.find((g) => g.id === selectedGuideId) || guides[0];
+  const guides = useMemo(() => getEditorialGuides(selectedCountry), [selectedCountry]);
+
+  const [categoryFilter, setCategoryFilter] = useState<'all' | GuideCategoryKey>('all');
+  const [selectedGuideId, setSelectedGuideId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const paramId = new URLSearchParams(window.location.search).get('guide')?.trim();
+      if (paramId) return paramId;
+    }
+    return 'ai-data-annotation-manual';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncFromQuery = () => {
+      const paramId = new URLSearchParams(window.location.search).get('guide')?.trim();
+      if (!paramId) return;
+      const matched = guides.find(
+        (g) => g.id === paramId || (g.legacyIds && g.legacyIds.includes(paramId))
+      );
+      if (matched) {
+        setSelectedGuideId(matched.id);
+      }
+    };
+    const handleCustomSelect = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      const guideId = customEvent.detail?.trim();
+      if (!guideId) return;
+      const matched = guides.find(
+        (g) => g.id === guideId || (g.legacyIds && g.legacyIds.includes(guideId))
+      );
+      if (matched) {
+        setSelectedGuideId(matched.id);
+      }
+    };
+    syncFromQuery();
+    window.addEventListener('popstate', syncFromQuery);
+    window.addEventListener('gideon:select-guide', handleCustomSelect as EventListener);
+    return () => {
+      window.removeEventListener('popstate', syncFromQuery);
+      window.removeEventListener('gideon:select-guide', handleCustomSelect as EventListener);
+    };
+  }, [guides]);
+
+  const filteredGuides = useMemo(() => {
+    if (categoryFilter === 'all') return guides;
+    return guides.filter((g) => g.categoryKey === categoryFilter);
+  }, [guides, categoryFilter]);
+
+  const selectedGuide: GuideArticle = useMemo(() => {
+    const exact = guides.find(
+      (g) => g.id === selectedGuideId || (g.legacyIds && g.legacyIds.includes(selectedGuideId))
+    );
+    if (exact) return exact;
+    return filteredGuides[0] || guides[0];
+  }, [guides, filteredGuides, selectedGuideId]);
+
+  const handleSelectGuide = (guideId: string) => {
+    setSelectedGuideId(guideId);
+    try {
+      window.history.replaceState({ tab: 'guides' }, '', `/guides?guide=${encodeURIComponent(guideId)}`);
+    } catch {}
+  };
 
   return (
     <div className="space-y-10 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="space-y-2 max-w-3xl">
-        <div className="inline-flex items-center gap-2 text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-100 px-3 py-1 rounded-full">
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>Educational Knowledge Base & Editorial Guides</span>
+      {/* Editorial Header */}
+      <header className="space-y-3 max-w-3xl pb-6 border-b border-slate-200">
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+          <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+          <span>Editorial Knowledge Base</span>
+          <span aria-hidden="true">·</span>
+          <span>East Africa Field Handbooks</span>
+          <span aria-hidden="true">·</span>
+          <span>Human-Edited</span>
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
-          Contributor Guides & Machine Learning Research
+        <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight text-balance">
+          Practical Handbooks for East African Contributors, Sellers &amp; Creators
         </h1>
-        <p className="text-xs md:text-sm text-slate-500 leading-relaxed">
-          Comprehensive, peer-reviewed educational articles on computer vision annotation, survey methodology, document digitization best practices, and remote micropayment economics.
+        <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+          Every guide below is written and maintained by our Nairobi operations desk from real review queues—covering street-scene image labeling, survey quality filters, thermal receipt math, PayPal settlement thresholds &amp; National ID KYC, 50% PayPal escrow auctions, and free Pay-Per-View 24-hour status payouts.
         </p>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Article Navigation Sidebar */}
-        <div className="lg:col-span-4 space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block px-1">
-            Featured Platform Manuals
-          </span>
-          <div className="space-y-2">
-            {guides.map((guide) => {
+        {/* Functional Category Filter Tabs */}
+        <div className="pt-2 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('all')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              categoryFilter === 'all'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            All Handbooks ({guides.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('data-work')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              categoryFilter === 'data-work'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Annotation, Surveys &amp; OCR
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('finance')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              categoryFilter === 'finance'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            PayPal, KYC &amp; Payouts
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('marketplace')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              categoryFilter === 'marketplace'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Auctions &amp; Pay-Per-View
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Sidebar Directory */}
+        <aside className="lg:col-span-4 space-y-4">
+          <div className="text-xs font-semibold text-slate-500 px-1">
+            Select a Handbook ({filteredGuides.length})
+          </div>
+          <div className="space-y-2.5">
+            {filteredGuides.map((guide, index) => {
               const isSelected = guide.id === selectedGuide.id;
               return (
                 <button
                   key={guide.id}
-                  onClick={() => setSelectedGuideId(guide.id)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all cursor-pointer border ${
+                  type="button"
+                  onClick={() => handleSelectGuide(guide.id)}
+                  className={`w-full text-left p-4 rounded-2xl transition-colors cursor-pointer border ${
                     isSelected
-                      ? 'bg-white border-brand-500 shadow-md ring-1 ring-brand-500'
-                      : 'bg-slate-50 hover:bg-white border-slate-200'
+                      ? 'bg-white border-brand-600 shadow-sm'
+                      : 'bg-slate-50/70 hover:bg-white border-slate-200'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mb-1">
-                    <span className="text-brand-600 font-semibold">{guide.category}</span>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-1.5">
+                    <span className="font-mono text-slate-400">0{index + 1}.</span>
+                    <span className="text-brand-700 font-semibold">{guide.category}</span>
+                    <span aria-hidden="true">·</span>
                     <span>{guide.readTime}</span>
                   </div>
-                  <h3 className={`text-xs font-bold line-clamp-2 ${isSelected ? 'text-slate-900' : 'text-slate-700'}`}>
+                  <h2
+                    className={`text-xs font-bold leading-snug ${
+                      isSelected ? 'text-slate-900' : 'text-slate-700'
+                    }`}
+                  >
                     {guide.title}
-                  </h3>
+                  </h2>
                 </button>
               );
             })}
           </div>
 
-          <div className="p-5 bg-gradient-to-br from-slate-900 to-brand-950 text-white rounded-2xl space-y-3 mt-6">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
-            <h4 className="font-bold text-xs">Ready to Apply These Techniques?</h4>
+          <div className="p-5 bg-slate-900 text-white rounded-2xl space-y-3 mt-4">
+            <h3 className="font-bold text-xs text-white">
+              8:00 AM EAT Daily Drop &amp; PayPal KYC
+            </h3>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Activate your Starter ({formatCurrencyFromKes(50, selectedCountry)}), Pro ({formatCurrencyFromKes(100, selectedCountry)}), or VIP ({formatCurrencyFromKes(200, selectedCountry)}) worker pass to start completing paid tasks right now.
+              Every contributor gets 100% free access (zero Worker Pass required) with 1 vetted task dropped daily at 08:00 AM EAT. Complete your {selectedCountry.idDocumentName} Front &amp; Back KYC to unlock PayPal withdrawals from {formatCurrencyFromKes(150, selectedCountry)}.
             </p>
             <button
-              onClick={() => setActiveTab('packages')}
-              className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-colors cursor-pointer"
             >
-              View Contributor Passes
+              Open Dashboard &amp; KYC
             </button>
           </div>
-        </div>
+        </aside>
 
-        {/* Selected Article Full View */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-6 md:p-10 shadow-sm space-y-8">
-          {/* Article Header */}
-          <div className="space-y-3 pb-6 border-b border-slate-100">
+        {/* Long-Form Editorial Article Canvas */}
+        <article
+          id={selectedGuide.id}
+          className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-6 md:p-10 shadow-xs space-y-8"
+        >
+          {/* Article Masthead */}
+          <header className="space-y-4 pb-6 border-b border-slate-200 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="px-2.5 py-0.5 bg-brand-50 text-brand-700 font-semibold rounded-md text-[11px]">
-                {selectedGuide.category}
-              </span>
-              <span>·</span>
-              <span className="flex items-center gap-1 font-mono text-[11px]">
+              <span className="font-semibold text-brand-700">{selectedGuide.category}</span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1 font-mono tabular-nums">
                 <Clock className="w-3 h-3" />
                 {selectedGuide.readTime}
               </span>
-              <span>·</span>
-              <span className="text-[11px]">{selectedGuide.date}</span>
+              <span aria-hidden="true">·</span>
+              <span>{selectedGuide.date}</span>
             </div>
 
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-tight">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight leading-tight text-balance">
               {selectedGuide.title}
             </h2>
 
-            <p className="text-sm text-slate-600 leading-relaxed font-medium">
+            <p className="text-sm md:text-base text-slate-600 leading-relaxed">
               {selectedGuide.subtitle}
             </p>
 
-            <div className="flex items-center gap-2 pt-2 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
               <User className="w-3.5 h-3.5 text-slate-400" />
-              <span>By <strong className="text-slate-800">{selectedGuide.author}</strong></span>
+              <span>
+                By <strong className="text-slate-900">{selectedGuide.author}</strong>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{selectedGuide.authorRole}</span>
             </div>
+          </header>
+
+          {/* Opening Editorial Note */}
+          <div className="max-w-2xl text-sm md:text-[15px] text-slate-700 leading-[1.75]">
+            <p>{selectedGuide.openingNote}</p>
           </div>
 
-          {/* Article Content Sections */}
-          <div className="space-y-8 text-xs md:text-sm text-slate-600 leading-relaxed">
-            {selectedGuide.content.map((sec, idx) => (
-              <div key={idx} className="space-y-4">
-                <h3 className="text-base md:text-lg font-bold text-slate-900">
+          {/* Article Body Sections */}
+          <div className="space-y-10 max-w-2xl text-sm md:text-[15px] text-slate-700 leading-[1.75]">
+            {selectedGuide.sections.map((sec, idx) => (
+              <section key={idx} className="space-y-4 pt-2 border-t border-slate-100">
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight pt-4">
                   {sec.heading}
                 </h3>
-                {sec.body.map((p, pIdx) => (
-                  <p key={pIdx} className="leading-relaxed">
-                    {p}
-                  </p>
+
+                {sec.body.map((paragraph, pIdx) => (
+                  <p key={pIdx}>{paragraph}</p>
                 ))}
 
-                {sec.takeaways && sec.takeaways.length > 0 && (
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 mt-4">
-                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                      Key Contributor Takeaways
-                    </span>
-                    <div className="space-y-1.5">
-                      {sec.takeaways.map((t, tIdx) => (
-                        <div key={tIdx} className="flex items-start gap-2 text-xs text-slate-700">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{t}</span>
+                {sec.example && (
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 my-4">
+                    <div className="text-xs font-bold text-slate-900">
+                      {sec.example.label}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div className="p-3.5 bg-white border border-emerald-200 rounded-xl space-y-1">
+                        <div className="font-bold text-emerald-800 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Accepted Example</span>
                         </div>
-                      ))}
+                        <p className="text-slate-600 leading-relaxed">{sec.example.good}</p>
+                      </div>
+                      <div className="p-3.5 bg-white border border-rose-200 rounded-xl space-y-1">
+                        <div className="font-bold text-rose-800 flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Common Rejection</span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">{sec.example.avoid}</p>
+                      </div>
                     </div>
                   </div>
                 )}
-              </div>
+
+                {sec.checklist.length > 0 && (
+                  <div className="p-5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2.5">
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Practical Checklist Before Submitting
+                    </span>
+                    <ul className="space-y-2">
+                      {sec.checklist.map((item, cIdx) => (
+                        <li key={cIdx} className="flex items-start gap-2.5 text-xs text-slate-700 leading-relaxed">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
             ))}
           </div>
 
-          {/* Article Footer & Action */}
-          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-            <span className="text-slate-400 text-[11px]">
-              Published under Gideon Global Open Research Standards · All rights reserved.
-            </span>
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className="px-4 py-2 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <span>Back to Tasks Marketplace</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+          {/* Editorial Review & Corrections Notice */}
+          <footer className="pt-6 border-t border-slate-200 space-y-4">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
+              <ShieldCheck className="w-4 h-4 text-slate-700 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-slate-900 block mb-0.5">Editorial &amp; Accuracy Note</strong>
+                Our handbooks are written by human editors based on live submission audits and player support tickets in East Africa. Spot an outdated carrier fee or rule? Email{' '}
+                <a href="mailto:nigideon36@gmail.com" className="text-brand-700 underline font-medium">
+                  nigideon36@gmail.com
+                </a>{' '}
+                for review.
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+              <span className="text-slate-500">
+                Gideon Global Tasks · East Africa Contributor Guides
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('pay-per-view')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-semibold transition-colors cursor-pointer"
+                >
+                  Open Pay-Per-View (Free)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tasks')}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <span>Browse Available Tasks</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </footer>
+        </article>
       </div>
     </div>
   );

@@ -2,15 +2,17 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
-import { getTodayDateKey } from '../lib/passQuotas';
+import { getTodayDateKey } from '../lib/taskEligibility';
 import {
-  MAX_TASK_REWARD_KES,
   WITHDRAWAL_THRESHOLD_USD,
+  meetsWithdrawalThreshold,
   convertUsdToLocal,
   formatCurrencyFromUsd,
   formatCurrencyFromKes,
 } from '../lib/eastAfrica';
 import { WithdrawalEligibilityGate } from './WithdrawalEligibilityGate';
+import { KycVerificationPanel } from './KycVerificationPanel';
+import { type AuctionItem, resolveAuctionImageUrl } from './AuctionsView';
 import {
   LayoutDashboard,
   CheckCircle2,
@@ -33,15 +35,17 @@ import {
   Award,
   User as UserIcon,
   Calendar,
+  Gavel,
 } from 'lucide-react';
 
 type DashboardSubTab =
   | 'overview'
   | 'tasks'
   | 'withdrawals'
+  | 'auctions'
   | 'analytics'
   | 'referrals'
-  | 'account-passes';
+  | 'account-kyc';
 
 interface ServerWithdrawalItem {
   id: string;
@@ -88,14 +92,11 @@ export const CustomerDashboard: React.FC = () => {
     referralHistory,
     referralStats,
     updateReferralCode,
-    activePackage,
     dailyQuotaStatus,
-    passProofs,
-    passBannedReason,
-    refreshPassProofs,
+    kycStatus,
+    refreshKycStatus,
     setActiveTab,
     setWalletOpen,
-    setPackagesModalOpen,
     setStreakModalOpen,
   } = useTasks();
 
@@ -134,6 +135,7 @@ export const CustomerDashboard: React.FC = () => {
     totalKes: number;
     expectedKes: number;
   }>({ count: 0, totalKes: 0, expectedKes: 0 });
+  const [auctionsList, setAuctionsList] = useState<AuctionItem[]>([]);
 
   const loadServerWithdrawals = useCallback(async () => {
     if (!activeToken) {
@@ -188,14 +190,31 @@ export const CustomerDashboard: React.FC = () => {
     } catch {}
   }, [activeToken]);
 
+  const loadAuctionsSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auctions');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.auctions)) {
+        setAuctionsList(data.auctions);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     void loadServerWithdrawals();
     void loadInvestmentsSummary();
-  }, [loadServerWithdrawals, loadInvestmentsSummary]);
+    void loadAuctionsSummary();
+  }, [loadServerWithdrawals, loadInvestmentsSummary, loadAuctionsSummary]);
 
   const handleRefreshAll = async () => {
     setRefreshingData(true);
-    await Promise.all([loadServerWithdrawals(), loadInvestmentsSummary(), refreshPassProofs()]);
+    await Promise.all([
+      loadServerWithdrawals(),
+      loadInvestmentsSummary(),
+      loadAuctionsSummary(),
+      refreshKycStatus(),
+    ]);
     setRefreshingData(false);
   };
 
@@ -323,10 +342,13 @@ export const CustomerDashboard: React.FC = () => {
       .filter((w) => w.status === 'Processing')
       .reduce((sum, w) => sum + w.amountUsd, 0);
 
+    const estimatedTaskRewardUsd = avgReward > 0 ? avgReward : 0.45;
     const maxDailyPotential = +(
-      dailyQuotaStatus.rule.dailyLimit * dailyQuotaStatus.rule.maxAmountUsd
+      dailyQuotaStatus.rule.dailyLimit * estimatedTaskRewardUsd
     ).toFixed(2);
-    const remainingTo20 = Math.max(0, 20 - userStats.balance);
+    const remainingTo20 = meetsWithdrawalThreshold(userStats.balance)
+      ? 0
+      : Math.max(0, WITHDRAWAL_THRESHOLD_USD - userStats.balance);
     const estDaysToCashout =
       remainingTo20 === 0
         ? 0
@@ -356,7 +378,7 @@ export const CustomerDashboard: React.FC = () => {
   const recentActivity = useMemo(() => {
     const events: {
       id: string;
-      kind: 'task' | 'withdrawal' | 'pass' | 'referral';
+      kind: 'task' | 'withdrawal' | 'referral';
       title: string;
       meta: string;
       amountLabel: string;
@@ -391,24 +413,11 @@ export const CustomerDashboard: React.FC = () => {
       });
     }
 
-    for (const p of passProofs.slice(0, 4)) {
-      events.push({
-        id: `p-${p.id}`,
-        kind: 'pass',
-        title: `${p.packageName} Proof (${formatCurrencyFromKes(p.amountKes, selectedCountry)})`,
-        meta: `M-PESA ${p.mpesaCode} → 0758727558`,
-        amountLabel: formatCurrencyFromKes(p.amountKes, selectedCountry),
-        status: p.status,
-        timestamp: new Date(p.createdAt).getTime() || 0,
-        dateText: formatDateShort(p.createdAt),
-      });
-    }
-
     for (const r of referralHistory.slice(0, 5)) {
       events.push({
         id: `r-${r.id}`,
         kind: 'referral',
-        title: `Referral Commission (${r.refereeName})`,
+        title: `Referral Bonus (${r.refereeName})`,
         meta: `${r.passPurchased} · ${r.transactionId}`,
         amountLabel: `+${formatCurrencyFromUsd(r.commissionEarned, selectedCountry)}`,
         status: r.status,
@@ -418,7 +427,7 @@ export const CustomerDashboard: React.FC = () => {
     }
 
     return events.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
-  }, [taskHistory, combinedWithdrawals, passProofs, referralHistory, selectedCountry]);
+  }, [taskHistory, combinedWithdrawals, referralHistory, selectedCountry]);
 
   const handleExportActivityCsv = () => {
     const headers = ['Type', 'Reference', 'Description', 'Category/Method', `Amount (${selectedCountry.currency})`, 'Status', 'Date'];
@@ -485,20 +494,30 @@ export const CustomerDashboard: React.FC = () => {
 
   const localBalance = formatCurrencyFromUsd(userStats.balance, selectedCountry);
   const thresholdFormatted = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
-  const maxTaskCapFormatted = formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry);
   const progressTo20 = Math.min(100, Math.round((userStats.balance / WITHDRAWAL_THRESHOLD_USD) * 100));
   const dailyQuotaPct = Math.min(
     100,
     Math.round((dailyQuotaStatus.usedToday / Math.max(1, dailyQuotaStatus.rule.dailyLimit)) * 100)
   );
 
+  const currentUid = customerProfile?.uid || user?.uid || '';
+  const myUploadedAuctions = useMemo(
+    () => (currentUid ? auctionsList.filter((a) => a.sellerUid === currentUid) : []),
+    [auctionsList, currentUid]
+  );
+  const myBidAuctions = useMemo(
+    () => (currentUid ? auctionsList.filter((a) => a.bids?.some((b) => b.bidderUid === currentUid)) : []),
+    [auctionsList, currentUid]
+  );
+
   const SUB_TABS: { id: DashboardSubTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'tasks', label: `Tasks History (${taskHistory.length})` },
     { id: 'withdrawals', label: `Withdrawals (${combinedWithdrawals.length})` },
+    { id: 'auctions', label: `Auctions (${myUploadedAuctions.length + myBidAuctions.length})` },
     { id: 'analytics', label: 'Analytics' },
     { id: 'referrals', label: `Referrals (${referralHistory.length})` },
-    { id: 'account-passes', label: 'Account & Passes' },
+    { id: 'account-kyc', label: `Account & KYC (${kycStatus})` },
   ];
 
   return (
@@ -516,7 +535,7 @@ export const CustomerDashboard: React.FC = () => {
             <span aria-hidden="true">·</span>
             <span className="font-mono">{selectedCountry.name} ({selectedCountry.currency})</span>
             <span aria-hidden="true">·</span>
-            <span>{activePackage ? activePackage.name : 'Free Tier'}</span>
+            <span>100% Free Access · KYC: {kycStatus}</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
             Contributor Activity &amp; Earnings Hub
@@ -557,6 +576,15 @@ export const CustomerDashboard: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('auctions')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-950 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <Gavel className="w-3.5 h-3.5 text-blue-700" />
+            <span>Product Auctions ({auctionsList.filter((a) => a.status === 'Live').length} Live)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('testimonials')}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
           >
@@ -582,21 +610,12 @@ export const CustomerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Sign-in / Ban Alerts */}
-      {passBannedReason && (
-        <div className="p-4 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
-          <div>
-            <strong className="font-bold">Account Restriction Notice:</strong> {passBannedReason}
-          </div>
-        </div>
-      )}
-
+      {/* Sign-in / Account Alerts */}
       {!isAuthenticated && (
         <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 text-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <strong className="font-bold text-slate-900">Sign in to sync your cloud ledger &amp; withdrawals across devices.</strong>{' '}
-            Your local progress is shown below, and verified customers unlock locked M-PESA payout tracking &amp; Worker Pass approvals.
+            <strong className="font-bold text-slate-900">Sign in to sync your cloud ledger &amp; PayPal withdrawals across devices.</strong>{' '}
+            Tasks are 100% free with no Worker Pass needed; verified customers complete National ID KYC to unlock PayPal withdrawals from {thresholdFormatted}.
           </div>
           <button
             type="button"
@@ -622,7 +641,7 @@ export const CustomerDashboard: React.FC = () => {
           </div>
           <div className="mt-2.5 text-[11px] text-slate-500 flex items-center justify-between">
             <span>
-              {userStats.balance >= WITHDRAWAL_THRESHOLD_USD
+              {meetsWithdrawalThreshold(userStats.balance)
                 ? `Threshold met (${thresholdFormatted}+)`
                 : `${formatCurrencyFromUsd(analytics.remainingTo20, selectedCountry)} left to ${thresholdFormatted}`}
             </span>
@@ -663,7 +682,7 @@ export const CustomerDashboard: React.FC = () => {
               {dailyQuotaStatus.usedToday} / {dailyQuotaStatus.rule.dailyLimit}
             </span>
             <span className="text-xs font-mono tabular-nums text-brand-700 font-semibold">
-              Max {maxTaskCapFormatted}
+              8:00 AM EAT Drop
             </span>
           </div>
           <div className="mt-2.5 text-[11px] text-slate-500 flex items-center justify-between">
@@ -743,7 +762,7 @@ export const CustomerDashboard: React.FC = () => {
                     No earnings recorded yet
                   </div>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Complete your first free task (up to {maxTaskCapFormatted}) or activate a Worker Pass to start populating your daily earnings chart.
+                    Complete today&apos;s 8:00 AM EAT daily task drop (rewards set by the merchant per task) to start populating your daily earnings chart.
                   </p>
                   <button
                     type="button"
@@ -796,7 +815,7 @@ export const CustomerDashboard: React.FC = () => {
                 <div>
                   <h2 className="text-base font-bold text-slate-900">Recent Account Activity</h2>
                   <p className="text-xs text-slate-500">
-                    Tasks, payout requests, Worker Pass proofs, and referral commissions
+                    Tasks, PayPal payout requests, and referral bonuses
                   </p>
                 </div>
                 <button
@@ -855,53 +874,64 @@ export const CustomerDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Account, Worker Pass, & Milestones */}
+          {/* Right Column: Account, National ID KYC, & Milestones */}
           <div className="space-y-6">
-            {/* Worker Pass & Daily Limits */}
+            {/* National ID KYC & PayPal Payout Limits */}
             <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Active Worker Pass</h2>
+                  <h2 className="text-base font-bold text-slate-900">National ID KYC &amp; Payouts</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {activePackage
-                      ? `${activePackage.name} (${formatCurrencyFromKes(activePackage.priceKes, selectedCountry)})`
-                      : 'Free Tier (No Worker Pass)'}
+                    {selectedCountry.idDocumentName} · Status:{' '}
+                    <strong
+                      className={
+                        kycStatus === 'Approved'
+                          ? 'text-emerald-700'
+                          : kycStatus === 'Rejected'
+                          ? 'text-rose-700'
+                          : kycStatus === 'Pending'
+                          ? 'text-amber-700'
+                          : 'text-slate-700'
+                      }
+                    >
+                      {kycStatus}
+                    </strong>
                   </p>
                 </div>
-                <Zap className="w-4 h-4 text-brand-600 shrink-0 mt-1" />
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-1" />
               </div>
 
               <div className="text-xs text-slate-700 space-y-1.5 pt-2 border-t border-slate-100">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Daily Limit</span>
+                  <span className="text-slate-500">Daily Open Access</span>
                   <span className="font-mono font-semibold text-slate-900">{dailyQuotaStatus.rule.dailyUnitLabel}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Max Reward / Item</span>
-                  <span className="font-mono font-semibold text-slate-900">{maxTaskCapFormatted}</span>
+                  <span className="text-slate-500">Task Reward</span>
+                  <span className="font-mono font-semibold text-slate-900">Varies by Merchant</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Pay Pass M-PESA</span>
-                  <span className="font-mono font-extrabold text-emerald-800">0758727558</span>
+                  <span className="text-slate-500">Min PayPal Withdrawal</span>
+                  <span className="font-mono font-extrabold text-sky-800">{thresholdFormatted}</span>
                 </div>
               </div>
 
               <div className="pt-2 flex flex-col gap-2">
                 <button
                   type="button"
-                  onClick={() => setPackagesModalOpen(true)}
-                  className="w-full py-2 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  onClick={() => setSubTab('account-kyc')}
+                  className="w-full py-2 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  {activePackage
-                    ? 'Upgrade Worker Pass'
-                    : `Activate Worker Pass (${formatCurrencyFromKes(50, selectedCountry)}–${formatCurrencyFromKes(200, selectedCountry)})`}
+                  {kycStatus === 'Approved'
+                    ? 'View Approved National ID KYC'
+                    : 'Upload Front & Back National ID KYC'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSubTab('account-passes')}
+                  onClick={() => (isAuthenticated ? openMyAccount('withdraw') : setWalletOpen(true))}
                   className="w-full py-2 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Check M-PESA Proof Status ({passProofs.length})
+                  PayPal Cash-Out ({thresholdFormatted}+)
                 </button>
               </div>
             </div>
@@ -1051,7 +1081,7 @@ export const CustomerDashboard: React.FC = () => {
               </div>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
                 {taskHistory.length === 0
-                  ? `Start with your daily free task or unlock a Worker Pass to earn ${selectedCountry.currency} payouts directly to your wallet.`
+                  ? `Start with the 8:00 AM EAT daily dropped task (rewards set by the merchant, 100% free access) to earn ${selectedCountry.currency} payouts withdrawable via PayPal.`
                   : 'Try clearing your search or category filter.'}
               </p>
               <button
@@ -1124,7 +1154,7 @@ export const CustomerDashboard: React.FC = () => {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Withdrawal History &amp; Live Payout Status</h2>
               <p className="text-xs text-slate-500">
-                Minimum cash-out threshold is {thresholdFormatted} via M-PESA, Airtel / MTN MoMo, East Africa Bank, Wise, or USDT
+                Minimum PayPal cash-out threshold is {thresholdFormatted} (KES 150 equivalent) · Mandatory Approved Front &amp; Back {selectedCountry.idDocumentName} KYC required
               </p>
             </div>
 
@@ -1160,7 +1190,7 @@ export const CustomerDashboard: React.FC = () => {
           <WithdrawalEligibilityGate>
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="text-emerald-950">
-                <strong className="font-bold">Withdrawal Eligibility Unlocked!</strong> Your balance ({localBalance}) and referral requirement are verified.
+                <strong className="font-bold">PayPal Withdrawal Eligibility Unlocked!</strong> Your balance ({localBalance}) and Approved National ID KYC are verified.
               </div>
               <button
                 type="button"
@@ -1260,6 +1290,116 @@ export const CustomerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* SUB-TAB 3B: PRODUCT AUCTIONS TRACKER */}
+      {subTab === 'auctions' && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Gavel className="w-4 h-4 text-blue-700" />
+                <span>My Product Auctions &amp; Live Bids</span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Track products you uploaded for auction, highest offers received, and active bids you placed across East Africa.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('auctions')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+            >
+              <span>Open Auctions Marketplace</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">My Uploaded Products ({myUploadedAuctions.length})</h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('auctions')}
+                  className="text-xs font-semibold text-brand-700 hover:underline cursor-pointer"
+                >
+                  Upload New Product →
+                </button>
+              </div>
+              {myUploadedAuctions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                  You have not uploaded any product auctions yet. Click Upload New Product above to start selling to highest bidders.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {myUploadedAuctions.map((auc) => {
+                    const thumb = resolveAuctionImageUrl(auc.imageUrls?.[0]);
+                    return (
+                      <div key={auc.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {thumb && (
+                            <img src={thumb} alt={auc.title} className="w-11 h-11 rounded-lg object-cover border border-slate-200 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 truncate">{auc.title}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {auc.bidCount} bid(s) · {auc.status}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold text-emerald-700">
+                            {formatCurrencyFromKes(auc.currentBidKes, selectedCountry)}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{auc.highestBidderName || 'No bids yet'}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">Auctions Where I Placed Bids ({myBidAuctions.length})</h3>
+                <span className="text-[11px] font-mono text-slate-500">
+                  {auctionsList.filter((a) => a.status === 'Live').length} Live Marketplace Items
+                </span>
+              </div>
+              {myBidAuctions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                  You have not placed bids on any products yet. Visit the Auctions Marketplace to bid in {selectedCountry.currency}.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {myBidAuctions.map((auc) => {
+                    const leading = auc.highestBidderUid === currentUid;
+                    return (
+                      <div key={auc.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate">{auc.title}</div>
+                          <div className="text-[11px] text-slate-500">
+                            Seller: {auc.sellerName} · Status: <strong>{auc.status}</strong>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold text-slate-900">
+                            {formatCurrencyFromKes(auc.currentBidKes, selectedCountry)}
+                          </div>
+                          <div className={`text-[10px] font-bold ${leading ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {leading ? (auc.status === 'Sold' ? 'Auction Won' : 'Highest Bidder') : 'Outbid'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SUB-TAB 4: ANALYTICS */}
       {subTab === 'analytics' && (
         <div className="space-y-6">
@@ -1281,12 +1421,12 @@ export const CustomerDashboard: React.FC = () => {
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-white">
-              <div className="text-xs text-slate-500">Max Daily Earning Capacity</div>
+              <div className="text-xs text-slate-500">Daily Task Drop Window</div>
               <div className="mt-1 text-2xl font-extrabold font-mono tabular-nums text-slate-900">
-                {formatCurrencyFromUsd(analytics.maxDailyPotential, selectedCountry)}
+                1 Task / Day
               </div>
               <div className="mt-1 text-[11px] text-slate-500">
-                {dailyQuotaStatus.rule.dailyLimit} × {maxTaskCapFormatted} max/day
+                Dropped at 8:00 AM EAT · Merchant-set reward
               </div>
             </div>
 
@@ -1391,7 +1531,7 @@ export const CustomerDashboard: React.FC = () => {
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Referral Link &amp; 20% Commission Tracker</h2>
                 <p className="text-xs text-slate-500">
-                  Share your link and earn 20% instant commission whenever invited contributors activate a Worker Pass
+                  Share your link and earn partner referral bonuses whenever invited East Africa contributors sign up and complete tasks
                 </p>
               </div>
               <button
@@ -1477,7 +1617,7 @@ export const CustomerDashboard: React.FC = () => {
                 <div className="font-mono tabular-nums font-bold text-lg text-slate-900">{referralStats.totalSignups}</div>
               </div>
               <div>
-                <div className="text-slate-500">Passes Converted</div>
+                <div className="text-slate-500">Qualified Invites</div>
                 <div className="font-mono tabular-nums font-bold text-lg text-slate-900">{referralStats.passesPurchasedCount}</div>
               </div>
               <div>
@@ -1494,9 +1634,9 @@ export const CustomerDashboard: React.FC = () => {
             {referralHistory.length === 0 ? (
               <div className="py-10 text-center space-y-2">
                 <Users className="w-7 h-7 text-slate-300 mx-auto" />
-                <div className="text-sm font-semibold text-slate-800">No referred pass purchases yet</div>
+                <div className="text-sm font-semibold text-slate-800">No referred conversions recorded yet</div>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Share your link above with creators and taskers across Kenya, Uganda, Tanzania, and Rwanda to earn 20% per Worker Pass activation.
+                  Share your link above with creators and taskers across Kenya, Uganda, Tanzania, and Rwanda to earn referral bonuses when they join and complete tasks.
                 </p>
               </div>
             ) : (
@@ -1506,9 +1646,9 @@ export const CustomerDashboard: React.FC = () => {
                     <tr>
                       <th className="py-2.5 px-3 font-semibold">Transaction ID</th>
                       <th className="py-2.5 px-3 font-semibold">Invited Contributor</th>
-                      <th className="py-2.5 px-3 font-semibold">Pass Tier</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Pass Value</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Your 20% Commission</th>
+                      <th className="py-2.5 px-3 font-semibold">Milestone</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Activity Value</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Your Commission</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Date</th>
                     </tr>
                   </thead>
@@ -1535,16 +1675,16 @@ export const CustomerDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-TAB 6: ACCOUNT & PASSES */}
-      {subTab === 'account-passes' && (
+      {/* SUB-TAB 6: ACCOUNT & NATIONAL ID KYC VERIFICATION */}
+      {subTab === 'account-kyc' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Identity & Locked Payout Info */}
+            {/* Identity & Permanently Locked My Account Info */}
             <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <UserIcon className="w-4 h-4 text-brand-600" />
-                  <h2 className="text-base font-bold text-slate-900">My Account &amp; Locked Payout Details</h2>
+                  <h2 className="text-base font-bold text-slate-900">My Account &amp; Permanently Locked Details</h2>
                 </div>
                 <button
                   type="button"
@@ -1557,8 +1697,24 @@ export const CustomerDashboard: React.FC = () => {
 
               <div className="divide-y divide-slate-100 text-xs">
                 <div className="py-2.5 flex justify-between gap-4">
+                  <span className="text-slate-500">Account Lock Status</span>
+                  <span className="font-semibold text-slate-900 inline-flex items-center gap-1">
+                    {customerProfile?.accountDetailsLocked ? (
+                      <>
+                        <Lock className="w-3 h-3 text-emerald-700" />
+                        <span className="text-emerald-800">All Account Details Permanently Locked</span>
+                      </>
+                    ) : (
+                      <span className="text-amber-700">Set &amp; Lock in My Account</span>
+                    )}
+                  </span>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
                   <span className="text-slate-500">Full Name</span>
-                  <span className="font-semibold text-slate-900">{displayName}</span>
+                  <span className="font-semibold text-slate-900 inline-flex items-center gap-1">
+                    {customerProfile?.accountDetailsLocked ? <Lock className="w-3 h-3 text-slate-500" /> : null}
+                    <span>{displayName}</span>
+                  </span>
                 </div>
                 <div className="py-2.5 flex justify-between gap-4">
                   <span className="text-slate-500">Mobile Phone (Immutable)</span>
@@ -1569,14 +1725,27 @@ export const CustomerDashboard: React.FC = () => {
                 </div>
                 <div className="py-2.5 flex justify-between gap-4">
                   <span className="text-slate-500">Email</span>
-                  <span className="font-mono text-slate-800">{customerProfile?.email || user?.email || 'Not set'}</span>
+                  <span className="font-mono text-slate-800 inline-flex items-center gap-1">
+                    {customerProfile?.accountDetailsLocked && customerProfile?.email ? <Lock className="w-3 h-3 text-slate-500" /> : null}
+                    <span>{customerProfile?.email || user?.email || 'Not set'}</span>
+                  </span>
                 </div>
                 <div className="py-2.5 flex justify-between gap-4">
-                  <span className="text-slate-500">Withdrawal Destination (Locked)</span>
-                  <span className="font-mono text-slate-900 text-right">
-                    {customerProfile?.withdrawalDetails?.locked
-                      ? `${customerProfile.withdrawalDetails.method} · ${customerProfile.withdrawalDetails.accountDetails}`
-                      : 'Not bound yet'}
+                  <span className="text-slate-500">City / County</span>
+                  <span className="text-slate-800 inline-flex items-center gap-1">
+                    {customerProfile?.accountDetailsLocked && customerProfile?.city ? <Lock className="w-3 h-3 text-slate-500" /> : null}
+                    <span>{customerProfile?.city || 'Not set'}</span>
+                  </span>
+                </div>
+                <div className="py-2.5 flex justify-between gap-4">
+                  <span className="text-slate-500">PayPal Destination (Locked)</span>
+                  <span className="font-mono text-slate-900 text-right inline-flex items-center gap-1">
+                    {customerProfile?.withdrawalDetails?.locked ? <Lock className="w-3 h-3 text-amber-600" /> : null}
+                    <span>
+                      {customerProfile?.withdrawalDetails?.locked
+                        ? `PayPal · ${customerProfile.withdrawalDetails.accountDetails}`
+                        : 'Not bound yet'}
+                    </span>
                   </span>
                 </div>
                 <div className="py-2.5 flex justify-between gap-4">
@@ -1594,112 +1763,48 @@ export const CustomerDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Worker Pass Rules Card */}
+            {/* Withdrawal & Open Access Rules Card */}
             <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <h2 className="text-base font-bold text-slate-900">Worker Pass Limits &amp; Rules</h2>
+                  <h2 className="text-base font-bold text-slate-900">Open-Access &amp; PayPal Withdrawal Rules</h2>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPackagesModalOpen(true)}
+                  onClick={() => setActiveTab('tasks')}
                   className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold cursor-pointer"
                 >
-                  Open Passes
+                  Browse Tasks
                 </button>
               </div>
 
               <div className="divide-y divide-slate-100 text-xs">
                 <div className="py-2.5 flex justify-between">
-                  <span className="font-medium text-slate-700">Free Tier (No Worker Pass)</span>
-                  <span className="font-mono text-slate-900">1 free task/day · Max {maxTaskCapFormatted}</span>
+                  <span className="font-medium text-slate-700">Task Marketplace Access</span>
+                  <span className="font-mono text-emerald-700 font-bold">100% Free · No Worker Pass</span>
                 </div>
                 <div className="py-2.5 flex justify-between">
-                  <span className="font-medium text-slate-700">Starter Worker Pass ({formatCurrencyFromKes(50, selectedCountry)})</span>
-                  <span className="font-mono text-slate-900">2 tasks/day · Max {maxTaskCapFormatted}</span>
+                  <span className="font-medium text-slate-700">Daily Task Drop</span>
+                  <span className="font-mono text-slate-900">{dailyQuotaStatus.rule.dailyUnitLabel} · 8:00 AM EAT</span>
                 </div>
                 <div className="py-2.5 flex justify-between">
-                  <span className="font-medium text-slate-700">Second Worker Pass / Pro ({formatCurrencyFromKes(100, selectedCountry)})</span>
-                  <span className="font-mono text-slate-900">3 tasks/day · Max {maxTaskCapFormatted}</span>
+                  <span className="font-medium text-slate-700">Payment Gateway</span>
+                  <span className="font-mono text-sky-800 font-bold">PayPal Only</span>
                 </div>
                 <div className="py-2.5 flex justify-between">
-                  <span className="font-medium text-slate-700">VIP Worker Pass ({formatCurrencyFromKes(200, selectedCountry)})</span>
-                  <span className="font-mono text-slate-900">4 surveys/day · Max {maxTaskCapFormatted}</span>
+                  <span className="font-medium text-slate-700">Minimum Withdrawal</span>
+                  <span className="font-mono text-slate-900 font-bold">{thresholdFormatted} (KES 150 eq.)</span>
+                </div>
+                <div className="py-2.5 flex justify-between">
+                  <span className="font-medium text-slate-700">Strict KYC Document</span>
+                  <span className="font-mono text-slate-900 font-semibold">{selectedCountry.idDocumentName} (Front + Back)</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Manual Worker Pass Proofs History (0758727558) */}
-          <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Submitted Worker Pass M-PESA Proofs (0758727558)</h2>
-                <p className="text-xs text-slate-500">
-                  Worker Passes remain locked until the Platform Owner verifies your M-PESA code + screenshot and sends confirmation details
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPackagesModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-800 whitespace-nowrap cursor-pointer"
-              >
-                Submit Pass Proof
-              </button>
-            </div>
-
-            {passProofs.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                No Worker Pass payment proofs submitted yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left min-w-[700px]">
-                  <thead className="border-b border-slate-200 text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-3 font-semibold">Proof ID</th>
-                      <th className="py-2.5 px-3 font-semibold">Pass Tier</th>
-                      <th className="py-2.5 px-3 font-semibold">M-PESA Code</th>
-                      <th className="py-2.5 px-3 font-semibold">Status</th>
-                      <th className="py-2.5 px-3 font-semibold">Owner Approval / Reason</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Submitted</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {passProofs.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/70">
-                        <td className="py-3 px-3 font-mono text-[11px] text-slate-500">{p.id}</td>
-                        <td className="py-3 px-3 font-semibold text-slate-900">
-                          {p.packageName} · {formatCurrencyFromKes(p.amountKes, selectedCountry)}
-                        </td>
-                        <td className="py-3 px-3 font-mono font-bold text-slate-900">{p.mpesaCode}</td>
-                        <td className="py-3 px-3">
-                          <span
-                            className={`font-semibold ${
-                              p.status === 'Approved'
-                                ? 'text-emerald-700'
-                                : p.status === 'Rejected' || p.status === 'Banned'
-                                ? 'text-rose-700'
-                                : 'text-amber-700'
-                            }`}
-                          >
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600">
-                          {p.ownerApprovalDetails || p.rejectionOrBanReason || 'Awaiting Owner confirmation on 0758727558'}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-[11px] text-slate-500">
-                          {new Date(p.createdAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <KycVerificationPanel />
         </div>
       )}
     </div>

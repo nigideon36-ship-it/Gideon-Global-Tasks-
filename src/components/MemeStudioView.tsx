@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { formatCurrencyFromUsd, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { Download, Share2, ThumbsUp, DollarSign, Image as ImageIcon, Sparkles, Plus, Check } from 'lucide-react';
 
 const PRESET_TEMPLATES = [
@@ -23,8 +23,8 @@ const PRESET_TEMPLATES = [
     id: 'tpl-3',
     name: 'Focus Workspace',
     url: 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=600&auto=format&fit=crop&q=80',
-    defaultTop: 'WHEN THE SURVEY PAYS 50 SHILLINGS',
-    defaultBottom: 'AND TAKES EXACTLY 4 MINUTES'
+    defaultTop: 'CATCHING THE 8:00 AM EAT TASK DROP',
+    defaultBottom: 'AND CASHING OUT ON PAYPAL'
   },
   {
     id: 'tpl-4',
@@ -39,7 +39,7 @@ export const MemeStudioView: React.FC = () => {
   const { memes, addMeme, upvoteMeme, tipMeme, userStats, completeTask, tasks } = useTasks();
   const { selectedCountry } = useRegion();
   const memeTask = tasks.find((t) => t.id === 'task-meme-401');
-  const memeBountyUsd = Math.min(memeTask?.reward ?? MAX_TASK_REWARD_USD, MAX_TASK_REWARD_USD);
+  const memeBountyUsd = memeTask?.reward ?? 0.5;
   const memeBountyFormatted = formatCurrencyFromUsd(memeBountyUsd, selectedCountry);
   const tipAmountFormatted = formatCurrencyFromUsd(0.10, selectedCountry);
 
@@ -167,10 +167,10 @@ export const MemeStudioView: React.FC = () => {
       category: 'Community Original'
     });
 
-    // Check if meme bounty task is active, award capped bounty (<= 50 shillings)
+    // Check if meme bounty task is active, award full merchant task reward
     const activeMemeTask = tasks.find((t) => t.id === 'task-meme-401');
     if (activeMemeTask && !userStats.completedTaskIds.includes('task-meme-401')) {
-      completeTask(activeMemeTask.id, Math.min(activeMemeTask.reward, MAX_TASK_REWARD_USD), activeMemeTask.title);
+      completeTask(activeMemeTask.id, activeMemeTask.reward, activeMemeTask.title);
     }
   };
 

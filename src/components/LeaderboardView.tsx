@@ -30,7 +30,7 @@ export const LeaderboardView: React.FC = () => {
           <div>
             <div className="font-semibold text-slate-800">Your Current Status:</div>
             <div className="text-slate-600">
-              Rank #14 · <strong className="text-amber-700 font-mono tabular-nums">{formatCurrencyFromUsd(userStats.lifetimeEarned, selectedCountry)} Earned</strong> · {userStats.qualityScore}% Quality
+              Rank 14 · <strong className="text-amber-700 font-mono tabular-nums">{formatCurrencyFromUsd(userStats.lifetimeEarned, selectedCountry)} Earned</strong> · {userStats.qualityScore}% Quality
             </div>
           </div>
         </div>
@@ -58,7 +58,7 @@ export const LeaderboardView: React.FC = () => {
                       : 'bg-amber-700/20 text-amber-900'
                   }`}
                 >
-                  #{user.rank}
+                  {user.rank}
                 </span>
 
                 <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
@@ -118,7 +118,7 @@ export const LeaderboardView: React.FC = () => {
             {leaderboard.map((user) => (
               <tr key={user.rank} className="hover:bg-slate-50/70 transition-colors">
                 <td className="py-3.5 px-5 font-mono font-bold text-slate-700">
-                  #{user.rank}
+                  Rank {user.rank}
                 </td>
                 <td className="py-3.5 px-5 font-medium text-slate-900">
                   <div className="flex items-center gap-2.5">

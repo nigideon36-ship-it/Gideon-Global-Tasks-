@@ -15,7 +15,7 @@ import {
   BookmarkCheck,
   Trash2,
 } from 'lucide-react';
-import { useAuth, type CustomerWithdrawalMethod } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
 import { EAST_AFRICA_COUNTRIES, isEastAfricaPhone } from '../lib/eastAfrica';
 
@@ -39,7 +39,6 @@ export const AuthModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [city, setCity] = useState('');
-  const [withdrawalMethod, setWithdrawalMethod] = useState<CustomerWithdrawalMethod>('M-PESA');
   const [withdrawalAccount, setWithdrawalAccount] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [password, setPassword] = useState('');
@@ -90,7 +89,6 @@ export const AuthModal: React.FC = () => {
   }, [authModalOpen]);
 
   useEffect(() => {
-    setWithdrawalMethod(selectedCountry.code === 'KE' ? 'M-PESA' : 'Airtel / MTN MoMo');
     if (regStep === 'otp') {
       setRegStep('details');
       setRegOtpCode('');
@@ -219,8 +217,8 @@ export const AuthModal: React.FC = () => {
       city: city.trim() || undefined,
       password,
       otpCode: regOtpCode.trim(),
-      withdrawalMethod,
-      withdrawalAccount: withdrawalAccount.trim() || phone.trim(),
+      withdrawalMethod: withdrawalAccount.trim() ? 'PayPal' : undefined,
+      withdrawalAccount: withdrawalAccount.trim() ? withdrawalAccount.trim().toLowerCase() : undefined,
       withdrawalAccountHolder: displayName.trim() || undefined,
       referralCode: referralCode.trim().toUpperCase() || undefined,
       rememberMe,
@@ -427,7 +425,7 @@ export const AuthModal: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Real Full Name <span className="text-slate-400 font-normal">(Editable in My Account)</span>
+                    Real Full Name <span className="text-slate-400 font-normal">(One-time lock in My Account)</span>
                   </label>
                   <div className="relative">
                     <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -461,38 +459,24 @@ export const AuthModal: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
                     <Lock className="w-3 h-3 text-slate-600" />
-                    <span>Locked Payout / Withdrawal Account</span>
+                    <span>PayPal Payout Email (Optional on Signup)</span>
                   </span>
-                  <span className="text-[10px] text-slate-500">Locked upon signup</span>
+                  <span className="text-[10px] text-slate-500">PayPal Only · Locks if entered</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <select
-                    value={withdrawalMethod}
-                    onChange={(e) => setWithdrawalMethod(e.target.value as CustomerWithdrawalMethod)}
-                    className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 font-semibold outline-hidden focus:border-blue-600"
-                  >
-                    <option value="M-PESA">M-PESA</option>
-                    <option value="Airtel / MTN MoMo">Airtel / MTN MoMo</option>
-                    <option value="East Africa Bank">East Africa Bank</option>
-                    <option value="Wise">Wise</option>
-                    <option value="Crypto USDT">Crypto USDT</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                  <div className="px-2.5 py-2 text-xs rounded-lg border border-sky-200 bg-sky-50 text-sky-900 font-bold text-center">
+                    PayPal
+                  </div>
                   <input
-                    type="text"
+                    type="email"
                     value={withdrawalAccount}
                     onChange={(e) => setWithdrawalAccount(e.target.value)}
-                    placeholder={
-                      withdrawalMethod === 'M-PESA' || withdrawalMethod === 'Airtel / MTN MoMo'
-                        ? 'Leave blank to lock registered mobile'
-                        : withdrawalMethod === 'Wise'
-                        ? 'Wise recipient email'
-                        : 'Bank Account / USDT TRC-20'
-                    }
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono text-slate-900 outline-hidden focus:border-blue-600"
+                    placeholder="paypal-email@example.com (optional)"
+                    className="sm:col-span-2 w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-mono text-slate-900 outline-hidden focus:border-blue-600"
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                  For payout security, your real mobile number and withdrawal details cannot be changed by customers after registration and are used for all withdrawals in My Account.
+                  Withdrawals start from 150 shillings via PayPal once you verify BOTH Front &amp; Back of your {selectedCountry.idDocumentName} in My Account.
                 </p>
               </div>
 

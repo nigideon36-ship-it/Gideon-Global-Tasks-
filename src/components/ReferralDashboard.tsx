@@ -8,24 +8,15 @@ import {
   WITHDRAWAL_THRESHOLD_USD,
 } from '../lib/eastAfrica';
 import {
-  Share2,
   Copy,
   Check,
-  Users,
-  DollarSign,
-  TrendingUp,
   Sparkles,
-  ArrowUpRight,
   ShieldCheck,
   Search,
   Download,
-  Flame,
   Zap,
-  Globe,
   ExternalLink,
   Edit2,
-  CreditCard,
-  Send
 } from 'lucide-react';
 
 export const ReferralDashboard: React.FC = () => {
@@ -33,29 +24,17 @@ export const ReferralDashboard: React.FC = () => {
     referralStats,
     referralHistory,
     updateReferralCode,
-    simulateReferralPurchase,
+    simulateReferralActivity,
     userStats,
     setWalletOpen,
-    setActiveTab
+    setActiveTab,
   } = useTasks();
   const { selectedCountry } = useRegion();
-  const starterLabel = formatCurrencyFromKes(50, selectedCountry);
-  const proLabel = formatCurrencyFromKes(100, selectedCountry);
-  const vipLabel = formatCurrencyFromKes(200, selectedCountry);
-  const vipReferralCount =
-    referralStats.vipReferralCount ??
-    referralHistory.filter(
-      (r) =>
-        (r.packageId === 'vip' || r.passPurchased.toLowerCase().includes('vip')) &&
-        r.status === 'Credited'
-    ).length;
 
   const [copied, setCopied] = useState(false);
   const [editingCode, setEditingCode] = useState(false);
   const [customCodeInput, setCustomCodeInput] = useState(referralStats.referralCode);
   const [searchFilter, setSearchFilter] = useState('');
-  const [tierFilter, setTierFilter] = useState<string>('all');
-  const [simulatedTier, setSimulatedTier] = useState<'starter' | 'pro' | 'vip'>('pro');
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralStats.referralLink);
@@ -72,11 +51,6 @@ export const ReferralDashboard: React.FC = () => {
 
   const filteredHistory = useMemo(() => {
     return referralHistory.filter((item) => {
-      if (tierFilter !== 'all') {
-        if (tierFilter === 'starter' && !item.passPurchased.toLowerCase().includes('starter')) return false;
-        if (tierFilter === 'pro' && !item.passPurchased.toLowerCase().includes('pro')) return false;
-        if (tierFilter === 'vip' && !item.passPurchased.toLowerCase().includes('vip')) return false;
-      }
       if (searchFilter.trim()) {
         const q = searchFilter.toLowerCase();
         const matchName = item.refereeName.toLowerCase().includes(q);
@@ -86,22 +60,32 @@ export const ReferralDashboard: React.FC = () => {
       }
       return true;
     });
-  }, [referralHistory, searchFilter, tierFilter]);
+  }, [referralHistory, searchFilter]);
 
   const handleExportCSV = () => {
-    const headers = ['Transaction ID', 'Referee Name', 'Country', 'Date Joined', 'Pass Tier', `Pass Price (${selectedCountry.currency})`, `Commission (${selectedCountry.currency})`, 'Method', 'Status'];
+    const headers = [
+      'Transaction ID',
+      'Referee Name',
+      'Country',
+      'Date Joined',
+      'Activity',
+      `Commission (${selectedCountry.currency})`,
+      'Gateway',
+      'Status',
+    ];
     const rows = filteredHistory.map((r) => [
       r.transactionId,
       r.refereeName,
       r.refereeCountry,
       r.dateJoined,
       r.passPurchased,
-      convertUsdToLocal(r.passPrice, selectedCountry),
       convertUsdToLocal(r.commissionEarned, selectedCountry),
-      r.paymentMethod,
-      r.status
+      'PayPal',
+      r.status,
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -112,7 +96,7 @@ export const ReferralDashboard: React.FC = () => {
   };
 
   const shareText = encodeURIComponent(
-    `Earn money with Surveys, AI Data Annotation, and Micro Tasks on Gideon Global Tasks! Sign up and activate your worker pass with my referral link: ${referralStats.referralLink}`
+    `Earn money with free Surveys, AI Data Annotation, and Micro Tasks on Gideon Global Tasks! Join free with my invite link and withdraw via PayPal from ${formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}: ${referralStats.referralLink}`
   );
 
   return (
@@ -122,17 +106,17 @@ export const ReferralDashboard: React.FC = () => {
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-slate-100">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-              <span>Affiliate & Partner Network</span>
+              <span>Affiliate &amp; Partner Network</span>
               <span aria-hidden="true">·</span>
-              <span className="text-emerald-700 font-bold font-mono">20% Instant Pass Commission</span>
+              <span className="text-emerald-700 font-bold font-mono">20% Partner Commission</span>
               <span aria-hidden="true">·</span>
-              <span>Direct Wallet Payouts</span>
+              <span>PayPal Withdrawals (KYC Verified)</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
               Referral Partner Dashboard
             </h1>
             <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-              Share your unique invite link with friends, students, and remote workers across East Africa. Whenever a referred user signs up and purchases a <strong className="text-slate-800">Worker Pass ({starterLabel}, {proLabel}, or {vipLabel})</strong>, you earn an instant <strong className="text-slate-800">20% commission</strong> credited directly to your balance.
+              Share your unique invite link with friends, students, and remote workers across East Africa. Tasks are <strong>100% free</strong> with no Worker Pass fees — whenever a referred contributor completes onboarding and verified platform activity, you earn a <strong className="text-slate-800">20% partner reward</strong> credited to your wallet.
             </p>
           </div>
 
@@ -140,9 +124,9 @@ export const ReferralDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => setWalletOpen(true)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs cursor-pointer"
             >
-              Withdraw Earnings ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) →
+              Withdraw via PayPal ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) →
             </button>
           </div>
         </div>
@@ -171,14 +155,13 @@ export const ReferralDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditingCode(!editingCode)}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors shrink-0"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors shrink-0 cursor-pointer"
               >
                 <Edit2 className="w-3.5 h-3.5" />
                 <span>{editingCode ? 'Cancel' : 'Customize Code'}</span>
               </button>
             </div>
 
-            {/* Custom Code Form Dropdown */}
             {editingCode && (
               <form onSubmit={handleSaveCustomCode} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between text-xs">
@@ -195,15 +178,14 @@ export const ReferralDashboard: React.FC = () => {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                    className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
                   >
-                    Save & Update Link
+                    Save &amp; Update Link
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Quick Share Links */}
             <div className="flex items-center gap-2 pt-1 flex-wrap">
               <span className="text-[11px] font-semibold text-slate-500">Quick Share:</span>
               <a
@@ -236,7 +218,6 @@ export const ReferralDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Referral Code Box */}
           <div className="lg:col-span-4 bg-gradient-to-br from-brand-900 to-slate-900 text-white p-5 rounded-2xl space-y-2 shadow-xs transition-colors">
             <span className="text-[11px] font-bold text-brand-300 uppercase tracking-wider block">
               Active Referral Code
@@ -245,13 +226,13 @@ export const ReferralDashboard: React.FC = () => {
               {referralStats.referralCode}
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Invited workers enter this code during signup or pass checkout to ensure your wallet is credited immediately.
+              Invited workers enter this code during registration. Withdrawals unlock from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} via PayPal after Front &amp; Back National ID KYC approval.
             </p>
           </div>
         </div>
       </div>
 
-      {/* 4-Column SaaS KPI Strip (§3.C / §1.H) */}
+      {/* 4-Column SaaS KPI Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
         <div className="p-3 border-r border-slate-100 last:border-r-0">
           <div className="text-xs text-slate-500 font-medium">Total Commission Earned</div>
@@ -262,74 +243,29 @@ export const ReferralDashboard: React.FC = () => {
         </div>
 
         <div className="p-3 border-r border-slate-100 last:border-r-0">
-          <div className="text-xs text-slate-500 font-medium">Commission Rate</div>
+          <div className="text-xs text-slate-500 font-medium">Partner Commission Rate</div>
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.commissionPercentage}%
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">On all pass tiers ({starterLabel}–{vipLabel})</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">On referred contributor earnings</div>
         </div>
 
         <div className="p-3 border-r border-slate-100 last:border-r-0">
-          <div className="text-xs text-slate-500 font-medium">Passes Purchased</div>
+          <div className="text-xs text-slate-500 font-medium">Verified Referrals</div>
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.passesPurchasedCount}
           </div>
           <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-            {vipReferralCount} VIP ({vipLabel}) activated
+            Free open task onboarding
           </div>
         </div>
 
         <div className="p-3">
-          <div className="text-xs text-slate-500 font-medium">Total Signups & Clicks</div>
+          <div className="text-xs text-slate-500 font-medium">Total Signups &amp; Clicks</div>
           <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums mt-1">
             {referralStats.totalSignups}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">{referralStats.totalClicks} link clicks tracked</div>
-        </div>
-      </div>
-
-      {/* Commission Earnings Model & Mechanism-to-Outcome Chain */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900">Starter Pass Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">{starterLabel}</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-emerald-600 tabular-nums">
-            +{formatCurrencyFromKes(10, selectedCountry)}
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            When your invitee activates the {starterLabel} Starter Pass for survey access, you instantly receive 20% in your wallet.
-          </p>
-        </div>
-
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 ring-1 ring-brand-500/30 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-brand-950">Pro Tasker Referral</span>
-              <span className="text-[10px] font-bold text-brand-600">Most Popular</span>
-            </div>
-            <span className="text-xs font-mono font-bold text-slate-700">{proLabel}</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-brand-600 tabular-nums">
-            +{formatCurrencyFromKes(20, selectedCountry)}
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn {formatCurrencyFromKes(20, selectedCountry)} each time a referral unlocks AI Annotation, Receipt Entry, and Meme Bounties with the {proLabel} Pro Pass.
-          </p>
-        </div>
-
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900">VIP Taskmaster Referral</span>
-            <span className="text-xs font-mono font-bold text-slate-700">{vipLabel}</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-amber-600 tabular-nums">
-            +{formatCurrencyFromKes(40, selectedCountry)}
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Earn {formatCurrencyFromKes(40, selectedCountry)} commission when top freelancers purchase the {vipLabel} VIP Pass for copywriting and 4 daily surveys.
-          </p>
         </div>
       </div>
 
@@ -345,56 +281,24 @@ export const ReferralDashboard: React.FC = () => {
               Test Referral Conversion in Real-Time
             </h3>
             <p className="text-xs text-slate-300">
-              Simulate an invited friend joining and purchasing a pass via M-PESA or Card to verify immediate balance crediting.
+              Simulate an invited friend joining free tasks to verify immediate balance crediting toward your PayPal cash-out.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center p-1 bg-slate-800 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setSimulatedTier('starter')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  simulatedTier === 'starter' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Starter ({starterLabel})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimulatedTier('pro')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  simulatedTier === 'pro' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Pro ({proLabel})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimulatedTier('vip')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  simulatedTier === 'vip' ? 'bg-brand-600 text-white' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                VIP ({vipLabel})
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => simulateReferralPurchase(simulatedTier)}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
-            >
-              <Zap className="w-4 h-4 fill-current" />
-              <span>
-                Simulate Purchase (+{formatCurrencyFromKes(simulatedTier === 'starter' ? 10 : simulatedTier === 'vip' ? 40 : 20, selectedCountry)})
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => simulateReferralActivity()}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            <Zap className="w-4 h-4 fill-current" />
+            <span>
+              Simulate Verified Referral (+{formatCurrencyFromKes(30, selectedCountry)})
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* High-Density Referral Activity Ledger */}
+      {/* Referral Activity Ledger */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 space-y-6 shadow-xs">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -402,12 +306,11 @@ export const ReferralDashboard: React.FC = () => {
               Referral Commission Ledger
             </h2>
             <p className="text-xs text-slate-500">
-              All invited contributors, converted worker passes, and instant wallet credit transactions.
+              All invited contributors and instant wallet credit transactions.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            {/* Search */}
             <div className="relative flex-1 md:w-64">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
@@ -419,23 +322,10 @@ export const ReferralDashboard: React.FC = () => {
               />
             </div>
 
-            {/* Filter */}
-            <select
-              value={tierFilter}
-              onChange={(e) => setTierFilter(e.target.value)}
-              className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 outline-hidden"
-            >
-              <option value="all">All Passes</option>
-              <option value="starter">Starter Pass ({starterLabel})</option>
-              <option value="pro">Pro Pass ({proLabel})</option>
-              <option value="vip">VIP Pass ({vipLabel})</option>
-            </select>
-
-            {/* Export CSV */}
             <button
               type="button"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export CSV</span>
@@ -443,16 +333,15 @@ export const ReferralDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* High-density Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="pb-3 font-semibold">Referee & Location</th>
+                <th className="pb-3 font-semibold">Referee &amp; Location</th>
                 <th className="pb-3 font-semibold">Date Joined</th>
-                <th className="pb-3 font-semibold">Pass Purchased</th>
-                <th className="pb-3 font-semibold">Payment Rail</th>
-                <th className="pb-3 font-semibold text-right">Commission (20%)</th>
+                <th className="pb-3 font-semibold">Verified Activity</th>
+                <th className="pb-3 font-semibold">Payout Gateway</th>
+                <th className="pb-3 font-semibold text-right">Commission</th>
                 <th className="pb-3 font-semibold text-right">Status</th>
                 <th className="pb-3 font-semibold text-right">Ref ID</th>
               </tr>
@@ -461,7 +350,7 @@ export const ReferralDashboard: React.FC = () => {
               {filteredHistory.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-500">
-                    No referral conversion records found matching your filter criteria.
+                    No referral conversion records found yet. Share your link above to start earning!
                   </td>
                 </tr>
               ) : (
@@ -483,8 +372,8 @@ export const ReferralDashboard: React.FC = () => {
                     </td>
 
                     <td className="py-3">
-                      <span className="font-semibold text-slate-700">
-                        {item.paymentMethod}
+                      <span className="font-semibold text-sky-800">
+                        PayPal
                       </span>
                     </td>
 
@@ -513,16 +402,16 @@ export const ReferralDashboard: React.FC = () => {
           <div className="flex items-center gap-2 text-slate-600">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              All referral commissions are combined with task earnings toward your <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} withdrawal milestone</strong>.
+              All referral commissions combine with free task earnings toward your <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} PayPal withdrawal minimum</strong> (KYC verified).
             </span>
           </div>
 
           <button
             type="button"
-            onClick={() => setActiveTab('packages')}
-            className="text-xs text-brand-600 hover:text-brand-800 font-bold hover:underline shrink-0"
+            onClick={() => setActiveTab('tasks')}
+            className="text-xs text-brand-600 hover:text-brand-800 font-bold hover:underline shrink-0 cursor-pointer"
           >
-            View Worker Passes Catalog →
+            Browse Free Tasks →
           </button>
         </div>
       </div>

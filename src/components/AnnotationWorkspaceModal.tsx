@@ -377,7 +377,7 @@ export const AnnotationWorkspaceModal: React.FC<Props> = ({ task, onClose }) => 
                                 className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: CLASS_COLORS[b.label]?.stroke || '#3b82f6' }}
                               />
-                              <span className="font-semibold text-slate-800">{b.label} #{idx + 1}</span>
+                              <span className="font-semibold text-slate-800">{b.label} {idx + 1}</span>
                               <span className="text-[10px] text-slate-400 font-mono">
                                 ({Math.round(b.x)}%, {Math.round(b.y)}%)
                               </span>

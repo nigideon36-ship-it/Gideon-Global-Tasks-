@@ -4,14 +4,13 @@ import { useRegion } from '../context/RegionContext';
 import {
   formatCurrencyFromKes,
   formatCurrencyFromUsd,
-  MAX_TASK_REWARD_KES,
   WITHDRAWAL_THRESHOLD_USD,
 } from '../lib/eastAfrica';
 import { HelpCircle, ChevronDown, ChevronUp, Sparkles, ArrowRight, ShieldCheck, Mail } from 'lucide-react';
 
 interface FAQItem {
   question: string;
-  category: 'general' | 'payouts' | 'passes' | 'quality';
+  category: 'general' | 'payouts' | 'daily' | 'quality';
   answer: string;
 }
 
@@ -19,58 +18,57 @@ export const FAQView: React.FC = () => {
   const { setActiveTab } = useTasks();
   const { selectedCountry } = useRegion();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
-  const [filter, setFilter] = useState<'all' | 'general' | 'payouts' | 'passes' | 'quality'>('all');
+  const [filter, setFilter] = useState<'all' | 'general' | 'payouts' | 'daily' | 'quality'>('all');
 
   const faqs = useMemo<FAQItem[]>(() => {
-    const pass50 = formatCurrencyFromKes(50, selectedCountry);
-    const pass100 = formatCurrencyFromKes(100, selectedCountry);
-    const pass200 = formatCurrencyFromKes(200, selectedCountry);
-    const maxCap = formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry);
     const threshold = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
     const streakBonus = formatCurrencyFromUsd(5, selectedCountry);
-    const comm20 = formatCurrencyFromKes(20, selectedCountry);
-    const comm40 = formatCurrencyFromKes(40, selectedCountry);
 
     return [
       {
         category: 'general',
-        question: 'What is Gideon Global Tasks and who can access the platform?',
-        answer: 'Gideon Global Tasks is an East Africa-exclusive crowdsourcing network connecting verified contributors in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia with paid surveys, AI computer vision annotation, receipt OCR digitization, and micro tasks. Access outside East Africa is restricted to protect local mobile money quality and payout reliability.'
+        question: 'What is Gideon Global Tasks and who can use the platform?',
+        answer: `Gideon Global Tasks is an East Africa platform built for residents in Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia. Members earn side rewards through consumer surveys, image labeling, and document verification, buy and sell items in 50% PayPal Escrow Product Auctions, or post funny videos and photos free in the Pay-Per-View Status Feed (${formatCurrencyFromKes(5, selectedCountry)}/view).`
       },
       {
-        category: 'passes',
-        question: `Why are worker passes (${pass50}, ${pass100}, ${pass200}) required to unlock more daily tasks?`,
-        answer: `Worker passes fund platform compute, anti-bot biometric verification, and dedicated cloud annotation workspaces. Free contributors get 1 daily task (up to ${maxCap}). Deposit-funded passes unlock Starter (${pass50} for 2 tasks/day), Second Pass Pro (${pass100} for 3 tasks/day), and VIP (${pass200} for 4 surveys/day), with every completed task capped at ${maxCap} max.`
-      },
-      {
-        category: 'payouts',
-        question: `Why does the withdrawal threshold start at ${threshold}?`,
-        answer: `Payment gateways and mobile money networks charge fixed transaction fees on small transfers. By starting payouts at ${threshold}, Gideon Global Tasks guarantees a 0% fee policy for East African workers on M-PESA, Airtel / MTN MoMo, and East Africa Bank disbursements.`
+        category: 'daily',
+        question: 'How does the 08:00 AM EAT daily task drop & reward pricing work?',
+        answer: `Access is 100% free with zero Worker Pass required. Exactly 1 vetted task drops every day at 08:00 AM EAT (UTC+3), so contributors must keep time to catch each day's drop. Rewards depend on the specific task type and the budget set by the sponsoring merchant—there is no artificial fixed ceiling.`
       },
       {
         category: 'payouts',
-        question: 'Which withdrawal and payment methods are supported in East Africa?',
-        answer: 'We natively support Safaricom M-PESA (0758727558 for pass & investment deposits), Airtel Money / MTN MoMo, East Africa Visa & Mastercard local billing, and East Africa Direct Bank transfers. International PayPal checkout has been retired in favor of fast East African mobile money.'
+        question: `Why does the PayPal cash-out threshold start at ${threshold} and require National ID KYC?`,
+        answer: `Withdrawals start at ${threshold} (150 Kenyan Shillings converted accurately across East Africa currencies) and are paid exclusively via PayPal. Under strict withdrawal KYC rules, you must upload clear photos of BOTH the Front and Back of your country's official ID (${selectedCountry.idDocumentName}) and obtain Platform Owner approval before requesting a PayPal cash-out.`
       },
       {
-        category: 'passes',
-        question: 'How does the Daily Contributor Streak system work?',
-        answer: `Contributors who log in daily build a consecutive contributor streak. Reaching a 7-day streak awards an immediate ${streakBonus} milestone bonus directly to your wallet balance plus an ongoing +20% earnings multiplier (respecting the ${maxCap} per-task reward limit). Logging in between Days 1–6 grants a +10% earnings bonus.`
+        category: 'payouts',
+        question: 'Which payment gateway is supported for deposits and withdrawals?',
+        answer: 'PayPal is the sole supported payment gateway platform-wide for contributor withdrawals, KES 50+ investment pool deposits, and 50% auction security escrow deposits. No M-PESA, Paystack, IntaSend, bank transfers, or crypto rails are used.'
+      },
+      {
+        category: 'daily',
+        question: 'How does the Daily Contributor Streak bonus work?',
+        answer: `Completing each 08:00 AM EAT daily task consistently builds your streak counter. Reaching Day 7 awards a ${streakBonus} milestone bonus to your wallet alongside a +20% earnings multiplier. Days 1 through 6 carry a +10% streak boost.`
       },
       {
         category: 'general',
-        question: 'How does the 20% Referral Commission program work?',
-        answer: `Every contributor receives a unique referral code and tracking link. When new users join via your link and activate any worker pass (${pass50} Starter, ${pass100} Pro, or ${pass200} VIP), you automatically receive an instant 20% cash commission credited directly to your withdrawable wallet balance (e.g., ${comm20} on a ${pass100} pass, ${comm40} on a ${pass200} pass).`
+        question: 'How do local Product Auctions with 50% PayPal Escrow and Pay-Per-View work?',
+        answer: `In Product Auctions, both the seller and the buyer/bidder must pay a 50% security escrow deposit via PayPal first to guarantee real-product trustworthiness—if any auction issue occurs, escrow compensates the buyer or seller fairly. In the Pay-Per-View Status Feed, any registered member can upload funny videos or photos 100% free, earning ${formatCurrencyFromKes(5, selectedCountry)} per unique view settled automatically after 24 hours.`
+      },
+      {
+        category: 'general',
+        question: 'How does the 20% Referral Program work?',
+        answer: 'Every account receives a personal invite link. When someone registers using your referral link and completes verified qualifying platform activity, 20% referral rewards are tracked transparently in your contributor wallet.'
       },
       {
         category: 'quality',
-        question: 'How are task submissions reviewed and quality scores maintained?',
-        answer: 'Submissions undergo automated precision audits (such as IoU bounding box calculations for computer vision or regex checks for receipt figures) alongside peer spot-checks. Contributors maintain an accuracy quality score (target 95%+). High-performing contributors qualify for VIP survey queues and priority verification.'
+        question: 'How are submissions, KYC IDs, auctions, and Pay-Per-View statuses checked?',
+        answer: 'Task submissions go through reading-speed audits, attention checks, and moderator review. Front and Back National ID uploads are manually verified against the applicant name and ID number, and auction escrow & Pay-Per-View status views are tracked per verified UID to block fraud or duplicate farming.'
       },
       {
         category: 'quality',
-        question: 'How does Gideon Global Tasks comply with Google AdSense and privacy regulations?',
-        answer: 'Our platform strictly complies with Google Publisher Policies, GDPR, and CCPA. We do not sell personally identifiable information. Contextual advertisements served via Google AdSense use standard cookies that users can manage or opt out of via Google Ads Settings or aboutads.info. We maintain transparent terms, an active contact desk (nigideon36@gmail.com), and rigorous human content standards.'
+        question: 'How are advertising privacy and editorial standards handled?',
+        answer: 'Our platform follows Google Publisher Policies, GDPR, and CCPA guidelines. We never sell personal data, clearly separate editorial handbooks from paid ads (Google AdSense and Monetag), and maintain direct human support via nigideon36@gmail.com, +254712727558, and WhatsApp 0785909543.'
       }
     ];
   }, [selectedCountry]);
@@ -93,7 +91,7 @@ export const FAQView: React.FC = () => {
           Everything You Need to Know
         </h1>
         <p className="text-xs md:text-sm text-slate-500 leading-relaxed">
-          Detailed explanations of platform mechanics, worker pass tiers, withdrawal thresholds, M-PESA mobile money disbursements, and quality standards.
+          Detailed explanations of the 08:00 AM EAT daily task drop, merchant-set rewards, PayPal-only withdrawals from 150 shillings with Front &amp; Back ID KYC, and 50% PayPal auction escrow protection.
         </p>
       </div>
 
@@ -116,12 +114,12 @@ export const FAQView: React.FC = () => {
           Platform Overview
         </button>
         <button
-          onClick={() => setFilter('passes')}
+          onClick={() => setFilter('daily')}
           className={`px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-            filter === 'passes' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+            filter === 'daily' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)})
+          8:00 AM EAT Drop &amp; Streaks
         </button>
         <button
           onClick={() => setFilter('payouts')}
@@ -129,7 +127,7 @@ export const FAQView: React.FC = () => {
             filter === 'payouts' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Payouts & M-PESA ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}+)
+          PayPal &amp; ID KYC ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}+)
         </button>
         <button
           onClick={() => setFilter('quality')}
@@ -137,7 +135,7 @@ export const FAQView: React.FC = () => {
             filter === 'quality' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
           }`}
         >
-          Quality & Compliance
+          Quality &amp; Compliance
         </button>
       </div>
 

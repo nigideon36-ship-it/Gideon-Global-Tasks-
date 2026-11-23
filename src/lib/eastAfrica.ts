@@ -6,6 +6,8 @@ export interface EastAfricaCountry {
   symbol: string;
   approxRatePerUsd: number;
   mobileRails: string;
+  idDocumentName: string;
+  idNumberHint: string;
   timezone: string;
   samplePhone: string;
 }
@@ -18,7 +20,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'KES',
     symbol: 'KSh',
     approxRatePerUsd: 130,
-    mobileRails: 'Safaricom M-PESA & Airtel Money',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Kenyan National ID (Kitambulisho)',
+    idNumberHint: '8-digit National ID or Maisha Namba',
     timezone: 'Africa/Nairobi',
     samplePhone: '+254 712 345 678',
   },
@@ -29,7 +33,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'UGX',
     symbol: 'USh',
     approxRatePerUsd: 3700,
-    mobileRails: 'MTN MoMo & Airtel Money',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Uganda NIRA National ID Card',
+    idNumberHint: '14-character NIN (e.g. CM90...)',
     timezone: 'Africa/Kampala',
     samplePhone: '+256 772 345 678',
   },
@@ -40,7 +46,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'TZS',
     symbol: 'TSh',
     approxRatePerUsd: 2650,
-    mobileRails: 'M-Pesa TZ, Tigo Pesa & Airtel Money',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Tanzania NIDA National ID (Kitambulisho cha Taifa)',
+    idNumberHint: '20-digit NIDA Number',
     timezone: 'Africa/Dar_es_Salaam',
     samplePhone: '+255 754 345 678',
   },
@@ -51,7 +59,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'RWF',
     symbol: 'FRw',
     approxRatePerUsd: 1350,
-    mobileRails: 'MTN MoMo & Airtel Money',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Rwanda Indangamuntu (NIDA National ID)',
+    idNumberHint: '16-digit National ID Number',
     timezone: 'Africa/Kigali',
     samplePhone: '+250 788 345 678',
   },
@@ -62,7 +72,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'BIF',
     symbol: 'FBu',
     approxRatePerUsd: 2900,
-    mobileRails: 'Lumicash & EcoCash',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: "Burundi Carte Nationale d'Identité (CNI)",
+    idNumberHint: 'CNI Number',
     timezone: 'Africa/Bujumbura',
     samplePhone: '+257 79 345 678',
   },
@@ -73,7 +85,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'SSP',
     symbol: 'SSP',
     approxRatePerUsd: 1300,
-    mobileRails: 'm-Gurush & MTN MoMo',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'South Sudan National ID Card',
+    idNumberHint: 'Nationality / National ID Number',
     timezone: 'Africa/Juba',
     samplePhone: '+211 922 345 678',
   },
@@ -84,7 +98,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'ETB',
     symbol: 'Br',
     approxRatePerUsd: 120,
-    mobileRails: 'Telebirr & M-PESA ET',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Ethiopia Fayda National ID / Kebele ID',
+    idNumberHint: 'Fayda FIN or Kebele ID Number',
     timezone: 'Africa/Addis_Ababa',
     samplePhone: '+251 911 345 678',
   },
@@ -95,7 +111,9 @@ export const EAST_AFRICA_COUNTRIES: EastAfricaCountry[] = [
     currency: 'SOS',
     symbol: 'Sh.So.',
     approxRatePerUsd: 570,
-    mobileRails: 'EVC Plus & Zaad Service',
+    mobileRails: 'PayPal (Global & East Africa Payouts)',
+    idDocumentName: 'Somalia National ID Card (NIRA ID)',
+    idNumberHint: '11-digit NIRA ID Number',
     timezone: 'Africa/Mogadishu',
     samplePhone: '+252 615 345 678',
   },
@@ -132,10 +150,16 @@ export function isEastAfricaPhone(phone: string): boolean {
 }
 
 export const KES_PER_USD = 130;
-export const MAX_TASK_REWARD_KES = 50;
-export const MAX_TASK_REWARD_USD = +(MAX_TASK_REWARD_KES / KES_PER_USD).toFixed(4); // 0.3846 USD base = KES 50
-export const WITHDRAWAL_THRESHOLD_USD = 20; // Equivalent to KSh 2,600 at 130 KES/USD
-export const VIP_PASS_KES = 200;
+export const WITHDRAWAL_THRESHOLD_KES = 150;
+export const WITHDRAWAL_THRESHOLD_USD = +(WITHDRAWAL_THRESHOLD_KES / KES_PER_USD).toFixed(4); // 1.1538 USD = KSh 150
+export const PPV_RATE_PER_VIEW_KES = 5;
+export const PPV_STATUS_DURATION_HOURS = 24;
+
+export function meetsWithdrawalThreshold(usdAmount: number): boolean {
+  const n = Number(usdAmount);
+  if (!Number.isFinite(n)) return false;
+  return n + 0.002 >= WITHDRAWAL_THRESHOLD_USD;
+}
 
 export function convertKesToUsd(kesAmount: number): number {
   return +(Math.max(0, Number(kesAmount) || 0) / KES_PER_USD).toFixed(4);

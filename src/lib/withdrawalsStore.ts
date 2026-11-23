@@ -2,13 +2,9 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { adminDb } from './firebase-admin.ts';
+import { meetsWithdrawalThreshold } from './eastAfrica.ts';
 
-export type WithdrawalMethod =
-  | 'M-PESA'
-  | 'Airtel / MTN MoMo'
-  | 'East Africa Bank'
-  | 'Wise'
-  | 'Crypto USDT';
+export type WithdrawalMethod = 'PayPal';
 
 export type WithdrawalStatus = 'Processing' | 'Completed' | 'Rejected';
 
@@ -100,13 +96,7 @@ function persistWithdrawalsToDisk() {
 
 loadWithdrawalsFromDisk();
 
-const VALID_METHODS = new Set<WithdrawalMethod>([
-  'M-PESA',
-  'Airtel / MTN MoMo',
-  'East Africa Bank',
-  'Wise',
-  'Crypto USDT',
-]);
+const VALID_METHODS = new Set<WithdrawalMethod>(['PayPal']);
 
 export function createWithdrawalRequest(params: {
   id?: string;
@@ -121,16 +111,16 @@ export function createWithdrawalRequest(params: {
   mpesaReceipt?: string;
 }): WithdrawalRecord {
   const amount = Number(params.amountUsd);
-  if (!Number.isFinite(amount) || amount < 20) {
-    throw new Error('Minimum withdrawal threshold is KSh 2,600 (20-unit equivalent in your local currency).');
+  if (!Number.isFinite(amount) || !meetsWithdrawalThreshold(amount)) {
+    throw new Error('Minimum withdrawal threshold is KSh 150 (150 shillings equivalent in your local currency).');
   }
   const method = params.method as WithdrawalMethod;
   if (!VALID_METHODS.has(method)) {
-    throw new Error('Unsupported payout method.');
+    throw new Error('Only PayPal is supported for withdrawals.');
   }
   const details = String(params.accountDetails || '').trim().slice(0, 200);
-  if (details.length < 3) {
-    throw new Error('Please provide valid payout account or mobile money details.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(details)) {
+    throw new Error('Please enter a valid PayPal email address for withdrawals.');
   }
 
   const now = new Date().toISOString();
@@ -198,11 +188,11 @@ export function approveWithdrawalRequest(params: {
 
   existing.status = 'Completed';
   existing.approvedBy = params.ownerEmail;
-  existing.disbursementChannel = params.disbursementChannel || existing.method;
+  existing.disbursementChannel = params.disbursementChannel || 'PayPal';
   existing.mpesaReceipt =
     (params.receiptCode || '').trim() ||
     existing.mpesaReceipt ||
-    `MP${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    `PP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   existing.updatedAt = new Date().toISOString();
 
   withdrawalsById.set(existing.id, existing);

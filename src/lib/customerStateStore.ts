@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { adminDb } from './firebase-admin.ts';
-import { MAX_TASK_REWARD_USD, getCountryByCode, convertKesToUsd } from './eastAfrica.ts';
+import { getCountryByCode, convertKesToUsd } from './eastAfrica.ts';
 import type { PayoutRecord, ReferralRecord, ReferralStats, TaskHistoryRecord } from '../types/tasks.ts';
+import { CANONICAL_PLATFORM_ORIGIN, normalizePlatformUrl } from '../utils/platformUrl.ts';
 
 export interface PersistedUserStats {
   balance: number;
@@ -42,11 +43,15 @@ export interface PersistedCustomerState {
 
 const DATA_DIR = path.resolve(process.cwd(), '.data');
 const STATES_FILE = path.join(DATA_DIR, 'customer-states.json');
+const VIP_REFUNDS_FILE = path.join(DATA_DIR, 'vip-bonus-refunds.json');
+const PPV_PAYOUTS_FILE = path.join(DATA_DIR, 'ppv-payouts.json');
 const FIRESTORE_STATES_COLLECTION = 'customer_states';
 
 const statesByUid = new Map<string, PersistedCustomerState>();
 const uidByReferralCode = new Map<string, string>();
 const creditedReferralPassOrders = new Set<string>();
+const creditedVipRefundKeys = new Set<string>();
+const creditedPpvPayoutKeys = new Set<string>();
 
 function createDefaultReferralCode(uid: string): string {
   const shortSuffix = uid.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase() || 'USER';
@@ -74,7 +79,7 @@ function createDefaultReferralStats(uid: string): ReferralStats {
   const code = createDefaultReferralCode(uid);
   return {
     referralCode: code,
-    referralLink: `https://gideonglobal.com/?ref=${code}`,
+    referralLink: `${CANONICAL_PLATFORM_ORIGIN}/?ref=${code}`,
     totalClicks: 0,
     totalSignups: 0,
     passesPurchasedCount: 0,
@@ -86,18 +91,8 @@ function createDefaultReferralStats(uid: string): ReferralStats {
   };
 }
 
-function getPackageRank(pkg?: string | null): number {
-  if (pkg === 'vip') return 3;
-  if (pkg === 'pro') return 2;
-  if (pkg === 'starter') return 1;
-  return 0;
-}
-
-function highestPackageId(a?: string | null, b?: string | null): string | null {
-  const rankA = getPackageRank(a);
-  const rankB = getPackageRank(b);
-  if (rankA === 0 && rankB === 0) return null;
-  return rankA >= rankB ? (a || null) : (b || null);
+function highestPackageId(a?: string | null, _b?: string | null): string | null {
+  return a || null;
 }
 
 function indexState(state: PersistedCustomerState) {
@@ -115,6 +110,9 @@ function loadStatesFromDisk() {
     if (Array.isArray(raw)) {
       for (const rec of raw) {
         if (rec && rec.uid) {
+          if (rec.referralStats?.referralLink) {
+            rec.referralStats.referralLink = normalizePlatformUrl(rec.referralStats.referralLink);
+          }
           indexState(rec);
         }
       }
@@ -157,6 +155,9 @@ export async function hydrateCustomerStatesFromFirestore(): Promise<void> {
     snap.forEach((docSnap) => {
       const remote = docSnap.data() as PersistedCustomerState | undefined;
       if (!remote || !remote.uid) return;
+      if (remote.referralStats?.referralLink) {
+        remote.referralStats.referralLink = normalizePlatformUrl(remote.referralStats.referralLink);
+      }
       const existing = statesByUid.get(remote.uid);
       if (!existing) {
         indexState(remote);
@@ -173,7 +174,63 @@ export async function hydrateCustomerStatesFromFirestore(): Promise<void> {
   }
 }
 
+function loadVipRefundsFromDisk() {
+  try {
+    if (!fs.existsSync(VIP_REFUNDS_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(VIP_REFUNDS_FILE, 'utf8'));
+    if (Array.isArray(raw)) {
+      for (const key of raw) {
+        if (typeof key === 'string' && key.trim()) {
+          creditedVipRefundKeys.add(key.trim());
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load VIP bonus refunds store:', (err as Error)?.message || err);
+  }
+}
+
+function persistVipRefundsToDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(VIP_REFUNDS_FILE, JSON.stringify(Array.from(creditedVipRefundKeys), null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not persist VIP bonus refunds store:', (err as Error)?.message || err);
+  }
+}
+
+function loadPpvPayoutsFromDisk() {
+  try {
+    if (!fs.existsSync(PPV_PAYOUTS_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(PPV_PAYOUTS_FILE, 'utf8'));
+    if (Array.isArray(raw)) {
+      for (const key of raw) {
+        if (typeof key === 'string' && key.trim()) {
+          creditedPpvPayoutKeys.add(key.trim());
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load PPV payouts store:', (err as Error)?.message || err);
+  }
+}
+
+function persistPpvPayoutsToDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(PPV_PAYOUTS_FILE, JSON.stringify(Array.from(creditedPpvPayoutKeys), null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not persist PPV payouts store:', (err as Error)?.message || err);
+  }
+}
+
 loadStatesFromDisk();
+loadVipRefundsFromDisk();
+loadPpvPayoutsFromDisk();
 
 function dedupePayouts(existing: PayoutRecord[] = [], incoming: PayoutRecord[] = []): PayoutRecord[] {
   const byId = new Map<string, PayoutRecord>();
@@ -193,7 +250,7 @@ function dedupeTasks(existing: TaskHistoryRecord[] = [], incoming: TaskHistoryRe
   const byKey = new Map<string, TaskHistoryRecord>();
   for (const t of [...existing, ...incoming]) {
     if (!t || !t.taskId) continue;
-    const safeReward = Math.min(Number(t.reward) || 0, MAX_TASK_REWARD_USD);
+    const safeReward = Math.max(0, Number(t.reward) || 0);
     const key = t.id || `${t.taskId}::${t.completedAt}`;
     if (!byKey.has(key)) {
       byKey.set(key, { ...t, reward: +safeReward.toFixed(4) });
@@ -303,7 +360,9 @@ export function mergeCustomerStates(
 
   const mergedReferralStats: ReferralStats = {
     referralCode: resolvedReferralCode,
-    referralLink: incRef.referralLink || baseRef.referralLink || `https://gideonglobal.com/?ref=${resolvedReferralCode}`,
+    referralLink: normalizePlatformUrl(
+      incRef.referralLink || baseRef.referralLink || `${CANONICAL_PLATFORM_ORIGIN}/?ref=${resolvedReferralCode}`
+    ),
     totalClicks: Math.max(baseRef.totalClicks || 0, incRef.totalClicks || 0),
     totalSignups: Math.max(
       baseRef.totalSignups || 0,
@@ -411,14 +470,8 @@ export function saveMergedCustomerState(uid: string, incoming: Partial<Persisted
   return merged;
 }
 
-export function setCustomerApprovedPackage(uid: string, packageId: string | null): PersistedCustomerState {
-  const state = getOrCreateCustomerState(uid);
-  state.activePackageId = highestPackageId(state.activePackageId, packageId) || packageId;
-  state.updatedAt = new Date().toISOString();
-  indexState(state);
-  persistStatesToDisk();
-  syncStateToFirestore(state);
-  return state;
+export function setCustomerApprovedPackage(uid: string, _packageId: string | null): PersistedCustomerState {
+  return getOrCreateCustomerState(uid);
 }
 
 export function creditCustomerBalanceServer(uid: string, amountUsd: number): PersistedCustomerState {
@@ -431,6 +484,60 @@ export function creditCustomerBalanceServer(uid: string, amountUsd: number): Per
   persistStatesToDisk();
   syncStateToFirestore(state);
   return state;
+}
+
+export function creditPpvEarningsToWallet(params: {
+  uid: string;
+  postId: string;
+  viewsCount: number;
+  amountKes: number;
+  caption?: string;
+}): { credited: boolean; alreadyCredited: boolean; amountUsd: number; amountKes: number; newBalanceUsd: number } {
+  const cleanUid = String(params.uid || '').trim();
+  const cleanPostId = String(params.postId || '').trim();
+  const safeKes = Math.max(0, Math.round(Number(params.amountKes) || 0));
+  const amountUsd = convertKesToUsd(safeKes);
+
+  if (!cleanUid || cleanUid === 'guest' || cleanUid.startsWith('seed-') || !cleanPostId || safeKes <= 0) {
+    return {
+      credited: false,
+      alreadyCredited: false,
+      amountUsd,
+      amountKes: safeKes,
+      newBalanceUsd: 0,
+    };
+  }
+
+  const key = `PPV:${cleanPostId}`;
+  const state = getOrCreateCustomerState(cleanUid);
+
+  if (creditedPpvPayoutKeys.has(key)) {
+    return {
+      credited: false,
+      alreadyCredited: true,
+      amountUsd,
+      amountKes: safeKes,
+      newBalanceUsd: state.userStats.balance,
+    };
+  }
+
+  creditedPpvPayoutKeys.add(key);
+  persistPpvPayoutsToDisk();
+
+  state.userStats.balance = +(state.userStats.balance + amountUsd).toFixed(4);
+  state.userStats.lifetimeEarned = +(state.userStats.lifetimeEarned + amountUsd).toFixed(4);
+  state.updatedAt = new Date().toISOString();
+  indexState(state);
+  persistStatesToDisk();
+  syncStateToFirestore(state);
+
+  return {
+    credited: true,
+    alreadyCredited: false,
+    amountUsd,
+    amountKes: safeKes,
+    newBalanceUsd: state.userStats.balance,
+  };
 }
 
 export function recordServerWithdrawalDebit(uid: string, payout: PayoutRecord): PersistedCustomerState {
@@ -506,12 +613,12 @@ export function registerReferralAttribution(params: {
         refereeEmailMasked: 'verified-member',
         refereeCountry: country.name,
         dateJoined: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        passPurchased: 'Signed Up (No Pass Yet)',
+        passPurchased: 'Joined Free Access',
         passPrice: 0,
         commissionRate: 0.2,
         commissionEarned: 0,
-        paymentMethod: 'M-PESA',
-        status: 'Pending',
+        paymentMethod: 'PayPal',
+        status: 'Credited',
         transactionId: `SIGNUP-${params.newUserUid.slice(-6).toUpperCase()}`,
       },
       ...referrerState.referralHistory,
@@ -526,79 +633,16 @@ export function registerReferralAttribution(params: {
   return { referrerUid };
 }
 
-export function creditReferrerOnPassApproval(params: {
+export function creditReferrerOnPassApproval(_params: {
   buyerUid: string;
   buyerName?: string;
   buyerCountryCode?: string;
-  packageId: string;
+  packageId?: string;
   packageName?: string;
-  amountKes: number;
+  amountKes?: number;
   orderId: string;
 }): { creditedReferrerUid?: string; vipUnlocked?: boolean } {
-  if (!params.buyerUid || !params.orderId) return {};
-  if (creditedReferralPassOrders.has(params.orderId)) return {};
-
-  const buyerState = getOrCreateCustomerState(params.buyerUid);
-  const referrerUid = buyerState.referredByUid;
-  if (!referrerUid || referrerUid === params.buyerUid) return {};
-
-  creditedReferralPassOrders.add(params.orderId);
-
-  const referrerState = getOrCreateCustomerState(referrerUid);
-  const passPriceUsd = convertKesToUsd(params.amountKes);
-  const commissionUsd = +(passPriceUsd * 0.2).toFixed(4);
-  const isVip = params.packageId === 'vip';
-  const country = getCountryByCode(params.buyerCountryCode || 'KE');
-  const pkgLabel =
-    params.packageName ||
-    (isVip
-      ? 'VIP Taskmaster Pass (200 Shillings)'
-      : params.packageId === 'pro'
-      ? 'Pro Tasker Pass (100 Shillings)'
-      : 'Starter Contributor Pass (50 Shillings)');
-
-  referrerState.userStats.balance = +(referrerState.userStats.balance + commissionUsd).toFixed(4);
-  referrerState.userStats.lifetimeEarned = +(referrerState.userStats.lifetimeEarned + commissionUsd).toFixed(4);
-  referrerState.referralStats.passesPurchasedCount += 1;
-  referrerState.referralStats.totalCommissionEarned = +(
-    referrerState.referralStats.totalCommissionEarned + commissionUsd
-  ).toFixed(4);
-
-  if (isVip) {
-    referrerState.vipReferralCount = (referrerState.vipReferralCount || 0) + 1;
-    referrerState.referralStats.vipReferralCount = referrerState.vipReferralCount;
-  }
-
-  const existingIdx = referrerState.referralHistory.findIndex((r) => r.referredUserUid === params.buyerUid);
-  const entry: ReferralRecord = {
-    id: `ref-${params.orderId.slice(-8)}`,
-    referredUserUid: params.buyerUid,
-    packageId: params.packageId,
-    refereeName: params.buyerName || 'Referred Contributor',
-    refereeEmailMasked: 'verified-member',
-    refereeCountry: country.name,
-    dateJoined: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    passPurchased: pkgLabel,
-    passPrice: passPriceUsd,
-    commissionRate: 0.2,
-    commissionEarned: commissionUsd,
-    paymentMethod: 'M-PESA',
-    status: 'Credited',
-    transactionId: params.orderId,
-  };
-
-  if (existingIdx !== -1) {
-    referrerState.referralHistory[existingIdx] = entry;
-  } else {
-    referrerState.referralHistory = [entry, ...referrerState.referralHistory];
-  }
-
-  referrerState.updatedAt = new Date().toISOString();
-  indexState(referrerState);
-  persistStatesToDisk();
-  syncStateToFirestore(referrerState);
-
-  return { creditedReferrerUid: referrerUid, vipUnlocked: isVip };
+  return {};
 }
 
 export function ownerUpdateCustomerStateSupport(params: {

@@ -130,7 +130,7 @@ export interface Task {
 export interface PayoutRecord {
   id: string;
   amount: number;
-  method: 'M-PESA' | 'Airtel / MTN MoMo' | 'East Africa Bank' | 'Wise' | 'Crypto USDT';
+  method: 'PayPal';
   accountDetails: string;
   status: 'Completed' | 'Processing' | 'Rejected';
   timestamp: string;
@@ -199,7 +199,7 @@ export interface ReferralRecord {
   passPrice: number;
   commissionRate: number;
   commissionEarned: number;
-  paymentMethod: 'M-PESA' | 'Card' | 'Mobile Money';
+  paymentMethod: 'PayPal';
   status: 'Credited' | 'Pending';
   transactionId: string;
 }

@@ -1,5 +1,95 @@
 [
   {
+    "id": "sms_1794995982311_rr69u",
+    "timestamp": "2026-11-18T09:59:42.311Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "login-2fa",
+    "provider": "Instant On-Screen Fallback",
+    "status": "instant-fallback",
+    "detail": "Twilio: No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995982310_cotdr",
+    "timestamp": "2026-11-18T09:59:42.310Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "login-2fa",
+    "provider": "Twilio SMS",
+    "status": "failed",
+    "detail": "No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995970706_0hmq0",
+    "timestamp": "2026-11-18T09:59:30.706Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "login-2fa",
+    "provider": "Instant On-Screen Fallback",
+    "status": "instant-fallback",
+    "detail": "Twilio: No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995970706_byq50",
+    "timestamp": "2026-11-18T09:59:30.706Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "login-2fa",
+    "provider": "Twilio SMS",
+    "status": "failed",
+    "detail": "No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995956917_eoica",
+    "timestamp": "2026-11-18T09:59:16.917Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "enable-sms-2fa",
+    "provider": "Instant On-Screen Fallback",
+    "status": "instant-fallback",
+    "detail": "Twilio: No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995956916_65lto",
+    "timestamp": "2026-11-18T09:59:16.916Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "enable-sms-2fa",
+    "provider": "Twilio SMS",
+    "status": "failed",
+    "detail": "No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995933389_j6v21",
+    "timestamp": "2026-11-18T09:58:53.389Z",
+    "maskedPhone": "+25479****444",
+    "purpose": "register",
+    "provider": "Instant On-Screen Fallback",
+    "status": "instant-fallback",
+    "detail": "Twilio: No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995933389_gu0m4",
+    "timestamp": "2026-11-18T09:58:53.389Z",
+    "maskedPhone": "+25479****444",
+    "purpose": "register",
+    "provider": "Twilio SMS",
+    "status": "failed",
+    "detail": "No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995933124_2u5ga",
+    "timestamp": "2026-11-18T09:58:53.124Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "register",
+    "provider": "Instant On-Screen Fallback",
+    "status": "instant-fallback",
+    "detail": "Twilio: No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
+    "id": "sms_1794995933123_3u9uk",
+    "timestamp": "2026-11-18T09:58:53.124Z",
+    "maskedPhone": "+25479****222",
+    "purpose": "register",
+    "provider": "Twilio SMS",
+    "status": "failed",
+    "detail": "No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."
+  },
+  {
     "id": "sms_1794839658549_dzo8u",
     "timestamp": "2026-11-16T14:34:18.549Z",
     "maskedPhone": "+25479****246",

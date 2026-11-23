@@ -1,24 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
 import { formatCurrencyFromUsd, formatCurrencyFromKes } from '../lib/eastAfrica';
+import { CANONICAL_PLATFORM_ORIGIN } from '../utils/platformUrl';
 import {
   TrendingUp,
-  Smartphone,
   ShieldCheck,
   AlertCircle,
   CheckCircle2,
-  Copy,
-  Check,
-  Upload,
   Clock,
   RefreshCw,
-  CreditCard,
   Zap,
   Lock,
   ArrowLeft,
   Ban,
+  Globe,
+  ExternalLink,
 } from 'lucide-react';
 
 interface InvestmentPlan {
@@ -41,7 +39,6 @@ interface InvestmentRecord {
   expectedReturnUsd: number;
   durationDays: number;
   depositMethod: string;
-  payToNumber?: string;
   senderPhone?: string;
   paymentReference: string;
   status: 'Pending Owner Approval' | 'Active' | 'Matured & Paid' | 'Rejected';
@@ -60,7 +57,7 @@ const DEFAULT_PLANS: InvestmentPlan[] = [
     durationDays: 7,
     returnPct: 12,
     description:
-      'Accessible entry pool starting from KES 50+. Backed by micro-task escrow volume with a 7-day cycle.',
+      'Accessible entry pool starting from KES 50+. Funded strictly via PayPal with a 7-day cycle.',
   },
   {
     id: 'growth-14d',
@@ -69,7 +66,7 @@ const DEFAULT_PLANS: InvestmentPlan[] = [
     durationDays: 14,
     returnPct: 25,
     description:
-      'Balanced 2-week enterprise data annotation liquidity pool for deposits of KES 250 and above.',
+      'Balanced 2-week enterprise data annotation liquidity pool for PayPal deposits of KES 250 and above.',
   },
   {
     id: 'vip-30d',
@@ -78,7 +75,7 @@ const DEFAULT_PLANS: InvestmentPlan[] = [
     durationDays: 30,
     returnPct: 45,
     description:
-      'High-yield 30-day enterprise fulfillment pool for deposits starting at KES 1,000+.',
+      'High-yield 30-day enterprise fulfillment pool for PayPal deposits starting at KES 1,000+.',
   },
 ];
 
@@ -111,10 +108,6 @@ export const InvestmentsView: React.FC = () => {
   const [plans, setPlans] = useState<InvestmentPlan[]>(DEFAULT_PLANS);
   const [selectedPlanId, setSelectedPlanId] = useState<'starter-7d' | 'growth-14d' | 'vip-30d'>('starter-7d');
   const [amountKesInput, setAmountKesInput] = useState<string>('50');
-  const [depositMethod, setDepositMethod] = useState<
-    'Manual M-PESA 0758727558' | 'Paystack M-PESA STK' | 'Mobile Money' | 'Paystack Card'
-  >('Manual M-PESA 0758727558');
-
   const [customerName, setCustomerName] = useState<string>(
     customerProfile?.displayName || user?.displayName || ''
   );
@@ -122,14 +115,16 @@ export const InvestmentsView: React.FC = () => {
     customerProfile?.phone || selectedCountry.samplePhone
   );
   const [paymentReference, setPaymentReference] = useState<string>('');
-  const [screenshotDataUrl, setScreenshotDataUrl] = useState<string>('');
-  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
-  const screenshotRef = useRef<HTMLInputElement | null>(null);
+  const [paypalLinkData, setPaypalLinkData] = useState<{
+    checkoutUrl: string;
+    payPalMeUrl: string;
+    amountUsd: number;
+  } | null>(null);
+  const [generatingPaypal, setGeneratingPaypal] = useState(false);
 
   const [myInvestments, setMyInvestments] = useState<InvestmentRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [copiedNum, setCopiedNum] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -192,34 +187,39 @@ export const InvestmentsView: React.FC = () => {
     setErrorMsg(null);
   };
 
-  const handleCopyMpesaNumber = async () => {
-    try {
-      await navigator.clipboard.writeText('0758727558');
-      setCopiedNum(true);
-      setTimeout(() => setCopiedNum(false), 2000);
-    } catch {}
-  };
-
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGeneratePaypalInvestmentLink = async () => {
     setErrorMsg(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Upload an image screenshot (PNG, JPG, WebP) showing your M-PESA deposit to 0758727558.');
-      return;
-    }
-    if (file.size > 4 * 1024 * 1024) {
-      setErrorMsg('Screenshot file is too large (max 4 MB).');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setScreenshotDataUrl(reader.result);
-        setScreenshotFileName(file.name);
+    setGeneratingPaypal(true);
+    try {
+      const amountUsd = Math.max(0.5, Number((parsedKes / 130).toFixed(2)));
+      const res = await fetch('/api/paypal/generate-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        body: JSON.stringify({
+          itemName: `${selectedPlan.name} Investment (KES ${parsedKes})`,
+          amountUsd,
+          packageId: selectedPlan.id,
+          returnUrl: CANONICAL_PLATFORM_ORIGIN,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.link) {
+        setErrorMsg(data?.error || 'Could not generate PayPal investment link.');
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      setPaypalLinkData({
+        checkoutUrl: String(data.link.checkoutUrl),
+        payPalMeUrl: String(data.link.payPalMeUrl),
+        amountUsd: Number(data.link.amountUsd),
+      });
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Network error generating PayPal checkout link.');
+    } finally {
+      setGeneratingPaypal(false);
+    }
   };
 
   const handleSubmitDeposit = async (e: React.FormEvent) => {
@@ -229,7 +229,7 @@ export const InvestmentsView: React.FC = () => {
 
     if (customerProfile?.banned) {
       setErrorMsg(
-        `Account permanently banned 🚫 forever: ${customerProfile.bannedReason || 'Policy violation.'}`
+        `Account permanently banned: ${customerProfile.bannedReason || 'Policy violation.'}`
       );
       return;
     }
@@ -253,69 +253,13 @@ export const InvestmentsView: React.FC = () => {
       return;
     }
 
+    if (paymentReference.trim().length < 6) {
+      setErrorMsg('Enter your valid PayPal Transaction ID (at least 6 characters) after completing PayPal payment.');
+      return;
+    }
+
     setSubmitting(true);
-
     try {
-      if (depositMethod === 'Paystack M-PESA STK') {
-        const res = await fetch('/api/investments/paystack/stk', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-ea-country': selectedCountry.code,
-            'x-ea-verified': 'true',
-            ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-          },
-          body: JSON.stringify({
-            phone: senderPhone,
-            amountKes: parsedKes,
-            planId: selectedPlanId,
-            countryCode: selectedCountry.code,
-            customerName: customerName.trim() || undefined,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.success) {
-          setErrorMsg(data?.error || 'Could not initiate Paystack M-PESA STK investment deposit.');
-          setSubmitting(false);
-          return;
-        }
-        if (data?.investment?.id) {
-          saveTrackedInvestmentId(data.investment.id);
-        }
-        setSuccessMsg(
-          data.message || `Paystack M-PESA STK deposit of KES ${parsedKes.toLocaleString()} submitted!`
-        );
-        showNotification(data.message || 'Investment deposit submitted!');
-        await loadPlansAndInvestments();
-        setSubmitting(false);
-        return;
-      }
-
-      if (depositMethod === 'Manual M-PESA 0758727558') {
-        const cleanCode = paymentReference.trim().toUpperCase();
-        if (!/^[A-Z0-9]{6,20}$/.test(cleanCode)) {
-          setErrorMsg(
-            'Enter the valid M-PESA confirmation code (6–20 letters/numbers) from sending to 0758727558.'
-          );
-          setSubmitting(false);
-          return;
-        }
-        if (!screenshotDataUrl) {
-          setErrorMsg(
-            'Upload a clear M-PESA payment screenshot confirming your KES deposit to 0758727558.'
-          );
-          setSubmitting(false);
-          return;
-        }
-      } else {
-        // Mobile Money or Paystack Card reference
-        if (paymentReference.trim().length < 4) {
-          setErrorMsg('Enter your deposit payment reference or transaction code.');
-          setSubmitting(false);
-          return;
-        }
-      }
-
       const res = await fetch('/api/investments/deposit', {
         method: 'POST',
         headers: {
@@ -327,12 +271,10 @@ export const InvestmentsView: React.FC = () => {
         body: JSON.stringify({
           planId: selectedPlanId,
           amountKes: parsedKes,
-          depositMethod,
+          depositMethod: 'PayPal',
           useWalletBalance: false,
           senderPhone: senderPhone.trim(),
           paymentReference: paymentReference.trim().toUpperCase(),
-          screenshotDataUrl: screenshotDataUrl || undefined,
-          screenshotFileName: screenshotFileName || undefined,
           countryCode: selectedCountry.code,
           customerName: customerName.trim() || undefined,
         }),
@@ -340,7 +282,7 @@ export const InvestmentsView: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok || !data?.success) {
-        setErrorMsg(data?.error || 'Could not submit investment deposit.');
+        setErrorMsg(data?.error || 'Could not submit PayPal investment deposit.');
         setSubmitting(false);
         return;
       }
@@ -350,18 +292,14 @@ export const InvestmentsView: React.FC = () => {
       }
 
       setPaymentReference('');
-      setScreenshotDataUrl('');
-      setScreenshotFileName('');
-      if (screenshotRef.current) screenshotRef.current.value = '';
-
       setSuccessMsg(
         data.message ||
-          `KES ${parsedKes.toLocaleString()} deposit submitted! Pending Owner verification of payment.`
+          `KES ${parsedKes.toLocaleString()} PayPal deposit submitted! Pending Owner verification.`
       );
-      showNotification(`Investment deposit of KES ${parsedKes.toLocaleString()} submitted!`);
+      showNotification(`PayPal investment deposit of KES ${parsedKes.toLocaleString()} submitted!`);
       await loadPlansAndInvestments();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error while submitting investment deposit.');
+      setErrorMsg(err?.message || 'Network error while submitting PayPal investment deposit.');
     } finally {
       setSubmitting(false);
     }
@@ -395,7 +333,7 @@ export const InvestmentsView: React.FC = () => {
             <span>East Africa Growth Investment Pools</span>
           </h1>
           <p className="text-sm text-slate-600 max-w-2xl">
-            Invest starting from <strong className="text-slate-900">KES 50 and above</strong> in task liquidity pools and track maturity returns directly in your account.
+            Invest starting from <strong className="text-slate-900">KES 50 and above</strong> via <strong>PayPal</strong> in task liquidity pools and track maturity returns directly in your account.
           </p>
         </div>
 
@@ -416,11 +354,10 @@ export const InvestmentsView: React.FC = () => {
           <Lock className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
           <div className="space-y-0.5 text-amber-950">
             <div className="font-extrabold uppercase tracking-wide">
-              Strict Rule: Deposit Only (KES 50+) — Wallet Balance Blocked
+              Strict Rule: External PayPal Deposit Only (KES 50+) — Wallet Balance Blocked
             </div>
             <p>
-              All investments and Worker Passes must be funded strictly by <strong>fresh deposit</strong> (M-PESA to{' '}
-              <strong className="font-mono text-sm">0758727558</strong>, Paystack STK, Card, or Mobile Money). Task earnings in your Wallet ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) can only be withdrawn and <strong>cannot</strong> be used to invest.
+              All investments must be funded strictly by <strong>fresh PayPal deposit</strong>. Task earnings in your Wallet ({formatCurrencyFromUsd(userStats.balance, selectedCountry)}) can only be withdrawn via PayPal once KYC is approved and <strong>cannot</strong> be used to invest.
             </p>
           </div>
         </div>
@@ -438,7 +375,7 @@ export const InvestmentsView: React.FC = () => {
             KES {totalInvestedKes.toLocaleString()}
           </div>
           <div className="mt-1 text-[11px] text-slate-500 font-mono">
-            {myInvestments.length} investment deposit{myInvestments.length === 1 ? '' : 's'}
+            {myInvestments.length} PayPal deposit{myInvestments.length === 1 ? '' : 's'}
           </div>
         </div>
 
@@ -458,7 +395,7 @@ export const InvestmentsView: React.FC = () => {
             KES {totalMaturedPaidKes.toLocaleString()}
           </div>
           <div className="mt-1 text-[11px] text-blue-800">
-            Settled directly by Platform Owner
+            Settled to PayPal by Platform Owner
           </div>
         </div>
       </div>
@@ -509,7 +446,7 @@ export const InvestmentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Deposit Form */}
+      {/* Main PayPal Deposit Form */}
       <form
         onSubmit={handleSubmitDeposit}
         className="p-6 md:p-8 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-6"
@@ -517,7 +454,7 @@ export const InvestmentsView: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-extrabold text-slate-900">
-              2. Make Fresh Investment Deposit ({selectedPlan.name})
+              2. PayPal Investment Deposit ({selectedPlan.name})
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
               Enter any deposit amount from <strong>KES 50 and above</strong> (KES {selectedPlan.minKes}+ for {selectedPlan.name}).
@@ -591,189 +528,89 @@ export const InvestmentsView: React.FC = () => {
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 focus:border-emerald-600 outline-hidden"
             />
             <p className="text-[11px] text-slate-500 mt-1.5">
-              Deposits are audited by Owner (<code className="font-mono">nigideon36@gmail.com</code>) &amp; paid back to your locked East Africa payout account on maturity.
+              Deposits are audited by Owner (<code className="font-mono">nigideon36@gmail.com</code>) &amp; settled to your PayPal email on maturity.
             </p>
           </div>
         </div>
 
-        {/* Deposit Method Selector */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold text-slate-800">
-            Select Deposit Rail (Wallet Balance Not Accepted):
-          </label>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {(
-              [
-                { id: 'Manual M-PESA 0758727558', label: 'M-PESA 0758727558', icon: Smartphone },
-                { id: 'Paystack M-PESA STK', label: 'Paystack STK Push', icon: Zap },
-                { id: 'Mobile Money', label: 'Airtel / MTN MoMo', icon: Smartphone },
-                { id: 'Paystack Card', label: 'Paystack Card', icon: CreditCard },
-              ] as const
-            ).map((m) => {
-              const Icon = m.icon;
-              const active = depositMethod === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    setDepositMethod(m.id);
-                    setErrorMsg(null);
-                  }}
-                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold cursor-pointer transition-all ${
-                    active
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-950 shadow-xs'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{m.label}</span>
-                </button>
-              );
-            })}
+        {/* PayPal Checkout Details */}
+        <div className="p-5 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1 text-xs text-sky-950">
+              <div className="font-extrabold flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-sky-700" />
+                <span>PayPal Deposit (~${Math.max(0.5, Number((parsedKes / 130).toFixed(2))).toFixed(2)} USD)</span>
+              </div>
+              <p className="text-[11px] text-sky-900">
+                PayPal is the exclusive deposit &amp; payout gateway on Gideon Global Tasks. Click to generate a PayPal link, pay safely, and paste your Transaction ID below.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={generatingPaypal || parsedKes < 50}
+              onClick={handleGeneratePaypalInvestmentLink}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>{generatingPaypal ? 'Generating...' : 'Generate PayPal Checkout Link'}</span>
+            </button>
           </div>
-        </div>
 
-        {/* Deposit Method Details */}
-        {depositMethod === 'Manual M-PESA 0758727558' && (
-          <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-300 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="text-xs font-extrabold text-emerald-950 uppercase tracking-wide">
-                  Send Deposit via M-PESA to:
-                </div>
-                <div className="text-2xl font-black font-mono text-emerald-900 tracking-wider">
-                  0758727558
-                </div>
-                <p className="text-[11px] text-emerald-900">
-                  Send exact deposit amount <strong>KES {parsedKes.toLocaleString()}</strong> to{' '}
-                  <strong>0758727558</strong>, then enter your M-PESA confirmation code and upload your payment screenshot below.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCopyMpesaNumber}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold cursor-pointer shrink-0 self-start"
-              >
-                {copiedNum ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedNum ? 'Copied 0758727558' : 'Copy 0758727558'}</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Your Sender Phone Number:
-                </label>
-                <input
-                  type="tel"
-                  value={senderPhone}
-                  onChange={(e) => setSenderPhone(e.target.value)}
-                  placeholder="e.g. 0712345678 or +254..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:border-emerald-600 outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  M-PESA Confirmation Code (Required):
-                </label>
-                <input
-                  type="text"
-                  value={paymentReference}
-                  onChange={(e) => setPaymentReference(e.target.value.toUpperCase())}
-                  placeholder="e.g. SK94AB72XQ"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs font-black uppercase text-slate-900 focus:border-emerald-600 outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                Upload M-PESA Screenshot Proof (Required):
-              </label>
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  ref={screenshotRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleScreenshotChange}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => screenshotRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-800 cursor-pointer"
+          {paypalLinkData && (
+            <div className="p-3 rounded-xl bg-white border border-sky-300 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-slate-900">
+                Ready: ${paypalLinkData.amountUsd.toFixed(2)} USD (KES {parsedKes.toLocaleString()})
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={paypalLinkData.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold"
                 >
-                  <Upload className="w-4 h-4 text-emerald-600" />
-                  <span>{screenshotFileName ? `Selected: ${screenshotFileName}` : 'Choose Payment Screenshot'}</span>
-                </button>
-                {screenshotDataUrl && (
-                  <img
-                    src={screenshotDataUrl}
-                    alt="Investment proof preview"
-                    className="h-12 w-16 object-cover rounded-lg border border-slate-300"
-                  />
-                )}
+                  <span>Open PayPal Checkout</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href={paypalLinkData.payPalMeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 border border-sky-300 text-sky-900 font-bold"
+                >
+                  <span>PayPal.Me</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {depositMethod === 'Paystack M-PESA STK' && (
-          <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
-            <div className="text-xs font-bold text-slate-900">
-              Instant Paystack M-PESA STK Push (Kenya +254)
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                M-PESA Phone Number to Prompt:
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Contact Phone / WhatsApp:
               </label>
               <input
                 type="tel"
                 value={senderPhone}
                 onChange={(e) => setSenderPhone(e.target.value)}
-                placeholder="0712345678 or +254712345678"
-                className="w-full max-w-md px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:border-sky-600 outline-hidden"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                PayPal Transaction ID *:
+              </label>
+              <input
+                type="text"
+                required
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value.toUpperCase())}
+                placeholder="e.g. 4K928174H8239412L"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs font-bold uppercase text-slate-900"
               />
             </div>
           </div>
-        )}
-
-        {(depositMethod === 'Mobile Money' || depositMethod === 'Paystack Card') && (
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-            <p className="text-xs text-slate-700">
-              {depositMethod === 'Mobile Money'
-                ? 'Send Mobile Money / Airtel / MTN MoMo deposit to 0758727558 and enter your transaction reference below.'
-                : 'Complete your Paystack Visa / Mastercard deposit and enter your Paystack payment reference below for verification.'}
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Phone Number:
-                </label>
-                <input
-                  type="tel"
-                  value={senderPhone}
-                  onChange={(e) => setSenderPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Payment Reference / Transaction Code:
-                </label>
-                <input
-                  type="text"
-                  value={paymentReference}
-                  onChange={(e) => setPaymentReference(e.target.value.toUpperCase())}
-                  placeholder="Enter payment transaction code"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs font-bold uppercase text-slate-900"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {errorMsg && (
           <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -801,8 +638,8 @@ export const InvestmentsView: React.FC = () => {
             <TrendingUp className="w-4 h-4" />
             <span>
               {submitting
-                ? 'Submitting Deposit...'
-                : `Deposit KES ${parsedKes.toLocaleString()} & Invest`}
+                ? 'Submitting PayPal Deposit...'
+                : `Submit KES ${parsedKes.toLocaleString()} PayPal Deposit`}
             </span>
           </button>
         </div>
@@ -813,10 +650,10 @@ export const InvestmentsView: React.FC = () => {
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-extrabold text-slate-900">
-              My Investment Deposits &amp; Maturity Ledger ({myInvestments.length})
+              My PayPal Investment Deposits &amp; Maturity Ledger ({myInvestments.length})
             </h2>
             <p className="text-[11px] text-slate-500">
-              Real-time status synced from Owner verification and payout settlement.
+              Real-time status synced from Owner verification and PayPal settlement.
             </p>
           </div>
         </div>
@@ -827,7 +664,7 @@ export const InvestmentsView: React.FC = () => {
               <tr>
                 <th className="py-3 px-4 font-semibold">ID &amp; Date</th>
                 <th className="py-3 px-4 font-semibold">Pool &amp; Cycle</th>
-                <th className="py-3 px-4 font-semibold">Deposit Rail &amp; Ref</th>
+                <th className="py-3 px-4 font-semibold">PayPal Reference</th>
                 <th className="py-3 px-4 font-semibold text-right">Deposited</th>
                 <th className="py-3 px-4 font-semibold text-right">Expected Maturity</th>
                 <th className="py-3 px-4 font-semibold text-center">Status</th>
@@ -837,7 +674,7 @@ export const InvestmentsView: React.FC = () => {
               {myInvestments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-10 px-4 text-center text-slate-500">
-                    No investments deposited yet. Start with any deposit from <strong>KES 50</strong> above to earn yield!
+                    No PayPal investments deposited yet. Start with any deposit from <strong>KES 50</strong> above to earn yield!
                   </td>
                 </tr>
               ) : (
@@ -861,7 +698,7 @@ export const InvestmentsView: React.FC = () => {
                       <div className="text-[11px] font-mono text-slate-600">Ref: {inv.paymentReference}</div>
                       {inv.payoutReceipt && (
                         <div className="text-[10px] font-mono text-emerald-700 font-bold">
-                          Payout Receipt: {inv.payoutReceipt}
+                          PayPal Payout Receipt: {inv.payoutReceipt}
                         </div>
                       )}
                       {inv.ownerNotes && (

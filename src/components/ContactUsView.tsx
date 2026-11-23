@@ -16,7 +16,7 @@ export const ContactUsView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -34,14 +34,34 @@ export const ContactUsView: React.FC = () => {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      const res = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: name.trim(),
+          contactInfo: email.trim(),
+          countryCode: selectedCountry.code,
+          category,
+          subject: subject.trim() || `${category} inquiry`,
+          message: message.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setError(data?.error || 'Could not submit inquiry right now. Please try WhatsApp or Call.');
+        return;
+      }
       setSubmitted(true);
       setName('');
       setEmail('');
       setSubject('');
       setMessage('');
-    }, 600);
+    } catch {
+      setError('Network error submitting inquiry. Please try WhatsApp 0785909543 or Call +254712727558.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -134,14 +154,14 @@ export const ContactUsView: React.FC = () => {
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[11px] block">Escrow & Payout Inquiries</span>
-                  <span className="text-slate-200">M-PESA STK & Wise Instant Audits</span>
+                  <span className="text-slate-400 text-[11px] block">Escrow &amp; Payout Inquiries</span>
+                  <span className="text-slate-200">PayPal Payouts, ID KYC &amp; 50% Escrow</span>
                 </div>
               </div>
             </div>
 
             <div className="pt-4 border-t border-white/10 text-[11px] text-slate-400">
-              Gideon Global Tasks Inc. · Borderless Crowdsourcing & Machine Learning Ground Truth Network.
+              Gideon Global Tasks · East Africa Micro-Work, Auctions &amp; Pay-Per-View Platform.
             </div>
           </div>
 
@@ -152,7 +172,7 @@ export const ContactUsView: React.FC = () => {
               <span>Instant Live AI Customer Chat</span>
             </h4>
             <p className="text-blue-100 text-[11px] leading-relaxed">
-              Have a question right now about SMS OTP registration, Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)}), or {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} payouts? Ask our Live AI assistant 24/7.
+              Have a question right now about Front &amp; Back National ID KYC, 8:00 AM EAT daily tasks, 50% auction escrow, or {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} PayPal payouts? Ask our Live AI assistant 24/7.
             </p>
             <button
               type="button"
@@ -169,7 +189,7 @@ export const ContactUsView: React.FC = () => {
               <span>Looking for Quick Answers?</span>
             </h4>
             <p className="text-slate-500 text-[11px] leading-relaxed">
-              Before submitting a ticket, check our detailed FAQ covering minimum withdrawal limits ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}), pass tiers ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)}), and daily streak bonuses.
+              Before submitting a ticket, check our detailed FAQ covering minimum PayPal withdrawal limits ({formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}), strict Front/Back ID KYC, daily 8:00 AM EAT drops, and 50% auction escrow.
             </p>
             <button
               onClick={() => setActiveTab('faq')}
@@ -249,8 +269,8 @@ export const ContactUsView: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value as any)}
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors cursor-pointer"
                   >
-                    <option value="worker">Contributor Support (Tasks, Pass, Streaks)</option>
-                    <option value="billing">Escrow, M-PESA & Wise Withdrawals</option>
+                    <option value="worker">Contributor Support (8 AM Tasks, KYC, Streaks)</option>
+                    <option value="billing">PayPal Payouts, Investment Pools &amp; 50% Escrow</option>
                     <option value="requester">Enterprise Requester (Submit Datasets)</option>
                     <option value="partnership">Google AdSense, Media & Partnerships</option>
                   </select>
@@ -262,7 +282,7 @@ export const ContactUsView: React.FC = () => {
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g. M-PESA Payout Verification"
+                    placeholder="e.g. PayPal Payout & National ID KYC Review"
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
                   />
                 </div>

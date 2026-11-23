@@ -1,1 +1,96 @@
-[]
+[
+  {
+    "id": "AUC-SALE-AUC-EA-LTH03",
+    "kind": "auction_sale",
+    "title": "Auction Won: Handcrafted Full-Grain Kenyan Cognac Leather Laptop Backpack",
+    "customerLabel": "Jean-Paul Habimana (from Amina Hassan)",
+    "gatewayOrMethod": "Auction Settlement",
+    "currency": "KES",
+    "amountLocal": 4250,
+    "amountUsd": 32.69,
+    "status": "Completed",
+    "reference": "AUC-EA-LTH03",
+    "countryCode": "KE",
+    "metadata": {
+      "auctionId": "AUC-EA-LTH03",
+      "sellerUid": "seed-seller-ke-03",
+      "winnerUid": "seed-bidder-rw-01"
+    },
+    "createdAt": "2026-11-22T14:03:43.298Z",
+    "updatedAt": "2026-11-22T14:03:43.298Z"
+  },
+  {
+    "id": "AUC-SALE-AUC-EA-SOL02",
+    "kind": "auction_sale",
+    "title": "Auction Won: Portable 500W LiFePO4 Solar Power Station & Dual AC Inverter",
+    "customerLabel": "Kiprop Mutai (from Juma Mwamba)",
+    "gatewayOrMethod": "Auction Settlement",
+    "currency": "KES",
+    "amountLocal": 19000,
+    "amountUsd": 146.15,
+    "status": "Completed",
+    "reference": "AUC-EA-SOL02",
+    "countryCode": "TZ",
+    "metadata": {
+      "auctionId": "AUC-EA-SOL02",
+      "sellerUid": "seed-seller-tz-01",
+      "winnerUid": "seed-bidder-ke-05"
+    },
+    "createdAt": "2026-11-22T14:03:43.297Z",
+    "updatedAt": "2026-11-22T14:03:43.297Z"
+  },
+  {
+    "id": "AUC-SALE-AUC-EA-PHN01",
+    "kind": "auction_sale",
+    "title": "Auction Won: Vertex 5G Dual-SIM Smartphone (256GB, Matte Graphite)",
+    "customerLabel": "Brian Ochieng (from Wanjiku Kamau)",
+    "gatewayOrMethod": "Auction Settlement",
+    "currency": "KES",
+    "amountLocal": 14500,
+    "amountUsd": 111.54,
+    "status": "Completed",
+    "reference": "AUC-EA-PHN01",
+    "countryCode": "KE",
+    "metadata": {
+      "auctionId": "AUC-EA-PHN01",
+      "sellerUid": "seed-seller-ke-01",
+      "winnerUid": "seed-bidder-ke-02"
+    },
+    "createdAt": "2026-11-22T14:03:43.295Z",
+    "updatedAt": "2026-11-22T14:03:43.295Z"
+  },
+  {
+    "id": "PAY-9734",
+    "kind": "withdrawal",
+    "title": "Customer Withdrawal Request (M-PESA)",
+    "customerLabel": "+254712727558",
+    "gatewayOrMethod": "M-PESA",
+    "currency": "KES",
+    "amountLocal": 550,
+    "amountUsd": 4.23,
+    "status": "Processing",
+    "reference": "MPQ17GGFD",
+    "countryCode": "KE",
+    "metadata": {
+      "accountDetails": "+254712727558"
+    },
+    "createdAt": "2026-11-20T13:38:40.950Z",
+    "updatedAt": "2026-11-20T13:38:43.425Z"
+  },
+  {
+    "id": "AUC-CLS-AUC-BD1C15",
+    "kind": "auction_sale",
+    "title": "Auction Closed & Sold: Temp Espresso Machine",
+    "customerLabel": "Temp Bidder B (from Temp Seller A)",
+    "gatewayOrMethod": "Seller Accepted Highest Bid",
+    "currency": "KES",
+    "amountLocal": 1200,
+    "amountUsd": 9.23,
+    "status": "Completed",
+    "reference": "AUC-BD1C15",
+    "countryCode": "KE",
+    "metadata": {},
+    "createdAt": "2026-11-18T09:59:30.794Z",
+    "updatedAt": "2026-11-18T09:59:30.794Z"
+  }
+]

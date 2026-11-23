@@ -58,18 +58,18 @@ export const PrivacyPolicyView: React.FC = () => {
           At Gideon Global Tasks, we collect personal information when you create an account, authenticate via Google Single Sign-On (OAuth), complete micro tasks, fill out market research surveys, submit data annotations, or request monetary withdrawals.
         </p>
         <ul className="list-disc pl-5 text-xs md:text-sm text-slate-600 space-y-1.5">
-          <li><strong>Identity & Profile Information:</strong> Your full name, verified email address, Google account identifier (UID), and profile avatar.</li>
-          <li><strong>Financial & Payout Information:</strong> Mobile money identifiers (e.g. verified M-PESA phone numbers), Wise account emails, and payout transaction references. We do not store raw credit card numbers; payment processing for worker passes is handled via secure PCI-DSS Level 1 compliant gateways.</li>
-          <li><strong>Work Performance Data:</strong> Task completion timestamps, 2D bounding box coordinates, optical character recognition corrections, survey answers, quality audit scores, and daily streak records.</li>
-          <li><strong>Log & Technical Data:</strong> Internet Protocol (IP) addresses, browser type, operating system version, referring/exit pages, and clickstream analytics collected automatically to prevent fraud and bot abuse.</li>
+          <li><strong>Identity &amp; KYC Verification Information:</strong> Your display name, verified mobile number or email address, Firebase account identifier (UID), and mandatory National ID KYC images (both front and back sides of your country&apos;s ID document) plus ID number used solely to verify unique human identity prior to PayPal withdrawals.</li>
+          <li><strong>Financial &amp; PayPal Payout Information:</strong> Your verified PayPal email address, PayPal Checkout Order/Transaction IDs, 50% auction security escrow records, and withdrawal requests. We never store raw credit card numbers; all checkout transactions operate exclusively through PayPal.</li>
+          <li><strong>Marketplace &amp; Status Media Records:</strong> Completed task answers, receipt transcriptions, auction listings and bids, and uploaded Pay-Per-View status photos or videos with unique viewer counts for 24-hour wallet payout verification.</li>
+          <li><strong>Log &amp; Security Data:</strong> IP region checks, browser session metadata, and two-factor authentication flags used to prevent automated spam and protect user accounts.</li>
         </ul>
       </section>
 
       {/* Section 2 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">2. Google AdSense, DoubleClick DART Cookies & Third-Party Advertising</h2>
+        <h2 className="text-xl font-bold text-slate-900">2. Google AdSense, Monetag &amp; Third-Party Advertising</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Gideon Global Tasks partners with Google AdSense and third-party advertising networks to serve advertisements when you visit our website. These companies may use cookies, web beacons, and JavaScript to measure advertising effectiveness and personalize advertising content.
+          Gideon Global Tasks partners with Google AdSense, Monetag, and authorized third-party advertising networks to serve advertisements and optional browser push notifications when you visit our website. These partners may use cookies, service workers (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono">/sw.js</code>), web beacons, and JavaScript to deliver relevant messages, cap ad frequency, and measure advertising performance. Visitors can opt out or revoke browser notification permissions at any time in their browser settings.
         </p>
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-slate-700">
           <p className="font-semibold text-slate-900">Google DoubleClick DART Cookie Notice:</p>
@@ -134,9 +134,9 @@ export const PrivacyPolicyView: React.FC = () => {
           Gideon Global Tasks implements state-of-the-art technical and organizational security controls:
         </p>
         <ul className="list-disc pl-5 text-xs md:text-sm text-slate-600 space-y-1.5">
-          <li><strong>256-Bit SSL/TLS Encryption:</strong> All data in transit between your browser and our Cloud Run servers is secured via HTTPS with strict transport security.</li>
-          <li><strong>Persistent Relational Storage:</strong> User account ledgers, completed task receipts, and referral records are maintained in managed Cloud SQL PostgreSQL databases protected by private virtual network peering.</li>
-          <li><strong>Role-Based Access Control (RBAC):</strong> Strict security rules safeguard user profiles so contributors can only view and modify their own records.</li>
+          <li><strong>HTTPS / TLS Transport Security:</strong> All traffic between your device, our application server, and authentication providers travels over encrypted HTTPS.</li>
+          <li><strong>Managed Cloud Database Rules:</strong> Account profiles, task histories, auction items, and Pay-Per-View status posts are stored in Google Cloud Firestore with strict server-verified rules so members can only access authorized records.</li>
+          <li><strong>Two-Factor Account Verification:</strong> Contributors may enable 2FA verification to protect stored withdrawal numbers and balances.</li>
         </ul>
       </section>
 
@@ -170,9 +170,9 @@ export const PrivacyPolicyView: React.FC = () => {
 
       {/* Section 7 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">7. Children's Online Privacy Protection (COPPA)</h2>
+        <h2 className="text-xl font-bold text-slate-900">7. Children&apos;s Online Privacy Protection (COPPA)</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Gideon Global Tasks does not knowingly collect or solicit personal information from individuals under 18 years of age. Our services and worker pass activation are strictly restricted to adults who are legally capable of entering into binding contracts. If we become aware that a child under 18 has registered an account, we will immediately terminate the account and purge their data from our servers.
+          Gideon Global Tasks does not knowingly collect or solicit personal information from individuals under 18 years of age. Our services, KYC identity verification, auction escrow participation, and PayPal cash-outs are strictly restricted to adults who are legally capable of entering into binding contracts. If we become aware that a child under 18 has registered an account, we will immediately terminate the account and purge their data from our servers.
         </p>
       </section>
 

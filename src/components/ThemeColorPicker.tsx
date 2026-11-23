@@ -14,7 +14,7 @@ const THEMES: ThemeOption[] = [
   {
     id: 'emerald',
     label: 'Emerald Fintech',
-    sublabel: 'Cash Bounties & M-PESA',
+    sublabel: 'PayPal Payouts & Escrow',
     colorHex: '#059669',
     dotClass: 'bg-emerald-600'
   },

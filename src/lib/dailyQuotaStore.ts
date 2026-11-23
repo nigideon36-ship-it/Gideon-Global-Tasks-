@@ -1,7 +1,27 @@
 import fs from 'fs';
 import path from 'path';
-import { MAX_TASK_REWARD_KES, MAX_TASK_REWARD_USD } from './eastAfrica.ts';
-import { getQuotaRuleForPackageId, getTodayDateKey, type QuotaTierId } from './passQuotas.ts';
+import {
+  getEatNowInfo,
+  getTodayDateKey,
+  getDailyDroppedTaskId,
+  formatCountdownHms,
+  OPEN_ACCESS_DAILY_LIMIT,
+  DAILY_DROP_TASK_IDS,
+  evaluateTaskEligibility,
+  type QuotaTierId,
+  type TaskEligibilityResult,
+} from './taskEligibility.ts';
+
+export {
+  getEatNowInfo,
+  getTodayDateKey,
+  getDailyDroppedTaskId,
+  formatCountdownHms,
+  OPEN_ACCESS_DAILY_LIMIT,
+  DAILY_DROP_TASK_IDS,
+  evaluateTaskEligibility,
+};
+export type { QuotaTierId, TaskEligibilityResult };
 
 export interface DailyTaskEntry {
   taskId: string;
@@ -81,7 +101,6 @@ export function getUserDailyQuotaRecord(userKey: string, dateKey: string = getTo
 
 export function validateAndRecordDailyTaskUsage(params: {
   userKey: string;
-  packageId?: string | null;
   taskId: string;
   category: string;
   rewardUsd: number;
@@ -92,58 +111,47 @@ export function validateAndRecordDailyTaskUsage(params: {
   clampedRewardUsd: number;
   record: DailyUserQuotaRecord;
 } {
-  const dateKey = getTodayDateKey();
+  const now = new Date();
+  const eatInfo = getEatNowInfo(now);
+  const dateKey = eatInfo.dateKey;
   const current = getUserDailyQuotaRecord(params.userKey, dateKey);
-  const rule = getQuotaRuleForPackageId(params.packageId);
-  const rawReward = Number(params.rewardUsd) || 0;
-  const hardCeilingUsd = Math.min(rule.maxAmountUsd, MAX_TASK_REWARD_USD);
+  const rawReward = Math.max(0.01, Number(params.rewardUsd) || 0.25);
 
   if (!params.isOwner) {
-    if (rawReward > hardCeilingUsd + 1e-4) {
+    if (!eatInfo.isDropWindowOpen) {
       return {
         allowed: false,
-        error: `Completed task reward cannot exceed ${MAX_TASK_REWARD_KES} shillings (${rule.name} maximum).`,
-        clampedRewardUsd: hardCeilingUsd,
+        error: `Today's 1 daily task drops at exactly 08:00 AM EAT (in ${formatCountdownHms(eatInfo.msUntilNextDrop)}). Keep time!`,
+        clampedRewardUsd: 0,
         record: current,
       };
     }
 
-    if (rule.tierId === 'vip' && params.category === 'survey' && current.surveyCount >= rule.dailyLimit) {
+    if (current.totalCount >= OPEN_ACCESS_DAILY_LIMIT) {
       return {
         allowed: false,
-        error: `Daily limit reached: VIP Worker Pass allows max ${rule.dailyLimit} surveys daily (not exceeding ${MAX_TASK_REWARD_KES} shillings each).`,
-        clampedRewardUsd: hardCeilingUsd,
-        record: current,
-      };
-    }
-
-    if (current.totalCount >= rule.dailyLimit) {
-      return {
-        allowed: false,
-        error: `Daily limit reached (${current.totalCount}/${rule.dailyLimit} for ${rule.name}, max ${MAX_TASK_REWARD_KES} shillings per task).`,
-        clampedRewardUsd: hardCeilingUsd,
+        error: `Daily limit reached (${current.totalCount}/${OPEN_ACCESS_DAILY_LIMIT} task today). Next task drops tomorrow at 08:00 AM EAT.`,
+        clampedRewardUsd: 0,
         record: current,
       };
     }
   }
 
-  const clampedRewardUsd = params.isOwner
-    ? +rawReward.toFixed(4)
-    : +Math.min(rawReward, hardCeilingUsd).toFixed(4);
+  const awardedRewardUsd = +rawReward.toFixed(4);
 
   const updated: DailyUserQuotaRecord = {
     userKey: params.userKey,
     dateKey,
     totalCount: current.totalCount + 1,
     surveyCount: current.surveyCount + (params.category === 'survey' ? 1 : 0),
-    totalEarnedTodayUsd: +(current.totalEarnedTodayUsd + clampedRewardUsd).toFixed(4),
+    totalEarnedTodayUsd: +(current.totalEarnedTodayUsd + awardedRewardUsd).toFixed(4),
     entries: [
       {
         taskId: params.taskId,
         category: params.category,
-        rewardUsd: clampedRewardUsd,
-        tierId: rule.tierId,
-        completedAt: new Date().toISOString(),
+        rewardUsd: awardedRewardUsd,
+        tierId: 'open',
+        completedAt: now.toISOString(),
       },
       ...current.entries,
     ],
@@ -154,7 +162,7 @@ export function validateAndRecordDailyTaskUsage(params: {
 
   return {
     allowed: true,
-    clampedRewardUsd,
+    clampedRewardUsd: awardedRewardUsd,
     record: updated,
   };
 }

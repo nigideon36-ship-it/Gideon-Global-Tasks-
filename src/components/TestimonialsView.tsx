@@ -34,8 +34,8 @@ interface PublicTestimonial {
 
 const CATEGORIES = [
   'Overall Platform',
-  'Tasks & Payouts',
-  'Worker Passes',
+  '8 AM Tasks & PayPal Payouts',
+  'Escrow Auctions (50% Deposit)',
   'Investment Pools',
   'Referrals & Community',
 ];
@@ -206,7 +206,7 @@ export const TestimonialsView: React.FC = () => {
             <span>Customer Testimonials &amp; Reviews</span>
           </h1>
           <p className="text-sm text-slate-600 max-w-2xl">
-            Read real contributor experiences across East Africa or post your own verified review about tasks, M-PESA withdrawals, Worker Passes, and KES 50+ investment pools.
+            Read real contributor experiences across East Africa or post your own verified review about 8:00 AM daily tasks, PayPal withdrawals from KSh 150, National ID KYC, 50% escrow auctions, and KES 50+ investment pools.
           </p>
         </div>
 
@@ -332,7 +332,7 @@ export const TestimonialsView: React.FC = () => {
               type="text"
               value={headline}
               onChange={(e) => setHeadline(e.target.value)}
-              placeholder="e.g. Fast M-PESA payout and clear task rules"
+              placeholder="e.g. Smooth PayPal payout after ID KYC approval"
               maxLength={120}
               className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:border-blue-600 outline-hidden"
             />

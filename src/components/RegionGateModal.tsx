@@ -52,7 +52,7 @@ export const RegionGateModal: React.FC = () => {
           <div className="p-6 space-y-5 text-xs text-slate-600">
             <p className="leading-relaxed text-slate-700 font-medium">
               {blockReason ||
-                'Gideon Global Tasks is exclusively accessible from East African countries with native Mobile Money (M-PESA, IntaSend, MTN MoMo, Airtel Money).'}
+                'Gideon Global Tasks serves East African countries with global PayPal payouts, 8:00 AM EAT daily task drops, and National ID KYC verification.'}
             </p>
 
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
@@ -138,7 +138,7 @@ export const RegionGateModal: React.FC = () => {
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-emerald-600" />
-            <h3 className="text-sm font-bold text-slate-900">East Africa Country & Payment Rail</h3>
+            <h3 className="text-sm font-bold text-slate-900">East Africa Country &amp; Local Currency</h3>
           </div>
           <button
             type="button"
@@ -151,7 +151,7 @@ export const RegionGateModal: React.FC = () => {
 
         <div className="p-5 space-y-3 max-h-[75vh] overflow-y-auto">
           <p className="text-xs text-slate-500">
-            This platform operates exclusively across East Africa. Choose your country to localize mobile money prefixes and local currency rates:
+            This platform operates across East Africa. Choose your country to localize currency conversions and National ID KYC documents (all deposits &amp; withdrawals settle via PayPal):
           </p>
 
           <div className="space-y-2">

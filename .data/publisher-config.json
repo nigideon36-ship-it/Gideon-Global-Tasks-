@@ -1,0 +1,14 @@
+{
+  "searchConsoleToken": "google2d71976008fafb8e",
+  "adsensePublisherId": "pub-8366092986496846",
+  "adsenseClientId": "ca-pub-8366092986496846",
+  "monetagEnabled": true,
+  "monetagDomain": "5gvci.com",
+  "monetagZoneId": "12292827",
+  "monetagMetaTag": "",
+  "monetagScriptSrc": "",
+  "monetagScriptTag": "",
+  "monetagSwCode": "self.options = {\n    \"domain\": \"5gvci.com\",\n    \"zoneId\": 12292827\n}\nself.lary = \"\"\nimportScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')",
+  "monetagSourceAsset": "/assets/aistudio/sw_563a301a.js",
+  "canonicalUrl": "https://gideon-global-tasks.ai.studio/"
+}

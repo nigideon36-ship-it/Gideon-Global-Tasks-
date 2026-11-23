@@ -9,7 +9,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Autonomous Driving CV: Tag Vehicles & Pedestrians',
     category: 'annotation',
     description: 'Draw 2D bounding boxes around all motorized vehicles, pedestrians on crosswalks, and bicycles from the urban intersection camera.',
-    reward: 0.3462,
+    reward: 0.65,
     estimatedMinutes: 5,
     difficulty: 'Intermediate',
     spotsRemaining: 18,
@@ -121,7 +121,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Global Remote Work & AI Tooling Survey 2026',
     category: 'survey',
     description: 'Share your perspective on how generative AI tools, async communication, and work-from-home policies impact your productivity.',
-    reward: 0.3462,
+    reward: 0.55,
     estimatedMinutes: 5,
     difficulty: 'Beginner',
     spotsRemaining: 73,
@@ -184,7 +184,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Remote Work & Freelancer Meme Challenge',
     category: 'meme-content',
     description: 'Use the built-in Gideon Meme Studio to generate a humorous, high-engagement meme about client revisions, deadlines, or coding quirks.',
-    reward: 0.3846,
+    reward: 0.50,
     estimatedMinutes: 4,
     difficulty: 'Beginner',
     spotsRemaining: 29,
@@ -208,7 +208,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Product Copywriting: "HyperCharge 140W Gallium Nitride Hub"',
     category: 'writing',
     description: 'Write an engaging 90–140 word e-commerce product summary highlighting fast charging, compact size, and thermal dissipation.',
-    reward: 0.3846,
+    reward: 0.95,
     estimatedMinutes: 8,
     difficulty: 'Intermediate',
     spotsRemaining: 14,
@@ -277,10 +277,10 @@ export const INITIAL_TASKS: Task[] = [
   // 7. ANOTHER SURVEY
   {
     id: 'task-surv-302',
-    title: 'Cross-Border Money Transfer & Mobile Wallet Survey',
+    title: 'Cross-Border Money Transfer & PayPal Payout Survey',
     category: 'survey',
-    description: 'Provide feedback on how East African freelancers and workers receive payments, transaction fees incurred, and preferred payout methods.',
-    reward: 0.3846,
+    description: 'Provide feedback on how East African freelancers and contributors receive PayPal payments, conversion rates, and cash-out timing.',
+    reward: 0.75,
     estimatedMinutes: 6,
     difficulty: 'Intermediate',
     spotsRemaining: 34,
@@ -288,19 +288,19 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'Fintech Borderless Alliance',
     requesterRating: 4.8,
     requesterVerified: true,
-    tags: ['Fintech', 'Payouts', 'Local Economy'],
+    tags: ['Fintech', 'PayPal Payouts', 'Local Economy'],
     createdAt: '4 hours ago',
     instructions: [
-      'Reflect on your personal payment methods over the past 12 months.',
-      'Select realistic fee ranges experienced.',
+      'Reflect on your personal PayPal and cross-border payout experiences over the past 12 months.',
+      'Select realistic conversion ranges experienced.',
       'Complete all questions for instant validation.'
     ],
     surveyQuestions: [
       {
         id: 's2_q1',
         type: 'single-choice',
-        question: 'Which payment rail do you primarily use across East Africa to receive online task earnings?',
-        options: ['M-PESA (Kenya / Tanzania)', 'Airtel Money / MTN MoMo', 'East Africa Direct Bank Deposit', 'Wise Transfer', 'USDT / Crypto stablecoins'],
+        question: 'Which PayPal payout schedule works best for receiving online task earnings across East Africa?',
+        options: ['Instant PayPal Payout upon KYC Approval', 'Weekly PayPal Consolidated Batch', 'Bi-weekly Global Settlement', 'Monthly High-Volume Transfer'],
         required: true
       },
       {
@@ -404,7 +404,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Creator Reel Campaign: SunKing Solar Home Hub Pro (IG & TikTok)',
     category: 'creator-campaign',
     description: 'Film and publish a 20–45 second vertical product Reel on Instagram or TikTok demonstrating how the SunKing Solar Home Hub Pro powers home lighting and phone charging.',
-    reward: 0.3462,
+    reward: 1.15,
     estimatedMinutes: 15,
     difficulty: 'Intermediate',
     spotsRemaining: 40,
@@ -442,8 +442,8 @@ export const INITIAL_TASKS: Task[] = [
     id: 'task-creator-702',
     title: 'Product Walkthrough Video: LipaQuick Merchant Pay (FB, IG & TikTok)',
     category: 'creator-campaign',
-    description: 'Publish a short product explainer video or Reel demonstrating instant Till & Paybill checkout for East African small businesses on TikTok, Instagram, or Facebook.',
-    reward: 0.3462,
+    description: 'Publish a short product explainer video or Reel demonstrating digital checkout receipts for East African small businesses on TikTok, Instagram, or Facebook.',
+    reward: 1.25,
     estimatedMinutes: 18,
     difficulty: 'Intermediate',
     spotsRemaining: 35,
@@ -462,13 +462,13 @@ export const INITIAL_TASKS: Task[] = [
     creatorCampaignConfig: {
       productName: 'LipaQuick Merchant Pay App',
       productCategory: 'Merchant Payment Product',
-      productTagline: 'Instant mobile money settlement and digital receipts for East African shops.',
+      productTagline: 'Instant checkout receipts and daily sales ledgers for East African shops.',
       allowedPlatforms: ['TikTok', 'Instagram', 'Facebook'],
       allowedFormats: ['video', 'reel'],
-      campaignBrief: 'Walk shop owners through how LipaQuick generates instant digital customer receipts and tracks daily M-PESA/MoMo sales without manual notebooks. Content must highlight the LipaQuick product only.',
+      campaignBrief: 'Walk shop owners through how LipaQuick generates instant digital customer receipts and tracks daily sales without manual paper notebooks. Content must highlight the LipaQuick product only.',
       talkingPoints: [
-        'Explain instant SMS payment alerts for cashiers and shopkeepers',
-        'Highlight automated daily sales totals across M-PESA and Airtel Money',
+        'Explain instant payment alerts for cashiers and shopkeepers',
+        'Highlight automated daily PayPal & digital sales summaries',
         'Keep visuals crisp and strictly focused on the LipaQuick product workflow'
       ],
       requiredHashtags: ['#LipaQuickPay', '#EABusinessTools'],
@@ -482,7 +482,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Product Launch Text Post: Zuri Shea & Moringa Serum (FB & WhatsApp)',
     category: 'creator-campaign',
     description: 'Write and publish a high-converting product recommendation text post on Facebook or your WhatsApp Status/Channel introducing Zuri Shea & Moringa Repair Serum.',
-    reward: 0.2692,
+    reward: 0.60,
     estimatedMinutes: 8,
     difficulty: 'Beginner',
     spotsRemaining: 64,
@@ -521,7 +521,7 @@ export const INITIAL_TASKS: Task[] = [
     title: 'Multi-Channel Product Blitz: VoltMax 20K Fast Powerbank (FB, IG, TikTok, WA)',
     category: 'creator-campaign',
     description: 'Create a Reel, Video, or Text Post showcasing the VoltMax 20,000mAh PD Powerbank across Facebook, Instagram, TikTok, or WhatsApp.',
-    reward: 0.3846,
+    reward: 1.40,
     estimatedMinutes: 15,
     difficulty: 'Intermediate',
     spotsRemaining: 28,
@@ -535,7 +535,7 @@ export const INITIAL_TASKS: Task[] = [
       'Pick ONE content format (Reel, Video, or detailed Text Post) highlighting the VoltMax 20,000mAh PD Powerbank.',
       'Publish exclusively on Facebook, Instagram, TikTok, or WhatsApp using the product brief.',
       'Include #VoltMax20K and #StayPoweredEA in your post or WhatsApp Status caption.',
-      'Verify your published post URL or WhatsApp Status/Channel proof to earn your creator reward (up to 50 shillings max).'
+      'Verify your published post URL or WhatsApp Status/Channel proof to earn the full merchant reward set for this campaign.'
     ],
     creatorCampaignConfig: {
       productName: 'VoltMax 20,000mAh 65W PD Powerbank',
@@ -555,13 +555,13 @@ export const INITIAL_TASKS: Task[] = [
     }
   },
 
-  // 14. FREE-ELIGIBLE MINI SURVEY (Max 50 shillings)
+  // 14. QUICK DAILY DROP SURVEY
   {
     id: 'task-surv-300',
     title: 'East Africa Quick App Experience Check (3 Questions)',
     category: 'survey',
-    description: 'Answer 3 quick questions about mobile banking reliability and app speed in your city (eligible for 1 Free daily task, max 50 shillings).',
-    reward: 0.2308,
+    description: 'Answer 3 quick questions about global PayPal checkout speed and remote work app reliability in your city.',
+    reward: 0.25,
     estimatedMinutes: 2,
     difficulty: 'Beginner',
     spotsRemaining: 140,
@@ -569,24 +569,24 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'Nairobi UX Labs',
     requesterRating: 4.9,
     requesterVerified: true,
-    tags: ['Free Tier Eligible', 'Quick Survey', 'Mobile UX'],
+    tags: ['8 AM Daily Drop', 'Quick Survey', 'Mobile UX'],
     createdAt: '5 mins ago',
     instructions: [
       'Answer all 3 questions based on your experience this week.',
-      'Free tier members may complete 1 free task daily not exceeding 50 shillings.'
+      'Only 1 vetted task drops daily at 08:00 AM EAT — reward depends on merchant budget.'
     ],
     surveyQuestions: [
       {
         id: 'f_q1',
         type: 'single-choice',
-        question: 'Which East African payment method gives you the fastest checkout speed?',
-        options: ['M-PESA', 'Airtel Money', 'MTN MoMo', 'Bank Card'],
+        question: 'How fast did PayPal international checkout confirm your last online payment?',
+        options: ['Instant (< 5 seconds)', 'Under 30 seconds', '1–2 minutes', 'Haven\'t used PayPal checkout yet'],
         required: true
       },
       {
         id: 'f_q2',
         type: 'scale',
-        question: 'Rate your mobile internet reliability when working online today (1-10):',
+        question: 'Rate your mobile internet reliability when catching the 8:00 AM EAT task drop (1-10):',
         scaleMin: 1,
         scaleMax: 10,
         scaleMinLabel: 'Slow / Unstable',
@@ -596,20 +596,20 @@ export const INITIAL_TASKS: Task[] = [
       {
         id: 'f_q3',
         type: 'text',
-        question: 'In one sentence, what improvement would make mobile payments even easier?',
+        question: 'In one sentence, what improvement would make daily 8:00 AM EAT task drops easier to complete?',
         required: true,
         minChars: 15
       }
     ]
   },
 
-  // 15. STARTER PASS SURVEY (Max 50 shillings)
+  // 15. TELECOM USAGE SURVEY
   {
     id: 'task-surv-303',
-    title: 'Starter Survey: Mobile Data Bundles & Social Usage Habits',
+    title: 'Telecom Survey: Mobile Data Bundles & Social Usage Habits',
     category: 'survey',
-    description: 'Share how much you spend weekly on mobile bundles and which apps consume most of your work data (max 50 shillings).',
-    reward: 0.3077,
+    description: 'Share how much you spend weekly on mobile bundles and which apps consume most of your work data.',
+    reward: 0.45,
     estimatedMinutes: 3,
     difficulty: 'Beginner',
     spotsRemaining: 95,
@@ -617,11 +617,11 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'EA Telecom Insights',
     requesterRating: 4.8,
     requesterVerified: true,
-    tags: ['Starter Pass', 'Survey', 'Telecom'],
+    tags: ['Telecom', 'Survey', 'Data Bundles'],
     createdAt: '25 mins ago',
     instructions: [
       'Select your primary telecom network and weekly data spending range.',
-      'Eligible for Starter (2/day), Pro (3/day), and VIP (4 surveys/day) passes — max 50 shillings per completed task.'
+      'Reward set by EA Telecom Insights merchant budget.'
     ],
     surveyQuestions: [
       {
@@ -648,13 +648,13 @@ export const INITIAL_TASKS: Task[] = [
     ]
   },
 
-  // 16. STARTER PASS MICRO TASK (Max 50 shillings)
+  // 16. MICRO AUDIT TASK
   {
     id: 'task-micro-603',
-    title: 'Starter Micro Check: Verify Mobile Checkout Clarity & Fees',
+    title: 'Micro Audit: Verify PayPal Checkout Clarity & Fee Disclosure',
     category: 'micro',
-    description: 'Inspect a simulated merchant checkout screen and flag unclear hidden fees or missing M-PESA confirmation labels.',
-    reward: 0.1923,
+    description: 'Inspect a simulated merchant PayPal checkout screen and flag unclear hidden fees or missing total currency labels.',
+    reward: 0.30,
     estimatedMinutes: 2,
     difficulty: 'Beginner',
     spotsRemaining: 110,
@@ -662,35 +662,35 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'PayClear Audit EA',
     requesterRating: 4.9,
     requesterVerified: true,
-    tags: ['Starter Pass', 'Micro Audit', 'Mobile Money'],
+    tags: ['PayPal UX', 'Micro Audit', 'Trust'],
     createdAt: '35 mins ago',
     instructions: [
       'Review the checkout transparency criteria.',
-      'Select the option that best matches clear East Africa fee disclosure.'
+      'Select the option that best matches clear USD & local currency disclosure.'
     ],
     microConfig: {
       type: 'ui-audit',
-      title: 'Which fee breakdown screen is clearest before clicking Pay?',
+      title: 'Which PayPal checkout fee breakdown screen is clearest before confirming?',
       steps: [
-        'Compare visible local currency amount & charges',
-        'Verify M-PESA recipient digits are clearly highlighted',
+        'Compare visible USD total & converted local estimate',
+        'Verify merchant PayPal recipient email is clearly highlighted',
         'Submit your audit rating'
       ],
       options: [
-        'Bold Recipient Number + Exact Shillings Amount Shown Upfront',
-        'Total Hidden Until SMS Prompt Arrives',
-        'Requires Extra Fee Calculation'
+        'Bold Merchant PayPal Address + Exact USD & Local Equivalent Shown Upfront',
+        'Total Fees Hidden Until After Confirmation',
+        'Requires Manual Calculator Conversion'
       ]
     }
   },
 
-  // 17. VIP PASS SURVEY (Max 50 shillings)
+  // 17. HIGH-VALUE MERCHANT STUDY SURVEY
   {
     id: 'task-surv-304',
-    title: 'VIP Survey: East Africa Digital Banking & Instant Credit Study',
+    title: 'Merchant Study: East Africa Cross-Border PayPal & Escrow Commerce',
     category: 'survey',
-    description: 'In-depth financial study evaluating digital savings wallets, Fuliza/MoMo loans, and merchant QR adoption across East Africa (max 50 shillings).',
-    reward: 0.3846,
+    description: 'In-depth financial study evaluating PayPal payouts, Front/Back ID KYC trust, and 50% escrow-backed product auctions across East Africa.',
+    reward: 1.1538,
     estimatedMinutes: 6,
     difficulty: 'Intermediate',
     spotsRemaining: 60,
@@ -698,41 +698,41 @@ export const INITIAL_TASKS: Task[] = [
     requesterName: 'Kigali & Nairobi Fintech Council',
     requesterRating: 5.0,
     requesterVerified: true,
-    tags: ['VIP Survey', 'Digital Banking', 'East Africa'],
+    tags: ['High Reward', 'PayPal Escrow', 'East Africa'],
     createdAt: '12 mins ago',
     instructions: [
       'Complete all 4 questions carefully with real-world East Africa context.',
-      'Designed for VIP Worker Pass (up to 4 surveys daily, max 50 shillings per survey).'
+      'Higher merchant-sponsored reward (KES 150 equivalent) reflects study depth.'
     ],
     surveyQuestions: [
       {
         id: 'vip_q1',
         type: 'single-choice',
-        question: 'Which digital banking or wallet service do you trust most for saving earnings?',
-        options: ['M-PESA M-Shwari / Ziidi', 'KCB / Equity Mobile App', 'Airtel / MTN MoMo Vault', 'MTN / Wise Multi-Currency'],
+        question: 'Which feature boosts your trust most when participating in live online product auctions?',
+        options: ['Mandatory 50% PayPal Escrow Security Deposit', 'Front & Back National ID KYC on Withdrawals', 'Clear Buyer & Seller Delivery Terms', 'Instant Buy Now Option'],
         required: true
       },
       {
         id: 'vip_q2',
         type: 'multiple-choice',
-        question: 'Which digital payment features do you use weekly?',
-        options: ['Pochi la Biashara / Till Pay', 'Paybill Bills Payment', 'International Remittance', 'Savings Goal Lock'],
+        question: 'Which digital workflow tools do you rely on weekly?',
+        options: ['PayPal International Checkout', 'Pay-Per-View Creator Feed', '8:00 AM EAT Daily Task Drop', 'Verified Micro-Work Portfolio'],
         required: true
       },
       {
         id: 'vip_q3',
         type: 'scale',
-        question: 'How likely are you to switch banks/wallets for instant zero-fee withdrawals?',
+        question: 'How valuable is lowering minimum PayPal withdrawals to 150 shillings once KYC is verified (1-10)?',
         scaleMin: 1,
         scaleMax: 10,
-        scaleMinLabel: 'Unlikely',
-        scaleMaxLabel: 'Definitely Switching',
+        scaleMinLabel: 'Low Impact',
+        scaleMaxLabel: 'Essential Improvement',
         required: true
       },
       {
         id: 'vip_q4',
         type: 'text',
-        question: 'Describe one security or verification feature that gives you confidence when sending money.',
+        question: 'Describe one verification or escrow rule that gives you confidence when buying or selling online.',
         required: true,
         minChars: 25
       }
@@ -834,7 +834,7 @@ export const INITIAL_MEMES: MemeItem[] = [
   },
   {
     id: 'meme-2',
-    title: 'Me refreshing Gideon Global Tasks at 00:01 for high-paying surveys',
+    title: 'Me refreshing Gideon Global Tasks at 07:59 AM EAT for the 8:00 AM daily drop',
     author: 'Kiplagat_Pro',
     authorCountry: 'Kenya',
     imageUrl: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=600&auto=format&fit=crop&q=80',

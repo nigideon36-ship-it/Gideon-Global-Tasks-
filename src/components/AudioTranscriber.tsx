@@ -1,13 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { formatCurrencyFromUsd, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { Mic, MicOff, Play, Pause, RotateCcw, Copy, Check, Sparkles, FileAudio, AlertCircle } from 'lucide-react';
+
+const TRANSCRIBE_BOUNTY_USD = 0.45;
 
 export const AudioTranscriber: React.FC = () => {
   const { completeTask, userStats } = useTasks();
   const { selectedCountry } = useRegion();
-  const bountyFormatted = formatCurrencyFromUsd(MAX_TASK_REWARD_USD, selectedCountry);
+  const bountyFormatted = formatCurrencyFromUsd(TRANSCRIBE_BOUNTY_USD, selectedCountry);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -115,7 +117,7 @@ export const AudioTranscriber: React.FC = () => {
 
   const handleClaimBounty = () => {
     if (bountyClaimed) return;
-    completeTask('task-audio-transcribe-bonus', MAX_TASK_REWARD_USD, 'Voice Audio Transcription Verification');
+    completeTask('task-audio-transcribe-bonus', TRANSCRIBE_BOUNTY_USD, 'Voice Audio Transcription Verification');
     setBountyClaimed(true);
   };
 

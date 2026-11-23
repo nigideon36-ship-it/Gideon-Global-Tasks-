@@ -1,0 +1,43 @@
+{
+  "adminEmail": "nigideon36@gmail.com",
+  "enabled": true,
+  "highRewardThresholdKes": 40,
+  "events": {
+    "new_registration": true,
+    "high_reward_task": true,
+    "pass_proof_submitted": true,
+    "withdrawal_requested": true,
+    "investment_deposit": true,
+    "support_ticket": true,
+    "ppv_status_uploaded": true,
+    "auction_activity": true
+  },
+  "logs": [
+    {
+      "id": "ADM-D04677FF",
+      "eventType": "pass_proof_submitted",
+      "title": "Zapier PayPal Webhook: $2.00 USD (SMOKE_TEST_ZAP)",
+      "summary": "Zapier workflow \"smoke_test_zapier\" synced PayPal transaction SMOKE_ZAP_001 (Buyer).",
+      "recipientMasked": "nig***@gmail.com",
+      "deliveryStatus": "Queued",
+      "deliveryNote": "SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) not set in environment — logged in Owner Console.",
+      "amountLabel": "$2.00 USD",
+      "source": "server-event",
+      "createdAt": "2026-11-20T13:53:50.909Z"
+    },
+    {
+      "id": "ADM-07999A1C",
+      "eventType": "investment_deposit",
+      "title": "STK Investment Deposit: KES 50 (7-Day Seed Yield Pool)",
+      "summary": "East Africa Investor initiated KES 50 via IntaSend M-PESA STK (Ref: MPINVEBBEA4).",
+      "recipientMasked": "nig***@gmail.com",
+      "deliveryStatus": "Queued",
+      "deliveryNote": "SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASS) not set in environment — logged in Owner Console.",
+      "actorLabel": "East Africa Investor · +254712345678",
+      "amountLabel": "KES 50",
+      "source": "server-event",
+      "createdAt": "2026-11-20T13:45:09.998Z"
+    }
+  ],
+  "updatedAt": "2026-11-20T13:45:03.429Z"
+}

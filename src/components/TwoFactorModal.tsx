@@ -20,6 +20,7 @@ export const TwoFactorModal: React.FC = () => {
     setSecurityModalOpen,
     customerProfile,
     activeToken,
+    getFreshToken,
     updateCustomerProfileLocal,
   } = useAuth();
   const { selectedCountry } = useRegion();
@@ -62,7 +63,8 @@ export const TwoFactorModal: React.FC = () => {
   if (!securityModalOpen) return null;
 
   const handleStartSetup = async (method: 'sms' | 'totp') => {
-    if (!activeToken) {
+    const token = (await getFreshToken()) || activeToken;
+    if (!token) {
       setErrorMsg('Please sign in first to configure Two-Factor Authentication.');
       return;
     }
@@ -77,7 +79,7 @@ export const TwoFactorModal: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           method,
@@ -109,7 +111,8 @@ export const TwoFactorModal: React.FC = () => {
 
   const handleConfirm2fa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeToken || !setupData) return;
+    const token = (await getFreshToken()) || activeToken;
+    if (!token || !setupData) return;
 
     if (verifyCode.trim().length !== 6) {
       setErrorMsg('Enter the 6-digit verification code.');
@@ -123,7 +126,7 @@ export const TwoFactorModal: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           method: setupData.method,
@@ -134,13 +137,15 @@ export const TwoFactorModal: React.FC = () => {
       if (!res.ok || !data.success) {
         setErrorMsg(data.error || 'Verification failed.');
       } else {
-        updateCustomerProfileLocal(data.customer);
+        updateCustomerProfileLocal(data.customer, {
+          totpSecretBackup: data.totpSecretBackup,
+        });
         setSetupData(null);
         setVerifyCode('');
         setSuccessMsg(
           setupData.method === 'totp'
-            ? 'Authenticator App 2FA is now active on your account!'
-            : 'SMS Two-Factor Authentication is now active on your mobile number!'
+            ? 'Authenticator App 2FA is now active and permanently saved!'
+            : 'SMS Two-Factor Authentication is now active and permanently saved!'
         );
       }
     } catch (err: any) {
@@ -151,20 +156,21 @@ export const TwoFactorModal: React.FC = () => {
   };
 
   const handleDisable2fa = async () => {
-    if (!activeToken) return;
+    const token = (await getFreshToken()) || activeToken;
+    if (!token) return;
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
       const res = await fetch('/api/customer/2fa/disable', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${activeToken}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        updateCustomerProfileLocal(data.customer);
+        updateCustomerProfileLocal(data.customer, { clearTotpSecret: true });
         setSetupData(null);
-        setSuccessMsg('Two-Factor Authentication has been disabled.');
+        setSuccessMsg('Two-Factor Authentication has been disabled and saved.');
       } else {
         setErrorMsg(data.error || 'Failed to disable 2FA.');
       }

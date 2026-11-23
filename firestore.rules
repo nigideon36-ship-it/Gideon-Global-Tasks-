@@ -61,16 +61,73 @@ service cloud.firestore {
         && data.completedAt is timestamp;
     }
 
+    // PayPal-only withdrawals starting from 150 shillings (1.1538 USD)
     function isValidWithdrawal(data) {
       return data.keys().hasAll(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['userUid', 'amount', 'method', 'details', 'status', 'createdAt', 'updatedAt'])
         && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
-        && data.amount is number && data.amount >= 20
-        && data.method in ['M-PESA', 'Airtel / MTN MoMo', 'East Africa Bank', 'Wise', 'Crypto USDT']
-        && data.details is string && data.details.size() >= 3 && data.details.size() <= 200
-        && data.status in ['Pending', 'Completed', 'Rejected']
+        && data.amount is number && data.amount >= 1.15
+        && data.method == 'PayPal'
+        && data.details is string && data.details.size() >= 5 && data.details.size() <= 200
+        && data.details.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$')
+        && data.status in ['Pending', 'Processing', 'Completed', 'Rejected']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
+    }
+
+    function isValidWithdrawalRecord(data, withdrawalId) {
+      return data.keys().hasAll(['id', 'userUid', 'countryCode', 'amountUsd', 'method', 'accountDetails', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'userUid', 'customerPhone', 'customerEmail', 'customerName',
+          'countryCode', 'amountUsd', 'method', 'accountDetails', 'status',
+          'mpesaReceipt', 'disbursementChannel', 'approvedBy', 'rejectionReason',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == withdrawalId && data.id.size() >= 1 && data.id.size() <= 64
+        && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4
+        && data.amountUsd is number && data.amountUsd >= 1.15
+        && data.method == 'PayPal'
+        && data.accountDetails is string && data.accountDetails.size() >= 5 && data.accountDetails.size() <= 200
+        && data.accountDetails.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$')
+        && data.status in ['Processing', 'Completed', 'Rejected']
+        && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 40))
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 160))
+        && (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 120))
+        && (!('disbursementChannel' in data) || (data.disbursementChannel is string && data.disbursementChannel.size() <= 64))
+        && (!('approvedBy' in data) || (data.approvedBy is string && data.approvedBy.size() <= 200))
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 200))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    // Strict KYC: requires both Front & Back National ID uploaded flags & SHA-256 digests
+    function isValidKycVerification(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'countryCode', 'idDocumentName', 'fullNameOnId', 'idNumber',
+          'frontImageUploaded', 'backImageUploaded', 'frontImageSha256', 'backImageSha256',
+          'status', 'submittedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'countryCode', 'idDocumentName', 'fullNameOnId', 'idNumber',
+          'frontImageUploaded', 'backImageUploaded', 'frontImageSha256', 'backImageSha256',
+          'status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'submittedAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4
+        && data.idDocumentName is string && data.idDocumentName.size() >= 3 && data.idDocumentName.size() <= 120
+        && data.fullNameOnId is string && data.fullNameOnId.size() >= 2 && data.fullNameOnId.size() <= 120
+        && data.idNumber is string && data.idNumber.size() >= 4 && data.idNumber.size() <= 64
+        && data.frontImageUploaded is bool && data.frontImageUploaded == true
+        && data.backImageUploaded is bool && data.backImageUploaded == true
+        && data.frontImageSha256 is string && data.frontImageSha256.size() >= 32 && data.frontImageSha256.size() <= 128
+        && data.backImageSha256 is string && data.backImageSha256.size() >= 32 && data.backImageSha256.size() <= 128
+        && data.status in ['Pending', 'Approved', 'Rejected']
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 300))
+        && (!('reviewedBy' in data) || (data.reviewedBy is string && data.reviewedBy.size() <= 200))
+        && (!('reviewedAt' in data) || (data.reviewedAt is string && data.reviewedAt.size() <= 64))
+        && data.submittedAt is string && data.submittedAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
     }
 
     function isValidMarketplaceTask(data) {
@@ -89,9 +146,34 @@ service cloud.firestore {
 
     function isValidPlatformSetting(data) {
       return data.keys().hasAll(['updatedBy', 'updatedAt'])
-        && data.keys().hasOnly(['adsensePublisherId', 'adsenseClientId', 'paypalEmail', 'themeColor', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly([
+          'searchConsoleToken',
+          'adsensePublisherId',
+          'adsenseClientId',
+          'monetagEnabled',
+          'monetagDomain',
+          'monetagZoneId',
+          'monetagMetaTag',
+          'monetagScriptSrc',
+          'monetagScriptTag',
+          'monetagSwCode',
+          'monetagSourceAsset',
+          'paypalEmail',
+          'themeColor',
+          'updatedBy',
+          'updatedAt'
+        ])
+        && (!('searchConsoleToken' in data) || (data.searchConsoleToken is string && data.searchConsoleToken.size() <= 128))
         && (!('adsensePublisherId' in data) || (data.adsensePublisherId is string && data.adsensePublisherId.size() <= 64))
         && (!('adsenseClientId' in data) || (data.adsenseClientId is string && data.adsenseClientId.size() <= 64))
+        && (!('monetagEnabled' in data) || data.monetagEnabled is bool)
+        && (!('monetagDomain' in data) || (data.monetagDomain is string && data.monetagDomain.size() <= 120))
+        && (!('monetagZoneId' in data) || (data.monetagZoneId is string && data.monetagZoneId.size() <= 32))
+        && (!('monetagMetaTag' in data) || (data.monetagMetaTag is string && data.monetagMetaTag.size() <= 128))
+        && (!('monetagScriptSrc' in data) || (data.monetagScriptSrc is string && data.monetagScriptSrc.size() <= 300))
+        && (!('monetagScriptTag' in data) || (data.monetagScriptTag is string && data.monetagScriptTag.size() <= 1000))
+        && (!('monetagSwCode' in data) || (data.monetagSwCode is string && data.monetagSwCode.size() <= 1000))
+        && (!('monetagSourceAsset' in data) || (data.monetagSourceAsset is string && data.monetagSourceAsset.size() <= 120))
         && (!('paypalEmail' in data) || (data.paypalEmail is string && data.paypalEmail.size() <= 200))
         && (!('themeColor' in data) || (data.themeColor is string && data.themeColor.size() <= 32))
         && data.updatedBy is string && data.updatedBy.size() <= 200
@@ -115,12 +197,13 @@ service cloud.firestore {
         && (!('verifiedCustomer' in data) || data.verifiedCustomer is bool);
     }
 
+    // PayPal-only deposit investments (KES 50+)
     function isValidInvestment(data) {
       return data.keys().hasAll(['id', 'userUid', 'planId', 'amountKes', 'depositMethod', 'paymentReference', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'id', 'transactionId', 'userUid', 'customerName', 'customerPhone', 'customerEmail', 'countryCode',
           'planId', 'planName', 'amountKes', 'amountUsd', 'returnPct', 'expectedReturnKes', 'expectedReturnUsd',
-          'durationDays', 'depositMethod', 'payToNumber', 'senderPhone', 'paymentReference', 'screenshotDataUrl',
+          'durationDays', 'depositMethod', 'senderPhone', 'paymentReference', 'screenshotDataUrl',
           'screenshotFileName', 'status', 'ownerNotes', 'payoutReceipt', 'reviewedBy', 'reviewedAt',
           'maturesAt', 'settledAt', 'createdAt', 'updatedAt'
         ])
@@ -128,9 +211,177 @@ service cloud.firestore {
         && data.userUid is string && data.userUid.size() >= 1 && data.userUid.size() <= 128
         && data.planId in ['starter-7d', 'growth-14d', 'vip-30d']
         && data.amountKes is number && data.amountKes >= 50
-        && data.depositMethod in ['Manual M-PESA 0758727558', 'Paystack M-PESA STK', 'Paystack Card', 'Mobile Money']
+        && data.depositMethod in ['PayPal', 'PayPal International']
         && data.paymentReference is string && data.paymentReference.size() >= 2 && data.paymentReference.size() <= 120
         && data.status in ['Pending Owner Approval', 'Active', 'Matured & Paid', 'Rejected'];
+    }
+
+    function isValidCustomerAccount(data, customerId) {
+      return data.keys().hasAll(['uid', 'countryCode', 'displayName'])
+        && data.keys().hasOnly([
+          'uid', 'phone', 'phoneLocked', 'phoneVerified', 'accountDetailsLocked', 'accountDetailsLockedAt',
+          'countryCode', 'email',
+          'displayName', 'city', 'bio', 'socialHandles', 'withdrawalDetails',
+          'twoFactorEnabled', 'twoFactorMethod', 'totpSecretBackup',
+          'role', 'banned', 'bannedReason', 'bannedAt',
+          'deactivated', 'deactivatedReason', 'deactivatedAt',
+          'adminAssignedPass', 'loginCount', 'lastLoginAt', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == customerId && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
+        && (!('phoneLocked' in data) || data.phoneLocked is bool)
+        && (!('phoneVerified' in data) || data.phoneVerified is bool)
+        && (!('accountDetailsLocked' in data) || data.accountDetailsLocked is bool)
+        && (!('accountDetailsLockedAt' in data) || (data.accountDetailsLockedAt is string && data.accountDetailsLockedAt.size() <= 64))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 200))
+        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 500))
+        && (!('socialHandles' in data) || (
+          data.socialHandles is map
+          && data.socialHandles.keys().hasOnly(['facebook', 'instagram', 'tiktok', 'whatsapp'])
+        ))
+        && (!('withdrawalDetails' in data) || (
+          data.withdrawalDetails is map
+          && data.withdrawalDetails.keys().hasOnly(['method', 'accountDetails', 'accountHolderName', 'locked', 'lockedAt'])
+        ))
+        && (!('twoFactorEnabled' in data) || data.twoFactorEnabled is bool)
+        && (!('twoFactorMethod' in data) || data.twoFactorMethod in ['none', 'sms', 'totp'])
+        && (!('totpSecretBackup' in data) || (data.totpSecretBackup is string && data.totpSecretBackup.size() <= 128))
+        && (!('role' in data) || data.role in ['customer', 'owner'])
+        && (!('banned' in data) || data.banned is bool)
+        && (!('deactivated' in data) || data.deactivated is bool)
+        && (!('adminAssignedPass' in data) || data.adminAssignedPass in ['free', 'starter', 'pro', 'vip'])
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidCustomerState(data, stateId) {
+      return data.keys().hasAll(['uid', 'vipReferralCount', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'userStats', 'taskHistory', 'referralHistory', 'referralStats',
+          'dailyUsage', 'activePackageId', 'vipReferralCount', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == stateId && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.vipReferralCount is number && data.vipReferralCount >= 0
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && (!('userStats' in data) || data.userStats is map)
+        && (!('taskHistory' in data) || (data.taskHistory is list && data.taskHistory.size() <= 500))
+        && (!('referralHistory' in data) || (data.referralHistory is list && data.referralHistory.size() <= 500))
+        && (!('referralStats' in data) || data.referralStats is map)
+        && (!('dailyUsage' in data) || data.dailyUsage is map)
+        && (!('activePackageId' in data) || data.activePackageId == null || (data.activePackageId is string && data.activePackageId.size() <= 32));
+    }
+
+    // Product Auctions with mandatory 50% PayPal Security Escrow Deposit
+    function isValidAuction(data, auctionId) {
+      return data.keys().hasAll([
+          'id', 'sellerUid', 'sellerName', 'sellerCountryCode', 'title', 'description',
+          'category', 'condition', 'location', 'imageUrls', 'startingBidKes', 'currentBidKes',
+          'bidCount', 'bids', 'status', 'escrowDepositPct', 'escrowDepositKes',
+          'sellerDepositPaypalRef', 'escrowStatus', 'bidderDeposits', 'endsAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'sellerUid', 'sellerName', 'sellerPhone', 'sellerCountryCode',
+          'title', 'description', 'category', 'condition', 'location', 'imageUrls',
+          'startingBidKes', 'startingBidUsd', 'minIncrementKes', 'minIncrementUsd',
+          'buyNowKes', 'buyNowUsd', 'currentBidKes', 'currentBidUsd',
+          'highestBidderUid', 'highestBidderName', 'highestBidderPhone',
+          'bidCount', 'bids', 'status', 'featured', 'deliveryTerms',
+          'escrowDepositPct', 'escrowDepositKes', 'escrowDepositUsd',
+          'sellerDepositPaypalRef', 'escrowStatus', 'escrowResolutionNote', 'bidderDeposits',
+          'endsAt', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == auctionId && data.id.size() >= 1 && data.id.size() <= 64
+        && data.sellerUid is string && data.sellerUid.size() >= 1 && data.sellerUid.size() <= 128
+        && data.sellerName is string && data.sellerName.size() >= 1 && data.sellerName.size() <= 80
+        && (!('sellerPhone' in data) || (data.sellerPhone is string && data.sellerPhone.size() <= 40))
+        && data.sellerCountryCode is string && data.sellerCountryCode.size() >= 2 && data.sellerCountryCode.size() <= 4
+        && data.title is string && data.title.size() >= 3 && data.title.size() <= 140
+        && data.description is string && data.description.size() >= 6 && data.description.size() <= 1500
+        && data.category is string && data.category.size() >= 2 && data.category.size() <= 64
+        && data.condition in ['Brand New', 'Like New', 'Refurbished', 'Pre-Owned']
+        && data.location is string && data.location.size() >= 1 && data.location.size() <= 80
+        && data.imageUrls is list && data.imageUrls.size() >= 1 && data.imageUrls.size() <= 3 && data.imageUrls[0] is string
+        && data.startingBidKes is number && data.startingBidKes >= 50
+        && data.currentBidKes is number && data.currentBidKes >= 50
+        && data.bidCount is number && data.bidCount >= 0
+        && data.bids is list && data.bids.size() <= 100
+        && data.status in ['Live', 'Sold', 'Ended', 'Cancelled', 'Suspended']
+        && (!('featured' in data) || data.featured is bool)
+        && (!('deliveryTerms' in data) || (data.deliveryTerms is string && data.deliveryTerms.size() <= 240))
+        && data.escrowDepositPct == 50
+        && data.escrowDepositKes is number && data.escrowDepositKes >= 25
+        && (!('escrowDepositUsd' in data) || (data.escrowDepositUsd is number && data.escrowDepositUsd > 0))
+        && data.sellerDepositPaypalRef is string && data.sellerDepositPaypalRef.size() >= 3 && data.sellerDepositPaypalRef.size() <= 120
+        && data.escrowStatus in ['Held in Escrow', 'Released to Seller', 'Compensated Buyer', 'Compensated Seller', 'Disputed']
+        && (!('escrowResolutionNote' in data) || (data.escrowResolutionNote is string && data.escrowResolutionNote.size() <= 300))
+        && data.bidderDeposits is map
+        && (!('highestBidderUid' in data) || (data.highestBidderUid is string && data.highestBidderUid.size() <= 128))
+        && (!('highestBidderName' in data) || (data.highestBidderName is string && data.highestBidderName.size() <= 80))
+        && (!('highestBidderPhone' in data) || (data.highestBidderPhone is string && data.highestBidderPhone.size() <= 40))
+        && data.endsAt is string && data.endsAt.size() <= 64
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidPpvPost(data, postId) {
+      return data.keys().hasAll([
+          'id', 'authorUid', 'authorName', 'countryCode', 'mediaType', 'category',
+          'caption', 'mediaUrl', 'ratePerViewKes', 'viewsCount', 'viewedByUids',
+          'pendingEarningsKes', 'paidOutKes', 'paidOut', 'status', 'createdAt', 'expiresAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorUid', 'authorName', 'countryCode', 'city', 'mediaType', 'category',
+          'caption', 'mediaUrl', 'mimeType', 'ratePerViewKes', 'viewsCount', 'viewedByUids',
+          'pendingEarningsKes', 'paidOutKes', 'paidOut', 'status', 'payoutTransactionId',
+          'createdAt', 'expiresAt', 'paidOutAt'
+        ])
+        && data.id is string && data.id == postId && data.id.size() >= 1 && data.id.size() <= 64
+        && data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4
+        && (!('city' in data) || (data.city is string && data.city.size() <= 60))
+        && data.mediaType in ['photo', 'video']
+        && data.category in ['Funny Video', 'Funny Photo', 'My Photo', 'My Video']
+        && data.caption is string && data.caption.size() >= 3 && data.caption.size() <= 280
+        && data.mediaUrl is string && data.mediaUrl.size() >= 3 && data.mediaUrl.size() <= 300
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 64))
+        && data.ratePerViewKes == 5
+        && data.viewsCount is number && data.viewsCount >= 0
+        && data.viewedByUids is list && data.viewedByUids.size() <= 5000
+        && data.pendingEarningsKes is number && data.pendingEarningsKes >= 0
+        && data.paidOutKes is number && data.paidOutKes >= 0
+        && data.paidOut is bool
+        && data.status in ['Active (24h Live)', 'Settled & Paid']
+        && (!('payoutTransactionId' in data) || (data.payoutTransactionId is string && data.payoutTransactionId.size() <= 80))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.expiresAt is string && data.expiresAt.size() <= 64
+        && (!('paidOutAt' in data) || (data.paidOutAt is string && data.paidOutAt.size() <= 64));
+    }
+
+    // Merchant/Task rewards are uncapped (>= 10 KES minimum)
+    function isValidTaskAlertSubscription(data, subscriptionId) {
+      return data.keys().hasAll([
+          'id', 'userUid', 'email', 'categories', 'minRewardKes',
+          'frequency', 'active', 'matchCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userUid', 'email', 'categories', 'minRewardKes',
+          'frequency', 'active', 'matchCount', 'lastNotifiedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == subscriptionId && data.id.size() >= 1 && data.id.size() <= 128
+        && data.userUid is string && data.userUid == subscriptionId && data.userUid.size() >= 1 && data.userUid.size() <= 128
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.categories is list && data.categories.size() >= 1 && data.categories.size() <= 8 && data.categories[0] is string
+        && data.minRewardKes is number && data.minRewardKes >= 10 && data.minRewardKes <= 100000
+        && data.frequency in ['instant', 'daily_digest']
+        && data.active is bool
+        && data.matchCount is number && data.matchCount >= 0
+        && (!('lastNotifiedAt' in data) || (data.lastNotifiedAt is string && data.lastNotifiedAt.size() <= 64))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
     }
 
     // Users collection: PII strictly isolated to document owner or Platform Owner
@@ -179,7 +430,7 @@ service cloud.firestore {
       allow update, delete: if isValidId(taskId) && isPlatformOwner();
     }
 
-    // Withdrawals: Customers can submit Pending withdrawal requests (>= 20 threshold) and read their own; only Owner can approve/modify
+    // Withdrawals: PayPal-only >= KSh 150 (1.1538 USD) + KYC Approved guard when KYC doc is synced
     match /withdrawals/{withdrawalId} {
       allow get: if isValidId(withdrawalId) && (
         isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
@@ -191,8 +442,40 @@ service cloud.firestore {
         && incoming().userUid == request.auth.uid
         && incoming().status == 'Pending'
         && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && (
+          !exists(/databases/$(database)/documents/kyc_verifications/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/kyc_verifications/$(request.auth.uid)).data.status == 'Approved'
+        );
       allow update, delete: if isValidId(withdrawalId) && isPlatformOwner();
+    }
+
+    // Mirrored API Withdrawals: PII isolated to owner or Platform Owner
+    match /withdrawals_store/{withdrawalId} {
+      allow get: if isValidId(withdrawalId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
+      );
+      allow list: if isPlatformOwner() || (isVerifiedUser() && resource.data.userUid == request.auth.uid);
+      allow create: if isValidId(withdrawalId)
+        && isVerifiedUser()
+        && isValidWithdrawalRecord(incoming(), withdrawalId)
+        && incoming().userUid == request.auth.uid
+        && incoming().status == 'Processing';
+      allow update, delete: if isValidId(withdrawalId) && isPlatformOwner();
+    }
+
+    // KYC Verifications: Both Front & Back National ID metadata strictly isolated to user or Platform Owner
+    match /kyc_verifications/{userId} {
+      allow get: if isValidId(userId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == userId)
+      );
+      allow list: if isPlatformOwner();
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidKycVerification(incoming(), userId)
+        && request.auth.uid == userId
+        && incoming().status == 'Pending';
+      allow update, delete: if isValidId(userId) && isPlatformOwner();
     }
 
     // Marketplace Tasks: Publicly readable, ONLY Platform Owner (nigideon36@gmail.com) can create, edit, or delete
@@ -212,10 +495,10 @@ service cloud.firestore {
       allow delete: if isValidId(taskId) && isPlatformOwner();
     }
 
-    // Platform Settings (AdSense, Site Theme, Gateway metadata): Publicly readable, ONLY Platform Owner can edit
+    // Platform Settings: Publicly readable ONLY for 'global' client config; ONLY Platform Owner reads internal settings or edits
     match /platform_settings/{settingId} {
-      allow get: if isValidId(settingId);
-      allow list: if true;
+      allow get: if isValidId(settingId) && (settingId == 'global' || isPlatformOwner());
+      allow list: if isPlatformOwner();
       allow create, update: if isValidId(settingId)
         && isPlatformOwner()
         && isValidPlatformSetting(incoming())
@@ -237,7 +520,7 @@ service cloud.firestore {
       allow update, delete: if isValidId(testimonialId) && isPlatformOwner();
     }
 
-    // Investments: Deposit-only KES 50+ pools; Customers read/create own; Platform Owner approves, settles, edits, or deletes
+    // Investments: PayPal deposit-only KES 50+ pools; Customers read/create own; Platform Owner approves, settles, edits, or deletes
     match /investments/{investmentId} {
       allow get: if isValidId(investmentId) && (
         isPlatformOwner() || (isVerifiedUser() && existing().userUid == request.auth.uid)
@@ -251,22 +534,179 @@ service cloud.firestore {
       allow update, delete: if isValidId(investmentId) && isPlatformOwner();
     }
 
-    // Customer Accounts: Isolated to the verified user or Platform Owner; full management by Owner
+    // Customer Accounts: Verified owner of account can persist profile/2FA/withdrawal details safely without touching admin flags; Platform Owner has full access
     match /customer_accounts/{customerId} {
       allow get: if isValidId(customerId) && (
         isPlatformOwner() || (isVerifiedUser() && request.auth.uid == customerId)
       );
       allow list: if isPlatformOwner();
-      allow create, update, delete: if isValidId(customerId) && isPlatformOwner();
+      allow create: if isValidId(customerId)
+        && isValidCustomerAccount(incoming(), customerId)
+        && (
+          isPlatformOwner() || (
+            isVerifiedUser()
+            && request.auth.uid == customerId
+            && !('banned' in incoming())
+            && !('deactivated' in incoming())
+            && !('adminAssignedPass' in incoming())
+            && (!('role' in incoming()) || incoming().role == 'customer')
+          )
+        );
+      allow update: if isValidId(customerId)
+        && isValidCustomerAccount(incoming(), customerId)
+        && (
+          isPlatformOwner() || (
+            isVerifiedUser()
+            && request.auth.uid == customerId
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'phone', 'phoneLocked', 'phoneVerified', 'accountDetailsLocked', 'accountDetailsLockedAt',
+              'countryCode', 'email',
+              'displayName', 'city', 'bio', 'socialHandles', 'withdrawalDetails',
+              'twoFactorEnabled', 'twoFactorMethod', 'totpSecretBackup',
+              'createdAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(customerId) && isPlatformOwner();
     }
 
-    // Persistent Customer States: Isolated to the verified owner of the state document or Platform Owner
+    // Persistent Customer States: Verified user persists own non-resetting state; Platform Owner has full access
     match /customer_states/{stateId} {
       allow get: if isValidId(stateId) && (
         isPlatformOwner() || (isVerifiedUser() && request.auth.uid == stateId)
       );
       allow list: if isPlatformOwner();
-      allow create, update, delete: if isValidId(stateId) && isPlatformOwner();
+      allow create: if isValidId(stateId)
+        && isValidCustomerState(incoming(), stateId)
+        && (isPlatformOwner() || (isVerifiedUser() && request.auth.uid == stateId));
+      allow update: if isValidId(stateId)
+        && isValidCustomerState(incoming(), stateId)
+        && incoming().uid == existing().uid
+        && (isPlatformOwner() || (isVerifiedUser() && request.auth.uid == stateId));
+      allow delete: if isValidId(stateId) && isPlatformOwner();
+    }
+
+    // Auctions: Mandatory 50% PayPal Escrow Deposit for Seller & Buyer/Bidder trustworthiness; Owner can resolve/release/compensate escrow
+    match /auctions/{auctionId} {
+      allow get: if isValidId(auctionId) && (
+        isPlatformOwner() || existing().status != 'Suspended'
+      );
+      allow list: if isPlatformOwner() || resource.data.status != 'Suspended';
+      allow create: if isValidId(auctionId)
+        && isVerifiedUser()
+        && isValidAuction(incoming(), auctionId)
+        && (
+          isPlatformOwner() || (
+            incoming().sellerUid == request.auth.uid
+            && incoming().status == 'Live'
+            && incoming().escrowStatus == 'Held in Escrow'
+            && incoming().bidCount == 0
+            && (!('featured' in incoming()) || incoming().featured == false)
+          )
+        );
+      allow update: if isValidId(auctionId)
+        && isValidAuction(incoming(), auctionId)
+        && (
+          isPlatformOwner() || (
+            isVerifiedUser()
+            && !incoming().diff(existing()).affectedKeys().hasAny([
+              'id', 'sellerUid', 'featured', 'createdAt',
+              'escrowDepositPct', 'escrowDepositKes', 'escrowDepositUsd',
+              'sellerDepositPaypalRef', 'escrowStatus', 'escrowResolutionNote'
+            ])
+            && (
+              (
+                request.auth.uid == existing().sellerUid
+                && incoming().status in ['Live', 'Sold', 'Ended', 'Cancelled']
+              ) || (
+                existing().status == 'Live'
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'currentBidKes', 'currentBidUsd', 'highestBidderUid',
+                  'highestBidderName', 'highestBidderPhone', 'bidCount',
+                  'bids', 'bidderDeposits', 'status', 'endsAt', 'updatedAt'
+                ])
+                && incoming().currentBidKes >= existing().currentBidKes
+                && incoming().bidCount >= existing().bidCount
+              )
+            )
+          )
+        );
+      allow delete: if isValidId(auctionId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().sellerUid == request.auth.uid && existing().bidCount == 0)
+      );
+    }
+
+    // Pay-Per-View Status Posts (Free 24h status uploads · 5 shillings/view inside platform · auto-paid after 24h)
+    match /ppv_posts/{postId} {
+      allow get: if isValidId(postId);
+      allow list: if true;
+      allow create: if isValidId(postId)
+        && isVerifiedUser()
+        && isValidPpvPost(incoming(), postId)
+        && (
+          isPlatformOwner() || (
+            incoming().authorUid == request.auth.uid
+            && incoming().viewsCount == 0
+            && incoming().pendingEarningsKes == 0
+            && incoming().paidOutKes == 0
+            && incoming().paidOut == false
+            && incoming().status == 'Active (24h Live)'
+          )
+        );
+      allow update: if isValidId(postId)
+        && isValidPpvPost(incoming(), postId)
+        && (
+          isPlatformOwner() || (
+            isVerifiedUser()
+            && existing().paidOut == false
+            && incoming().paidOut == false
+            && incoming().paidOutKes == existing().paidOutKes
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'viewsCount', 'viewedByUids', 'pendingEarningsKes'
+            ])
+            && incoming().viewsCount == existing().viewsCount + 1
+            && incoming().pendingEarningsKes == (existing().viewsCount + 1) * 5
+          )
+        );
+      allow delete: if isValidId(postId) && (
+        isPlatformOwner() || (isVerifiedUser() && existing().authorUid == request.auth.uid)
+      );
+    }
+
+    // High-Reward Task Email Alert Subscriptions: Strictly PII isolated to subscription owner (email privacy) or Platform Owner
+    match /task_alert_subscriptions/{subscriptionId} {
+      allow get: if isValidId(subscriptionId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == subscriptionId)
+      );
+      allow list: if isPlatformOwner() || (isVerifiedUser() && resource.data.userUid == request.auth.uid);
+      allow create: if isValidId(subscriptionId)
+        && isVerifiedUser()
+        && isValidTaskAlertSubscription(incoming(), subscriptionId)
+        && (
+          isPlatformOwner() || (
+            request.auth.uid == subscriptionId
+            && incoming().userUid == request.auth.uid
+            && incoming().matchCount == 0
+          )
+        );
+      allow update: if isValidId(subscriptionId)
+        && isVerifiedUser()
+        && isValidTaskAlertSubscription(incoming(), subscriptionId)
+        && incoming().id == existing().id
+        && incoming().userUid == existing().userUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isPlatformOwner() || (
+            request.auth.uid == subscriptionId
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'email', 'categories', 'minRewardKes', 'frequency', 'active', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(subscriptionId) && (
+        isPlatformOwner() || (isVerifiedUser() && request.auth.uid == subscriptionId)
+      );
     }
   }
 }

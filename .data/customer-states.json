@@ -19,7 +19,7 @@
     "referralHistory": [],
     "referralStats": {
       "referralCode": "GIDEON-EA-4512",
-      "referralLink": "https://gideonglobal.com/?ref=GIDEON-EA-4512",
+      "referralLink": "https://gideon-global-tasks.ai.studio/?ref=GIDEON-EA-4512",
       "totalClicks": 0,
       "totalSignups": 0,
       "passesPurchasedCount": 0,
@@ -38,5 +38,55 @@
     "activePackageId": null,
     "vipReferralCount": 0,
     "updatedAt": "2026-11-17T10:08:24.935Z"
+  },
+  {
+    "uid": "Wxejg66hxCMjKK0ukxPnwpan8ma2",
+    "userStats": {
+      "balance": 0,
+      "pendingBalance": 0,
+      "lifetimeEarned": 0,
+      "completedTasksCount": 0,
+      "qualityScore": 100,
+      "streakDays": 0,
+      "lastLoginDate": "",
+      "streakBonusMultiplier": 1,
+      "sevenDayBonusAwarded": false,
+      "tier": "Bronze",
+      "completedTaskIds": [],
+      "payoutHistory": [
+        {
+          "id": "PAY-9734",
+          "amount": 4.2308,
+          "method": "M-PESA",
+          "accountDetails": "+254712727558",
+          "status": "Processing",
+          "timestamp": "11/20/2026, 4:34:31 PM",
+          "mpesaReceipt": "MPQ17GGFD"
+        }
+      ]
+    },
+    "taskHistory": [],
+    "referralHistory": [],
+    "referralStats": {
+      "referralCode": "GIDEON-EA-8MA2",
+      "referralLink": "https://gideon-global-tasks.ai.studio/?ref=GIDEON-EA-8MA2",
+      "totalClicks": 0,
+      "totalSignups": 0,
+      "passesPurchasedCount": 0,
+      "totalCommissionEarned": 0,
+      "pendingCommission": 0,
+      "commissionPercentage": 20,
+      "vipTierBonusPercent": 5,
+      "vipReferralCount": 0
+    },
+    "dailyUsage": {
+      "dateKey": "2026-11-18",
+      "completedTodayCount": 0,
+      "surveysCompletedTodayCount": 0,
+      "earnedTodayUsd": 0
+    },
+    "activePackageId": null,
+    "vipReferralCount": 0,
+    "updatedAt": "2026-11-20T16:34:31.891Z"
   }
 ]

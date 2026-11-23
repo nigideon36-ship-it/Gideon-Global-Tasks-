@@ -93,7 +93,7 @@ export const CookieConsentBanner: React.FC = () => {
             </button>
           </div>
           <p>
-            Gideon Global Tasks uses cookies and similar technologies to verify contributor logins, maintain account security, measure platform engagement, and serve personalized Google AdSense advertising.
+            Gideon Global Tasks uses cookies, service workers, and similar technologies to verify contributor logins, maintain account security, measure platform engagement, and serve Monetag and Google AdSense advertising.
           </p>
           <p className="text-[11px] text-slate-500">
             You can read our full{' '}

@@ -1,0 +1,32 @@
+{
+  "enabled": true,
+  "primaryEmail": "nigideon36@gmail.com",
+  "payPalMeHandle": "nigideon36",
+  "mode": "live",
+  "currency": "USD",
+  "zapierWebhookUrl": "",
+  "generatedLinks": [],
+  "zapierLogs": [
+    {
+      "id": "ZAP-DEF3C7",
+      "createdAt": "2026-11-20T13:53:50.793Z",
+      "direction": "outbound",
+      "event": "paypal_order_created",
+      "status": "Skipped",
+      "detail": "Zapier Catch Hook URL not configured yet in Owner Console → PayPal & Zapier.",
+      "amountUsd": 0.77,
+      "transactionId": "PP_LINK_1795182830793_3687"
+    },
+    {
+      "id": "ZAP-743C47",
+      "createdAt": "2026-11-20T13:53:50.618Z",
+      "direction": "outbound",
+      "event": "paypal_link_generated",
+      "status": "Skipped",
+      "detail": "Zapier Catch Hook URL not configured yet in Owner Console → PayPal & Zapier.",
+      "amountUsd": 1.54,
+      "transactionId": "PPLNK-4498A5"
+    }
+  ],
+  "updatedAt": "2026-11-20T13:53:47.525Z"
+}

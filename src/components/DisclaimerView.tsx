@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { formatCurrencyFromKes, formatCurrencyFromUsd, MAX_TASK_REWARD_KES, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
-import { AlertTriangle, ArrowLeft, ShieldCheck, ExternalLink, HelpCircle } from 'lucide-react';
+import { formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
+import { AlertTriangle, ArrowLeft, ExternalLink } from 'lucide-react';
 
 export const DisclaimerView: React.FC = () => {
   const { setActiveTab } = useTasks();
@@ -42,20 +42,20 @@ export const DisclaimerView: React.FC = () => {
 
       {/* Earnings Disclaimer */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">1. Earnings & Income Representation Disclaimer</h2>
+        <h2 className="text-xl font-bold text-slate-900">1. Earnings &amp; Income Representation Disclaimer</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Gideon Global Tasks provides an open crowdsourcing and multimodal data annotation marketplace. Any earnings examples, reward estimates (up to {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per completed task), or daily bonus projections cited across the website or contributor guides are illustrative of what high-accuracy, diligent contributors can potentially generate and do not represent a guarantee of earnings.
+          Gideon Global Tasks provides a structured daily micro-work marketplace where 1 vetted task is dropped per day at 08:00 AM EAT with zero Worker Pass fees. Task rewards vary depending on the specific task type and the budget set by the sponsoring merchant. Any reward examples cited across the site do not represent a guaranteed fixed salary.
         </p>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Your individual earnings depend on factors including the volume of available task bounties from enterprise requesters, your accuracy audit scores, task completion speed, worker pass category access, and geographic eligibility. Gideon Global Tasks does not represent itself as a "get-rich-quick" scheme, permanent full-time employment, or passive financial investment.
+          Your individual earnings depend on catching the 8:00 AM EAT daily task drop on time, merchant bounty availability, your accuracy audit scores, and geographic eligibility.
         </p>
       </section>
 
       {/* Payout Rail Disclosures */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">2. Withdrawal Milestones & Currency Processing</h2>
+        <h2 className="text-xl font-bold text-slate-900">2. PayPal-Only Withdrawals, Strict KYC &amp; Auction Escrow</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Withdrawals begin once a contributor reaches the approved balance threshold of <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong>. While Gideon Global Tasks does not charge platform cash-out fees on approved payouts, foreign exchange conversion rates applied by intermediary telecommunications operators (e.g., Safaricom M-PESA) or international banking partners (e.g., Wise) are determined by market rates at the time of transfer.
+          Withdrawals begin once a contributor reaches the approved balance threshold of <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> (150 Shillings equivalent) and passes strict KYC verification (front and back photos of their National ID). All deposits and payouts operate exclusively through <strong>PayPal</strong>. Real-product auction participants must maintain a mandatory 50% PayPal escrow deposit to cover dispute compensation between buyer and seller.
         </p>
       </section>
 
@@ -63,7 +63,7 @@ export const DisclaimerView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">3. Third-Party Advertising & Google AdSense Disclaimer</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          This website displays advertisements delivered via Google AdSense and third-party advertising exchanges. The appearance of advertisements on Gideon Global Tasks does not constitute an endorsement, guarantee, warranty, or recommendation by Gideon Global Tasks of the products, services, claims, or companies advertised.
+          This website displays advertisements and sponsored notices delivered via Google AdSense, Monetag, and authorized ad exchanges. The appearance of any advertisement on Gideon Global Tasks does not constitute an endorsement, guarantee, warranty, or recommendation by Gideon Global Tasks of the products, services, claims, or companies advertised.
         </p>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
           We encourage visitors to exercise due diligence before engaging with any third-party advertised offer. For details regarding how advertising cookies are utilized or to opt out of interest-based ads, please visit our{' '}
@@ -92,9 +92,9 @@ export const DisclaimerView: React.FC = () => {
 
       {/* Trademark Notice */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">4. Trademark & Brand Attribution Notice</h2>
+        <h2 className="text-xl font-bold text-slate-900">4. Trademark &amp; Brand Attribution Notice</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Google, Google AdSense, and Google Search Console are trademarks of Google LLC. M-PESA is a registered trademark of Safaricom PLC and Vodafone Group. Wise is a trademark of Wise Payments Limited. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.
+          Google and Google AdSense are trademarks of Google LLC. PayPal is a trademark of PayPal Holdings, Inc. All product and company names are used strictly for identification. User-uploaded photos and short videos in the Pay-Per-View Status Feed remain the responsibility of their respective uploaders and are hosted exclusively within the platform.
         </p>
       </section>
 

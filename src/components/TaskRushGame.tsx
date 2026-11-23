@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { formatCurrencyFromUsd, MAX_TASK_REWARD_USD } from '../lib/eastAfrica';
+import { formatCurrencyFromUsd } from '../lib/eastAfrica';
 import { Play, RotateCcw, Trophy, Sparkles, Volume2, VolumeX, Flame } from 'lucide-react';
+
+const GAME_BOUNTY_USD = 0.5;
 
 interface GameItem {
   id: number;
@@ -17,7 +19,7 @@ interface GameItem {
 export const TaskRushGame: React.FC = () => {
   const { completeTask } = useTasks();
   const { selectedCountry } = useRegion();
-  const gameBountyFormatted = formatCurrencyFromUsd(MAX_TASK_REWARD_USD, selectedCountry);
+  const gameBountyFormatted = formatCurrencyFromUsd(GAME_BOUNTY_USD, selectedCountry);
 
   const [gameState, setGameState] = useState<'title' | 'playing' | 'gameover'>('title');
   const [score, setScore] = useState(0);
@@ -365,7 +367,7 @@ export const TaskRushGame: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                completeTask('task-game-rush', MAX_TASK_REWARD_USD, 'Taskmaster Rush 500+ High Score Bounty');
+                completeTask('task-game-rush', GAME_BOUNTY_USD, 'Taskmaster Rush 500+ High Score Bounty');
                 setRewardClaimed(true);
               }}
               className="mt-3 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"

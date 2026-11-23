@@ -8,9 +8,9 @@ import { TaskProvider, useTasks } from './context/TaskContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RegionProvider, useRegion } from './context/RegionContext';
 import {
+  convertUsdToLocal,
   formatCurrencyFromUsd,
   formatCurrencyFromKes,
-  MAX_TASK_REWARD_KES,
   WITHDRAWAL_THRESHOLD_USD,
 } from './lib/eastAfrica';
 import { Navbar } from './components/Navbar';
@@ -31,6 +31,8 @@ import { GeminiChatbot } from './components/GeminiChatbot';
 import { TaskHistoryView } from './components/TaskHistoryView';
 import { CustomerDashboard } from './components/CustomerDashboard';
 import { InvestmentsView } from './components/InvestmentsView';
+import { AuctionsView } from './components/AuctionsView';
+import { PayPerViewView } from './components/PayPerViewView';
 import { TestimonialsView } from './components/TestimonialsView';
 import { EmployerPortal } from './components/EmployerPortal';
 
@@ -39,19 +41,16 @@ const AIMediaStudio = lazy(() => import('./components/AIMediaStudio').then(m => 
 const ThreeGlobeHub = lazy(() => import('./components/ThreeGlobeHub').then(m => ({ default: m.ThreeGlobeHub })));
 const TaskRushGame = lazy(() => import('./components/TaskRushGame').then(m => ({ default: m.TaskRushGame })));
 const GoogleMapsExplorer = lazy(() => import('./components/GoogleMapsExplorer').then(m => ({ default: m.GoogleMapsExplorer })));
-import { PackagesModal } from './components/PackagesModal';
 import { DailyStreakModal } from './components/DailyStreakModal';
 import { ReferralDashboard } from './components/ReferralDashboard';
 import { PublisherModal } from './components/PublisherModal';
-import { DarajaMpesaModal } from './components/DarajaMpesaModal';
-import { IntasendModal } from './components/IntasendModal';
-import { PaystackModal } from './components/PaystackModal';
 import { RegionGateModal } from './components/RegionGateModal';
 import { AuthModal } from './components/AuthModal';
 import { CustomerProfileModal } from './components/CustomerProfileModal';
 import { TwoFactorModal } from './components/TwoFactorModal';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
 import { AdSenseBanner } from './components/AdSenseBanner';
+import { TaskAlertSubscriptionBanner } from './components/TaskAlertSubscriptionBanner';
 import { PlatformOverviewLanding } from './components/PlatformOverviewLanding';
 import { AboutUsView } from './components/AboutUsView';
 import { ContactUsView } from './components/ContactUsView';
@@ -62,8 +61,9 @@ import { TermsOfServiceView } from './components/TermsOfServiceView';
 import { DisclaimerView } from './components/DisclaimerView';
 import { HTMLSitemapView } from './components/HTMLSitemapView';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { MonetagInitializer } from './components/MonetagInitializer';
 import { Task } from './types/tasks';
-import { Inbox, Globe, Gamepad2, History, Zap, Sparkles, Flame, Users, LayoutDashboard } from 'lucide-react';
+import { Inbox, Globe, Video, History, Zap, ShieldCheck, Flame, Users, LayoutDashboard, Gamepad2 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { isOwner } = useAuth();
@@ -74,23 +74,15 @@ const MainAppContent: React.FC = () => {
     setActiveTab,
     selectedTask,
     setSelectedTask,
-    activePackage,
-    packagesModalOpen,
-    setPackagesModalOpen,
-    purchasePackage,
+    kycStatus,
     dailyQuotaStatus,
+    dailyDropInfo,
     showNotification,
     streakModalOpen,
     setStreakModalOpen,
     userStats,
     publisherModalOpen,
     setPublisherModalOpen,
-    darajaModalOpen,
-    setDarajaModalOpen,
-    intasendModalOpen,
-    setIntasendModalOpen,
-    paystackModalOpen,
-    setPaystackModalOpen,
     privacyTermsModalOpen,
     setPrivacyTermsModalOpen,
     privacyTermsTab,
@@ -106,100 +98,94 @@ const MainAppContent: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('highest-reward');
-  const [requiredCategoryPrompt, setRequiredCategoryPrompt] = useState<string | undefined>(undefined);
+  const [minRewardLocal, setMinRewardLocal] = useState<string>('');
+  const [maxRewardLocal, setMaxRewardLocal] = useState<string>('');
+  const [minTimeMinutes, setMinTimeMinutes] = useState<string>('');
+  const [maxTimeMinutes, setMaxTimeMinutes] = useState<string>('');
+
+  const prevCountryCodeRef = useRef<string>(selectedCountry.code);
+  useEffect(() => {
+    if (prevCountryCodeRef.current !== selectedCountry.code) {
+      prevCountryCodeRef.current = selectedCountry.code;
+      setMinRewardLocal('');
+      setMaxRewardLocal('');
+    }
+  }, [selectedCountry.code]);
+
+  const handleResetMarketplaceFilters = () => {
+    setSelectedCategory('all');
+    setSearchQuery('');
+    setDifficultyFilter('all');
+    setMinRewardLocal('');
+    setMaxRewardLocal('');
+    setMinTimeMinutes('');
+    setMaxTimeMinutes('');
+  };
 
   // Sub-view toggle for 3D Globe vs Game
   const [interactiveMode, setInteractiveMode] = useState<'globe' | 'game'>('globe');
-  const paystackRedirectHandledRef = useRef<string | null>(null);
 
-  // Automatic verification when returning from a Paystack Payment Page or Paystack Card Checkout
+  const sharedTaskHandledRef = useRef<string | null>(null);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || tasks.length === 0) return;
     const params = new URLSearchParams(window.location.search);
-    const reference = (params.get('reference') || params.get('trxref') || '').trim();
-    const pkgParam = (params.get('paystack_pkg') || '').trim().toLowerCase();
+    const sharedTaskId = (params.get('task') || '').trim();
+    const paypalStatus = (params.get('paypal_status') || '').trim().toLowerCase();
 
-    if (!reference || paystackRedirectHandledRef.current === reference) return;
-    paystackRedirectHandledRef.current = reference;
-
-    const cleanUrlParams = () => {
-      try {
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.delete('reference');
-        nextUrl.searchParams.delete('trxref');
-        nextUrl.searchParams.delete('paystack_pkg');
-        window.history.replaceState({}, document.title, nextUrl.pathname + nextUrl.search + nextUrl.hash);
-      } catch {}
-    };
-
-    try {
-      const raw = localStorage.getItem('gideon_verified_ps_refs');
-      const verifiedRefs: string[] = raw ? JSON.parse(raw) : [];
-      if (verifiedRefs.includes(reference)) {
-        cleanUrlParams();
-        return;
-      }
-    } catch {}
-
-    showNotification(`Verifying your Paystack payment (${reference})...`);
-
-    fetch(`/api/paystack/verify/${encodeURIComponent(reference)}`, {
-      headers: {
-        'x-ea-country': selectedCountry.code,
-        'x-ea-verified': 'true',
-      },
-    })
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        cleanUrlParams();
-        if (!ok || data?.status !== 'success') {
-          showNotification(
-            data?.error ||
-              `Paystack payment ${reference} status is "${data?.status || 'pending'}". Open Passes → Paystack Link to re-verify.`
-          );
-          return;
-        }
-
-        const pendingPkg = (() => {
-          try {
-            return localStorage.getItem('gideon_pending_paystack_pkg') || '';
-          } catch {
-            return '';
-          }
-        })();
-
-        const resolvedCandidate = String(data.packageId || pkgParam || pendingPkg || 'pro').toLowerCase();
-        const resolvedPkg: 'starter' | 'pro' | 'vip' =
-          resolvedCandidate === 'starter' || resolvedCandidate === 'vip' ? resolvedCandidate : 'pro';
-
-        try {
-          const raw = localStorage.getItem('gideon_verified_ps_refs');
-          const verifiedRefs: string[] = raw ? JSON.parse(raw) : [];
-          if (!verifiedRefs.includes(reference)) {
-            localStorage.setItem('gideon_verified_ps_refs', JSON.stringify([...verifiedRefs, reference]));
-          }
-          localStorage.removeItem('gideon_pending_paystack_pkg');
-        } catch {}
-
-        purchasePackage(
-          resolvedPkg,
-          'Paystack Page',
-          `${data.customerEmail || selectedCountry.code} (Ref: ${reference})`
+    if (paypalStatus) {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete('paypal_status');
+      nextUrl.searchParams.delete('pkg');
+      window.history.replaceState({}, document.title, nextUrl.pathname + nextUrl.search + nextUrl.hash);
+      if (paypalStatus === 'success') {
+        showNotification(
+          'PayPal payment step completed! Return to your workspace to confirm your PayPal Transaction ID.'
         );
-      })
-      .catch(() => {
-        cleanUrlParams();
-        showNotification(`Could not verify Paystack reference ${reference}. You can verify it inside Worker Passes → Paystack Link.`);
-      });
-  }, [selectedCountry.code, purchasePackage, showNotification]);
+      } else if (paypalStatus === 'cancelled') {
+        showNotification('PayPal checkout was cancelled. You can retry anytime via PayPal.');
+      }
+    }
+
+    if (sharedTaskId && sharedTaskHandledRef.current !== sharedTaskId) {
+      const matched = tasks.find((t) => t.id === sharedTaskId);
+      if (matched) {
+        sharedTaskHandledRef.current = sharedTaskId;
+        setActiveTab('tasks');
+        setSelectedCategory(matched.category);
+        setSearchQuery(matched.title);
+        showNotification(`Shared task loaded: "${matched.title}"`);
+      }
+    }
+  }, [tasks, setActiveTab, showNotification]);
 
   const filteredTasks = useMemo(() => {
+    const parsedMinReward = minRewardLocal.trim() !== '' ? Number(minRewardLocal) : null;
+    const parsedMaxReward = maxRewardLocal.trim() !== '' ? Number(maxRewardLocal) : null;
+    const parsedMinTime = minTimeMinutes.trim() !== '' ? Number(minTimeMinutes) : null;
+    const parsedMaxTime = maxTimeMinutes.trim() !== '' ? Number(maxTimeMinutes) : null;
+
     return tasks
       .filter((task) => {
+        if (userStats.completedTaskIds.includes(task.id)) {
+          return false;
+        }
         if (selectedCategory !== 'all' && task.category !== selectedCategory) {
           return false;
         }
         if (difficultyFilter !== 'all' && task.difficulty !== difficultyFilter) {
+          return false;
+        }
+        const taskLocalReward = convertUsdToLocal(task.reward, selectedCountry);
+        if (parsedMinReward !== null && !Number.isNaN(parsedMinReward) && taskLocalReward < parsedMinReward) {
+          return false;
+        }
+        if (parsedMaxReward !== null && !Number.isNaN(parsedMaxReward) && taskLocalReward > parsedMaxReward) {
+          return false;
+        }
+        if (parsedMinTime !== null && !Number.isNaN(parsedMinTime) && task.estimatedMinutes < parsedMinTime) {
+          return false;
+        }
+        if (parsedMaxTime !== null && !Number.isNaN(parsedMaxTime) && task.estimatedMinutes > parsedMaxTime) {
           return false;
         }
         if (searchQuery.trim()) {
@@ -215,12 +201,30 @@ const MainAppContent: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        if (dailyDropInfo.droppedTaskId) {
+          if (a.id === dailyDropInfo.droppedTaskId && b.id !== dailyDropInfo.droppedTaskId) return -1;
+          if (b.id === dailyDropInfo.droppedTaskId && a.id !== dailyDropInfo.droppedTaskId) return 1;
+        }
         if (sortBy === 'highest-reward') return b.reward - a.reward;
+        if (sortBy === 'lowest-reward') return a.reward - b.reward;
         if (sortBy === 'quickest') return a.estimatedMinutes - b.estimatedMinutes;
         if (sortBy === 'most-spots') return b.spotsRemaining - a.spotsRemaining;
         return 0;
       });
-  }, [tasks, selectedCategory, difficultyFilter, searchQuery, sortBy]);
+  }, [
+    tasks,
+    userStats.completedTaskIds,
+    dailyDropInfo.droppedTaskId,
+    selectedCategory,
+    difficultyFilter,
+    searchQuery,
+    sortBy,
+    selectedCountry,
+    minRewardLocal,
+    maxRewardLocal,
+    minTimeMinutes,
+    maxTimeMinutes,
+  ]);
 
   const handleSelectTask = (task: Task) => {
     const eligibility = dailyQuotaStatus.canDoTask(task);
@@ -228,8 +232,6 @@ const MainAppContent: React.FC = () => {
       if (eligibility.reason) {
         showNotification(eligibility.reason);
       }
-      setRequiredCategoryPrompt(`${task.category.toUpperCase().replace('-', ' ')} (${formatCurrencyFromUsd(task.reward, selectedCountry)})`);
-      setPackagesModalOpen(true);
       return;
     }
 
@@ -246,7 +248,7 @@ const MainAppContent: React.FC = () => {
         <Navbar />
 
         <main className="max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-8">
-          {/* Active Package Banner & Task History Prompt */}
+          {/* Open Free Task Access, 150 KSh PayPal Payouts & Strict KYC Banner */}
           <div className="mb-6 p-4 bg-blue-950 bg-gradient-to-r from-blue-950 to-blue-900 border border-blue-400/30 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md transition-colors">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold shrink-0 transition-colors">
@@ -255,20 +257,20 @@ const MainAppContent: React.FC = () => {
               <div>
                 <div className="text-xs font-bold text-white flex flex-wrap items-center gap-2">
                   <span>
-                    {activePackage
-                      ? `Pass Tier: ${activePackage.name} (${formatCurrencyFromKes(activePackage.priceKes, selectedCountry)})`
-                      : isOwner
-                      ? 'Pass Tier: Owner Console Access'
-                      : `Free Tier: Only 1 Free Task Daily (Max ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)})`}
+                    {isOwner
+                      ? 'Owner Console Access · Open Marketplace'
+                      : '100% Free Tasks · 1 Task Drops Daily at Exactly 08:00 AM EAT'}
                   </span>
                   <span className="text-sky-300 font-mono text-[11px] font-semibold">
-                    · Today: {dailyQuotaStatus.usedToday}/{dailyQuotaStatus.rule.dailyLimit} used (Max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}/task)
+                    · {dailyDropInfo.isDropWindowOpen ? `Today's Drop Live (${dailyQuotaStatus.usedToday}/1 used)` : `Drops in ${dailyDropInfo.countdownLabel}`}
                   </span>
                 </div>
                 <div className="text-[11px] text-blue-100">
-                  {activePackage
-                    ? activePackage.taskAllowance
-                    : `Starter ${formatCurrencyFromKes(50, selectedCountry)} (2/day) · 2nd Pass ${formatCurrencyFromKes(100, selectedCountry)} (3/day) · VIP ${formatCurrencyFromKes(200, selectedCountry)} (4 surveys/day) · Max ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}/task`} · Pay Pass via M-PESA: <strong className="text-emerald-300 font-extrabold font-mono text-xs tracking-wide">0758727558</strong>
+                  Task rewards depend on the task &amp; merchant · Withdrawals start at{' '}
+                  <strong className="text-emerald-300 font-bold">
+                    {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}
+                  </strong>{' '}
+                  via <strong className="text-sky-200 font-bold">PayPal Only</strong> · Strict KYC Required (Front &amp; Back of {selectedCountry.idDocumentName})
                 </div>
               </div>
             </div>
@@ -303,15 +305,16 @@ const MainAppContent: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => {
-                  setRequiredCategoryPrompt(undefined);
-                  setPackagesModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-blue-50 text-blue-950 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${
+                  kycStatus === 'Approved'
+                    ? 'bg-emerald-100 text-emerald-950 hover:bg-emerald-200'
+                    : 'bg-white text-blue-950 hover:bg-blue-50'
+                }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <ShieldCheck className={`w-3.5 h-3.5 ${kycStatus === 'Approved' ? 'text-emerald-700' : 'text-blue-600'}`} />
                 <span>
-                  Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)})
+                  {kycStatus === 'Approved' ? 'National ID KYC: Approved' : `Verify National ID KYC (${kycStatus})`}
                 </span>
               </button>
             </div>
@@ -329,6 +332,17 @@ const MainAppContent: React.FC = () => {
                 onDifficultyChange={setDifficultyFilter}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
+                minRewardLocal={minRewardLocal}
+                maxRewardLocal={maxRewardLocal}
+                onMinRewardChange={setMinRewardLocal}
+                onMaxRewardChange={setMaxRewardLocal}
+                minTimeMinutes={minTimeMinutes}
+                maxTimeMinutes={maxTimeMinutes}
+                onMinTimeChange={setMinTimeMinutes}
+                onMaxTimeChange={setMaxTimeMinutes}
+                onResetFilters={handleResetMarketplaceFilters}
+                filteredCount={filteredTasks.length}
+                totalCount={tasks.length}
               />
 
               {/* Quick Jump Bar */}
@@ -342,7 +356,7 @@ const MainAppContent: React.FC = () => {
                     className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" />
-                    <span>Customer Dashboard →</span>
+                    <span>Customer Dashboard &amp; KYC →</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('task-history')}
@@ -358,16 +372,23 @@ const MainAppContent: React.FC = () => {
                     <span>Referrals (Earn 20%) →</span>
                   </button>
                   <button
-                    onClick={() => setActiveTab('packages')}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    Contributor Passes ({formatCurrencyFromKes(50, selectedCountry)}–{formatCurrencyFromKes(200, selectedCountry)}) →
-                  </button>
-                  <button
                     onClick={() => setActiveTab('investments')}
                     className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   >
                     Invest Pools ({formatCurrencyFromKes(50, selectedCountry)}+) →
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('auctions')}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Product Auctions →
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('pay-per-view')}
+                    className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Pay-Per-View (Free · 5 KSh/View) →</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('testimonials')}
@@ -408,11 +429,112 @@ const MainAppContent: React.FC = () => {
                 </div>
               </div>
 
+              {/* High-Reward Task Email Alert Subscriptions */}
+              <TaskAlertSubscriptionBanner />
+
+              {/* Daily 8:00 AM EAT Task Drop — Real-Time Countdown & Instant Open Task Reveal */}
+              {(() => {
+                const isDroppedTaskCompleted = Boolean(
+                  dailyDropInfo.droppedTask &&
+                    userStats.completedTaskIds.includes(dailyDropInfo.droppedTask.id)
+                );
+                const canOpenDropNow = Boolean(
+                  dailyDropInfo.droppedTask &&
+                    (dailyDropInfo.isDropWindowOpen || isOwner) &&
+                    !isDroppedTaskCompleted
+                );
+
+                return (
+                  <div className="bg-white rounded-2xl border border-blue-200/90 p-5 md:p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-extrabold text-slate-900">
+                        <span
+                          className={`inline-block w-2.5 h-2.5 rounded-full ${
+                            dailyDropInfo.isDropWindowOpen ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                          }`}
+                        />
+                        <span>Daily 8:00 AM EAT Task Drop</span>
+                        <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200">
+                          {dailyDropInfo.eatTimeLabel}
+                        </span>
+                        {dailyDropInfo.isDropWindowOpen && !isDroppedTaskCompleted && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            LIVE NOW
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {isDroppedTaskCompleted
+                          ? `Today's 8:00 AM Task Drop is completed and removed from your active queue. View your payout in Task History. Next task drops tomorrow at 08:00 AM EAT.`
+                          : dailyDropInfo.isDropWindowOpen
+                          ? dailyDropInfo.droppedTask
+                            ? `Today's 08:00 AM EAT task is live: "${dailyDropInfo.droppedTask.title}" (${formatCurrencyFromUsd(
+                                dailyDropInfo.droppedTask.reward,
+                                selectedCountry
+                              )} merchant reward). Only 1 task drops daily.`
+                            : 'Today’s 08:00 AM EAT drop is live! Rewards depend on each task and merchant budget.'
+                          : `Keep time! Only 1 task drops every day at exactly 08:00 AM EAT. When this countdown hits 00:00:00, the Open Task button unlocks automatically.`}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3.5 shrink-0">
+                      <div className="flex items-center gap-1.5 bg-slate-950 text-white px-3.5 py-2.5 rounded-xl border border-slate-800 shadow-xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1.5">
+                          {dailyDropInfo.isDropWindowOpen ? 'Next Drop' : 'Drops In'}
+                        </span>
+                        <div className="flex items-center gap-1 font-mono tabular-nums">
+                          <div className="bg-slate-800 px-2 py-1 rounded-md text-center min-w-[38px]">
+                            <div className="text-sm font-extrabold text-emerald-300 leading-none">
+                              {dailyDropInfo.countdownHours}
+                            </div>
+                            <div className="text-[8px] text-slate-400 uppercase mt-0.5">Hrs</div>
+                          </div>
+                          <span className="text-slate-500 font-bold">:</span>
+                          <div className="bg-slate-800 px-2 py-1 rounded-md text-center min-w-[38px]">
+                            <div className="text-sm font-extrabold text-emerald-300 leading-none">
+                              {dailyDropInfo.countdownMinutes}
+                            </div>
+                            <div className="text-[8px] text-slate-400 uppercase mt-0.5">Min</div>
+                          </div>
+                          <span className="text-slate-500 font-bold">:</span>
+                          <div className="bg-slate-800 px-2 py-1 rounded-md text-center min-w-[38px]">
+                            <div className="text-sm font-extrabold text-amber-300 leading-none">
+                              {dailyDropInfo.countdownSeconds}
+                            </div>
+                            <div className="text-[8px] text-slate-400 uppercase mt-0.5">Sec</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {canOpenDropNow && dailyDropInfo.droppedTask && (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTask(dailyDropInfo.droppedTask!)}
+                          className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                        >
+                          Open Task ({formatCurrencyFromUsd(dailyDropInfo.droppedTask.reward, selectedCountry)}) →
+                        </button>
+                      )}
+
+                      {isDroppedTaskCompleted && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('task-history')}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          Completed Today · View History →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Task Cards Grid */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-xs text-blue-100 font-medium">
-                  <span>Showing {filteredTasks.length} Available East Africa Tasks</span>
-                  <span className="font-mono">Withdrawals start from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</span>
+                  <span>Showing {filteredTasks.length} Available East Africa Tasks (Completed tasks clear automatically · 1 Drop Daily at 08:00 AM EAT)</span>
+                  <span className="font-mono">Min PayPal withdrawal: {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</span>
                 </div>
 
                 {filteredTasks.length === 0 ? (
@@ -421,19 +543,17 @@ const MainAppContent: React.FC = () => {
                       <Inbox className="w-6 h-6" />
                     </div>
                     <h3 className="text-sm font-bold text-slate-800">
-                      No matching tasks found
+                      {tasks.length > 0 && tasks.every((t) => userStats.completedTaskIds.includes(t.id))
+                        ? 'All available tasks completed!'
+                        : 'No matching active tasks found'}
                     </h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      Try clearing search terms or selecting another category to view more opportunities.
+                      Completed tasks automatically disappear from your active feed and move to Task History. Clear filters or check back at the next 08:00 AM EAT drop.
                     </p>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedCategory('all');
-                        setSearchQuery('');
-                        setDifficultyFilter('all');
-                      }}
-                      className="mt-2 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+                      onClick={handleResetMarketplaceFilters}
+                      className="mt-2 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
                     >
                       Reset All Filters
                     </button>
@@ -444,6 +564,7 @@ const MainAppContent: React.FC = () => {
                       <TaskCard
                         key={task.id}
                         task={task}
+                        isDailyDrop={dailyDropInfo.droppedTaskId === task.id}
                         onSelect={handleSelectTask}
                       />
                     ))}
@@ -490,21 +611,24 @@ const MainAppContent: React.FC = () => {
             </div>
           )}
 
+          {/* 3b2. CUSTOMER PRODUCT AUCTIONS */}
+          {activeTab === 'auctions' && (
+            <div className="bg-slate-50 rounded-3xl p-4 md:p-6 shadow-xl border border-blue-300/30 text-slate-900">
+              <AuctionsView />
+            </div>
+          )}
+
+          {/* 3b3. FREE PAY-PER-VIEW STATUS FEED (5 SHILLINGS/VIEW · AUTO-PAID IN 24H) */}
+          {activeTab === 'pay-per-view' && (
+            <div className="bg-slate-50 rounded-3xl p-4 md:p-6 shadow-xl border border-blue-300/30 text-slate-900">
+              <PayPerViewView />
+            </div>
+          )}
+
           {/* 3c. CUSTOMER TESTIMONIALS & REVIEWS */}
           {activeTab === 'testimonials' && (
             <div className="bg-slate-50 rounded-3xl p-4 md:p-6 shadow-xl border border-blue-300/30 text-slate-900">
               <TestimonialsView />
-            </div>
-          )}
-
-          {/* 4. TASK PACKAGES VIEW */}
-          {activeTab === 'packages' && (
-            <div className="space-y-8 animate-in fade-in duration-200">
-              <PackagesModal
-                isOpen={true}
-                onClose={() => setActiveTab('tasks')}
-                requiredForCategory={requiredCategoryPrompt}
-              />
             </div>
           )}
 
@@ -710,39 +834,13 @@ const MainAppContent: React.FC = () => {
         onClose={() => setStreakModalOpen(false)}
       />
 
-      {/* Packages Modal (when triggered via button or gating) */}
-      {activeTab !== 'packages' && (
-        <PackagesModal
-          isOpen={packagesModalOpen}
-          onClose={() => setPackagesModalOpen(false)}
-          requiredForCategory={requiredCategoryPrompt}
-        />
-      )}
-
-      {/* Owner-Only Administration & Payment Modals (Strictly nigideon36@gmail.com) */}
+      {/* Owner-Only Administration Modal (Strictly nigideon36@gmail.com) */}
       {isOwner && (
-        <>
-          <PublisherModal
-            isOpen={publisherModalOpen}
-            onClose={() => setPublisherModalOpen(false)}
-            onOpenPrivacyTerms={openPrivacyTerms}
-          />
-
-          <DarajaMpesaModal
-            isOpen={darajaModalOpen}
-            onClose={() => setDarajaModalOpen(false)}
-          />
-
-          <IntasendModal
-            isOpen={intasendModalOpen}
-            onClose={() => setIntasendModalOpen(false)}
-          />
-
-          <PaystackModal
-            isOpen={paystackModalOpen}
-            onClose={() => setPaystackModalOpen(false)}
-          />
-        </>
+        <PublisherModal
+          isOpen={publisherModalOpen}
+          onClose={() => setPublisherModalOpen(false)}
+          onOpenPrivacyTerms={openPrivacyTerms}
+        />
       )}
 
       {/* AdSense Policy Compliant Legal & Privacy Modal */}
@@ -781,6 +879,7 @@ export default function App() {
     <AuthProvider>
       <RegionProvider>
         <TaskProvider>
+          <MonetagInitializer />
           <MainAppContent />
         </TaskProvider>
       </RegionProvider>

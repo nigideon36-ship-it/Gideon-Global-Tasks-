@@ -33,18 +33,64 @@
     },
     "Withdrawal": {
       "title": "Withdrawal",
-      "description": "Customer payout withdrawal request",
+      "description": "Customer PayPal-only payout withdrawal request (minimum 150 shillings / 1.1538 USD with Front & Back ID KYC approved)",
       "type": "object",
       "properties": {
         "userUid": { "type": "string", "minLength": 1, "maxLength": 128 },
         "amount": { "type": "number" },
-        "method": { "type": "string", "enum": ["M-PESA", "Airtel / MTN MoMo", "East Africa Bank", "Wise", "Crypto USDT"] },
+        "method": { "type": "string", "enum": ["PayPal"] },
         "details": { "type": "string", "maxLength": 200 },
-        "status": { "type": "string", "enum": ["Pending", "Completed", "Rejected"] },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Completed", "Rejected"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userUid", "amount", "method", "details", "status", "createdAt", "updatedAt"]
+    },
+    "WithdrawalRecord": {
+      "title": "WithdrawalRecord",
+      "description": "Backend-mirrored PayPal withdrawal record (minimum 150 shillings / 1.1538 USD)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "userUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "customerPhone": { "type": "string", "maxLength": 40 },
+        "customerEmail": { "type": "string", "maxLength": 160 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "countryCode": { "type": "string", "maxLength": 4 },
+        "amountUsd": { "type": "number" },
+        "method": { "type": "string", "enum": ["PayPal"] },
+        "accountDetails": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["Processing", "Completed", "Rejected"] },
+        "disbursementChannel": { "type": "string", "maxLength": 64 },
+        "approvedBy": { "type": "string", "maxLength": 200 },
+        "rejectionReason": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userUid", "countryCode", "amountUsd", "method", "accountDetails", "status", "createdAt", "updatedAt"]
+    },
+    "KycVerification": {
+      "title": "KycVerification",
+      "description": "Strict withdrawal KYC verification metadata requiring both Front & Back National ID photos per country",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "countryCode": { "type": "string", "maxLength": 4 },
+        "idDocumentName": { "type": "string", "maxLength": 120 },
+        "fullNameOnId": { "type": "string", "maxLength": 120 },
+        "idNumber": { "type": "string", "maxLength": 64 },
+        "frontImageUploaded": { "type": "boolean" },
+        "backImageUploaded": { "type": "boolean" },
+        "frontImageSha256": { "type": "string", "maxLength": 128 },
+        "backImageSha256": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "reviewedBy": { "type": "string", "maxLength": 200 },
+        "reviewedAt": { "type": "string", "maxLength": 64 },
+        "submittedAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "countryCode", "idDocumentName", "fullNameOnId", "idNumber", "frontImageUploaded", "backImageUploaded", "frontImageSha256", "backImageSha256", "status", "submittedAt", "updatedAt"]
     },
     "MarketplaceTask": {
       "title": "MarketplaceTask",
@@ -65,11 +111,20 @@
     },
     "PlatformSetting": {
       "title": "PlatformSetting",
-      "description": "Owner-only website, AdSense, and payment gateway configuration",
+      "description": "Owner-only website, Google AdSense, Monetag, and payment gateway configuration",
       "type": "object",
       "properties": {
+        "searchConsoleToken": { "type": "string", "maxLength": 128 },
         "adsensePublisherId": { "type": "string", "maxLength": 64 },
         "adsenseClientId": { "type": "string", "maxLength": 64 },
+        "monetagEnabled": { "type": "boolean" },
+        "monetagDomain": { "type": "string", "maxLength": 120 },
+        "monetagZoneId": { "type": "string", "maxLength": 32 },
+        "monetagMetaTag": { "type": "string", "maxLength": 128 },
+        "monetagScriptSrc": { "type": "string", "maxLength": 300 },
+        "monetagScriptTag": { "type": "string", "maxLength": 1000 },
+        "monetagSwCode": { "type": "string", "maxLength": 1000 },
+        "monetagSourceAsset": { "type": "string", "maxLength": 120 },
         "paypalEmail": { "type": "string", "maxLength": 200 },
         "themeColor": { "type": "string", "maxLength": 32 },
         "updatedBy": { "type": "string", "maxLength": 200 },
@@ -111,7 +166,7 @@
         "amountKes": { "type": "number" },
         "amountUsd": { "type": "number" },
         "expectedReturnKes": { "type": "number" },
-        "depositMethod": { "type": "string", "enum": ["Manual M-PESA 0758727558", "Paystack M-PESA STK", "Paystack Card", "Mobile Money"] },
+        "depositMethod": { "type": "string", "enum": ["PayPal", "PayPal International"] },
         "paymentReference": { "type": "string", "maxLength": 120 },
         "status": { "type": "string", "enum": ["Pending Owner Approval", "Active", "Matured & Paid", "Rejected"] },
         "createdAt": { "type": "string", "format": "date-time" },
@@ -121,31 +176,140 @@
     },
     "CustomerAccount": {
       "title": "CustomerAccount",
-      "description": "Verified East Africa contributor account with locked registration details and owner admin flags",
+      "description": "Verified East Africa contributor & owner account with persistent 2FA, profile, withdrawal details, and admin flags",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "maxLength": 128 },
         "phone": { "type": "string", "maxLength": 32 },
+        "phoneLocked": { "type": "boolean" },
+        "phoneVerified": { "type": "boolean" },
         "countryCode": { "type": "string", "maxLength": 4 },
+        "email": { "type": "string", "maxLength": 200 },
         "displayName": { "type": "string", "maxLength": 120 },
+        "city": { "type": "string", "maxLength": 80 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "socialHandles": { "type": "object" },
+        "withdrawalDetails": { "type": "object" },
+        "twoFactorEnabled": { "type": "boolean" },
+        "twoFactorMethod": { "type": "string", "enum": ["none", "sms", "totp"] },
+        "totpSecretBackup": { "type": "string", "maxLength": 128 },
         "banned": { "type": "boolean" },
         "deactivated": { "type": "boolean" },
         "adminAssignedPass": { "type": "string", "enum": ["free", "starter", "pro", "vip"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["uid", "phone", "countryCode", "displayName", "createdAt"]
+      "required": ["uid", "countryCode", "displayName"]
     },
     "CustomerState": {
       "title": "CustomerState",
-      "description": "Monotonic persisted customer wallet balance, task history, referrals, VIP referral count, and active pass state",
+      "description": "Monotonic persisted customer wallet balance, task history, referrals, VIP referral count, daily quota, and active pass state",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "maxLength": 128 },
+        "userStats": { "type": "object" },
+        "taskHistory": { "type": "array" },
+        "referralHistory": { "type": "array" },
+        "referralStats": { "type": "object" },
+        "dailyUsage": { "type": "object" },
         "vipReferralCount": { "type": "number" },
-        "activePackageId": { "type": "string", "maxLength": 32 },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "activePackageId": { "type": ["string", "null"], "maxLength": 32 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["uid", "vipReferralCount", "updatedAt"]
+    },
+    "Auction": {
+      "title": "Auction",
+      "description": "Customer-uploaded product listing for timed live auctions across East Africa",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "sellerUid": { "type": "string", "maxLength": 128 },
+        "sellerName": { "type": "string", "maxLength": 80 },
+        "sellerPhone": { "type": "string", "maxLength": 40 },
+        "sellerCountryCode": { "type": "string", "maxLength": 4 },
+        "title": { "type": "string", "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "category": { "type": "string", "maxLength": 64 },
+        "condition": { "type": "string", "enum": ["Brand New", "Like New", "Refurbished", "Pre-Owned"] },
+        "location": { "type": "string", "maxLength": 80 },
+        "imageUrls": { "type": "array", "maxItems": 3 },
+        "startingBidKes": { "type": "number" },
+        "startingBidUsd": { "type": "number" },
+        "minIncrementKes": { "type": "number" },
+        "minIncrementUsd": { "type": "number" },
+        "buyNowKes": { "type": "number" },
+        "buyNowUsd": { "type": "number" },
+        "currentBidKes": { "type": "number" },
+        "currentBidUsd": { "type": "number" },
+        "highestBidderUid": { "type": "string", "maxLength": 128 },
+        "highestBidderName": { "type": "string", "maxLength": 80 },
+        "highestBidderPhone": { "type": "string", "maxLength": 40 },
+        "bidCount": { "type": "number" },
+        "bids": { "type": "array", "maxItems": 100 },
+        "status": { "type": "string", "enum": ["Live", "Sold", "Ended", "Cancelled", "Suspended"] },
+        "featured": { "type": "boolean" },
+        "deliveryTerms": { "type": "string", "maxLength": 240 },
+        "escrowDepositPct": { "type": "number" },
+        "escrowDepositKes": { "type": "number" },
+        "escrowDepositUsd": { "type": "number" },
+        "sellerDepositPaypalRef": { "type": "string", "maxLength": 120 },
+        "escrowStatus": { "type": "string", "enum": ["Held in Escrow", "Released to Seller", "Compensated Buyer", "Compensated Seller", "Disputed"] },
+        "escrowResolutionNote": { "type": "string", "maxLength": 300 },
+        "bidderDeposits": { "type": "object" },
+        "endsAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "sellerUid", "sellerName", "sellerCountryCode", "title", "description", "category", "condition", "location", "imageUrls", "startingBidKes", "currentBidKes", "bidCount", "bids", "status", "escrowDepositPct", "escrowDepositKes", "sellerDepositPaypalRef", "escrowStatus", "bidderDeposits", "endsAt", "createdAt", "updatedAt"]
+    },
+    "PpvStatusPost": {
+      "title": "PpvStatusPost",
+      "description": "Free user-uploaded photo or video status paying 5 shillings per unique registered view inside the platform and settled automatically after 24 hours",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 80 },
+        "countryCode": { "type": "string", "maxLength": 4 },
+        "city": { "type": "string", "maxLength": 60 },
+        "mediaType": { "type": "string", "enum": ["photo", "video"] },
+        "category": { "type": "string", "enum": ["Funny Video", "Funny Photo", "My Photo", "My Video"] },
+        "caption": { "type": "string", "maxLength": 280 },
+        "mediaUrl": { "type": "string", "maxLength": 300 },
+        "mimeType": { "type": "string", "maxLength": 64 },
+        "ratePerViewKes": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "viewedByUids": { "type": "array", "maxItems": 5000 },
+        "pendingEarningsKes": { "type": "number" },
+        "paidOutKes": { "type": "number" },
+        "paidOut": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["Active (24h Live)", "Settled & Paid"] },
+        "payoutTransactionId": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "expiresAt": { "type": "string", "maxLength": 64 },
+        "paidOutAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "authorUid", "authorName", "countryCode", "mediaType", "category", "caption", "mediaUrl", "ratePerViewKes", "viewsCount", "viewedByUids", "pendingEarningsKes", "paidOutKes", "paidOut", "status", "createdAt", "expiresAt"]
+    },
+    "TaskAlertSubscription": {
+      "title": "TaskAlertSubscription",
+      "description": "User email notification subscription for high-reward tasks matching their category interests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userUid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "categories": { "type": "array", "maxItems": 8 },
+        "minRewardKes": { "type": "number" },
+        "frequency": { "type": "string", "enum": ["instant", "daily_digest"] },
+        "active": { "type": "boolean" },
+        "matchCount": { "type": "number" },
+        "lastNotifiedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userUid", "email", "categories", "minRewardKes", "frequency", "active", "matchCount", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -159,11 +323,19 @@
     },
     "/withdrawals/{withdrawalId}": {
       "schema": "Withdrawal",
-      "description": "Customer withdrawal requests"
+      "description": "Customer PayPal withdrawal requests (minimum 150 shillings / 1.1538 USD)"
+    },
+    "/withdrawals_store/{withdrawalId}": {
+      "schema": "WithdrawalRecord",
+      "description": "Mirror PayPal withdrawal requests processed via API (minimum 150 shillings)"
+    },
+    "/kyc_verifications/{userId}": {
+      "schema": "KycVerification",
+      "description": "National ID Front & Back KYC verification records isolated to user and Platform Owner"
     },
     "/tasks/{taskId}": {
       "schema": "MarketplaceTask",
-      "description": "Owner-managed marketplace tasks"
+      "description": "Owner-managed marketplace tasks (1 daily 08:00 AM EAT drop, merchant-defined rewards)"
     },
     "/platform_settings/{settingId}": {
       "schema": "PlatformSetting",
@@ -175,15 +347,27 @@
     },
     "/investments/{investmentId}": {
       "schema": "Investment",
-      "description": "Deposit-only KES 50+ customer investments"
+      "description": "PayPal deposit-only KES 50+ customer investments"
     },
     "/customer_accounts/{customerId}": {
       "schema": "CustomerAccount",
-      "description": "Verified customer registration records and owner status flags"
+      "description": "Verified customer and owner registration records, 2FA config, PayPal withdrawal details, and admin flags"
     },
     "/customer_states/{stateId}": {
       "schema": "CustomerState",
       "description": "Persistent non-resetting customer earnings, task history, and referral progression state"
+    },
+    "/auctions/{auctionId}": {
+      "schema": "Auction",
+      "description": "Customer-uploaded products and live auctions with mandatory 50% PayPal security escrow deposit"
+    },
+    "/ppv_posts/{postId}": {
+      "schema": "PpvStatusPost",
+      "description": "Free Pay-Per-View 24h status uploads earning 5 shillings per registered customer view inside platform"
+    },
+    "/task_alert_subscriptions/{subscriptionId}": {
+      "schema": "TaskAlertSubscription",
+      "description": "Private task email alert subscriptions scoped by user UID"
     }
   }
 }

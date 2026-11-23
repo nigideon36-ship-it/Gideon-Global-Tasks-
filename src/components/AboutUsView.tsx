@@ -2,7 +2,7 @@ import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
 import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
-import { ShieldCheck, Globe, Users, Award, CheckCircle2, ArrowRight, Mail, Sparkles, Building2, Lock } from 'lucide-react';
+import { ShieldCheck, Users, Award, CheckCircle2, ArrowRight, Mail, Lock } from 'lucide-react';
 
 export const AboutUsView: React.FC = () => {
   const { setActiveTab } = useTasks();
@@ -10,106 +10,109 @@ export const AboutUsView: React.FC = () => {
 
   return (
     <div className="space-y-12 animate-in fade-in duration-200">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-brand-950 text-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-700/50 relative overflow-hidden">
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>About Gideon Global Tasks</span>
+      {/* Editorial Hero Header */}
+      <div className="bg-slate-900 text-white rounded-3xl p-8 md:p-12 shadow-lg border border-slate-800">
+        <div className="max-w-3xl space-y-4">
+          <div className="text-xs font-medium text-emerald-400">
+            About Gideon Global Tasks · Founded in Kenya for East Africa
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight">
-            Pioneering Fair East African Crowdsourcing &amp; AI Ground Truth.
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight text-balance">
+            Built for Practical Digital Work, Local Auctions &amp; Free Pay-Per-View Statuses in East Africa.
           </h1>
           <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-            Built to accelerate the digital economy across East Africa, Gideon Global Tasks connects frontier artificial intelligence labs and market researchers with verified contributors across Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia.
+            Gideon Global Tasks was built to provide reliable digital work and trusted peer commerce across Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, Ethiopia, and Somalia—with free contributor access, PayPal-only cash-outs from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} under strict Front &amp; Back National ID KYC, and 50% PayPal escrow protection on live auctions.
           </p>
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setActiveTab('tasks')}
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer flex items-center gap-2"
+              type="button"
+              onClick={() => setActiveTab('guides')}
+              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer inline-flex items-center gap-2"
             >
-              <span>Explore Task Marketplace</span>
+              <span>Read Our Contributor Handbooks</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('contact')}
-              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl text-xs transition-colors border border-white/20 cursor-pointer flex items-center gap-2"
+              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl text-xs transition-colors border border-white/20 cursor-pointer inline-flex items-center gap-2"
             >
               <Mail className="w-4 h-4" />
-              <span>Contact Executive Team</span>
+              <span>Contact Gideon &amp; Support</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* The Core Mission & Problem We Solve */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+      {/* The Story & Practical Pillars */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            The Digital Economy Should Have No Borders.
+            Focused Across Eight East African Nations on One Trusted PayPal Rail
           </h2>
           <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-            Every day, enterprise artificial intelligence models require millions of human-verified data points—ranging from 2D bounding boxes on urban crosswalks to receipt digitizations and subjective sentiment ratings. Traditional platforms lock out international workers with exorbitant transaction fees, arbitrary account bans, and payment delays.
+            Every morning at exactly 08:00 AM EAT, we drop 1 carefully vetted task with rewards determined by the sponsoring merchant and task scope—free for every contributor with zero Worker Passes.
           </p>
           <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-            Gideon Global Tasks was architected from the ground up to serve East Africa cleanly without unreliable international PayPal hurdles. By integrating native mobile micropayments through <strong>M-PESA</strong>, <strong>Airtel / MTN MoMo</strong>, and <strong>Paystack East Africa Cards</strong>, contributors across Nairobi, Kampala, Dar es Salaam, Kigali, and Addis Ababa receive dependable payouts starting from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}.
+            Whether you are verifying a receipt, completing a research survey, listing a real product in our 50% PayPal Escrow Auctions, or posting free funny photos and videos in our Pay-Per-View Status Feed ({formatCurrencyFromKes(5, selectedCountry)}/view settled after 24 hours), all payouts settle exclusively via <strong>PayPal</strong> starting from <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> once both Front and Back National ID KYC are approved.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-              <span className="text-2xl font-bold text-brand-600 font-mono">8 Nations</span>
-              <p className="text-xs font-semibold text-slate-900 mt-1">East Africa Exclusive</p>
+              <span className="text-2xl font-bold text-brand-600 font-mono tabular-nums">8 Nations</span>
+              <p className="text-xs font-semibold text-slate-900 mt-1">Regional Access</p>
               <p className="text-[11px] text-slate-500">KE, UG, TZ, RW, BI, SS, ET &amp; SO.</p>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-              <span className="text-2xl font-bold text-emerald-600 font-mono">99.4%</span>
-              <p className="text-xs font-semibold text-slate-900 mt-1">Audit Accuracy Rate</p>
-              <p className="text-[11px] text-slate-500">Multimodal automated & peer verification.</p>
+              <span className="text-2xl font-bold text-emerald-600 font-mono tabular-nums">
+                {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}
+              </span>
+              <p className="text-xs font-semibold text-slate-900 mt-1">PayPal Cash-Out Floor</p>
+              <p className="text-[11px] text-slate-500">PayPal-only · Front/Back ID KYC required.</p>
             </div>
           </div>
         </div>
 
         {/* Values Bento */}
         <div className="space-y-4">
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-slate-900 text-sm">256-Bit Financial Escrow</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Every requester budget is pre-funded into secure platform escrow before a single task is published. Workers are guaranteed instant credit upon submission approval without payment counterparty risk.
+            <h3 className="font-bold text-slate-900 text-sm">Separated Wallets &amp; Honest Expectations</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your earned task wallet is never auto-debited for Investment Pools or Auction Escrow deposits. Micro-tasks provide supplemental side income—rewards depend on each daily 08:00 AM EAT task and merchant budget.
             </p>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
               <Award className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-slate-900 text-sm">Merit-Based Contributor Tiers</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              We reward consistency. Our 7-day login streak grants an automatic 20% earnings multiplier across all completed bounties, and contributors with high accuracy ratings unlock VIP high-yield tasks.
+            <h3 className="font-bold text-slate-900 text-sm">50% Escrow Auctions &amp; Free Pay-Per-View</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Product auctions require a 50% PayPal security escrow deposit first from sellers and buyers so any dispute on real items can be compensated fairly. Pay-Per-View statuses remain 100% free and pay {formatCurrencyFromKes(5, selectedCountry)}/view after 24 hours.
             </p>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <Users className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-slate-900 text-sm">20% Transparent Referral Partnering</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Community growth is shared with the workers who make it happen. Every referrer receives a permanent 20% commission on worker pass purchases made by referred contributors.
+            <h3 className="font-bold text-slate-900 text-sm">20% Direct Referral Share</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Members earn a transparent 20% referral commission tracked directly in their contributor ledger whenever invited members complete qualifying platform activity.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Executive Leadership & E-A-T Credentials */}
-      <div className="p-8 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-6">
+      {/* Founder & Editorial Standards */}
+      <div className="p-8 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Executive Leadership &amp; Editorial Governance
-            </span>
-            <h2 className="text-xl font-bold text-slate-900 mt-1">Founder &amp; Principal Architect: Gideon N.</h2>
+            <div className="text-xs font-semibold text-emerald-700">
+              Founder &amp; Editorial Accountability
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Founded &amp; Managed by Gideon N.</h2>
           </div>
           <a
             href="mailto:nigideon36@gmail.com"
@@ -118,14 +121,19 @@ export const AboutUsView: React.FC = () => {
             nigideon36@gmail.com
           </a>
         </div>
-        <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Gideon Global Tasks was architected by <strong>Gideon N.</strong>, an experienced systems architect and data operations engineer with over eight years of experience directing distributed human-in-the-loop machine learning annotation pipelines, high-concurrency database architectures, and international micro-task compensation models. Under this leadership, our platform maintains strict adherence to international research standards, algorithmic consensus verification, and publisher compliance.
+        <p className="text-xs md:text-sm text-slate-600 leading-relaxed max-w-3xl">
+          Gideon Global Tasks is independently built and operated from Kenya by <strong>Gideon N.</strong> Support tickets, withdrawal verifications, auction moderation, and editorial guides are reviewed directly in-house so contributors can reach a real operator by email, phone (<a href="tel:+254712727558" className="text-slate-900 font-mono underline">+254712727558</a>), or WhatsApp (<a href="https://wa.me/254785909543" target="_blank" rel="noopener noreferrer" className="text-slate-900 font-mono underline">0785909543</a>).
         </p>
 
-        {/* Authoritative External Citations */}
-        <div className="pt-3 border-t border-slate-100 space-y-2">
-          <p className="text-xs font-semibold text-slate-700">Authoritative Industry Standards &amp; Compliance Frameworks:</p>
-          <div className="flex flex-wrap items-center gap-4 text-xs">
+        {/* Publisher & Editorial Standards */}
+        <div className="pt-4 border-t border-slate-100 space-y-3">
+          <p className="text-xs font-semibold text-slate-800">
+            Editorial Standards, Privacy &amp; Reference Policies:
+          </p>
+          <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
+            Our educational handbooks are drafted and periodically updated from real quality audits and support feedback—not spun from external blogs. Advertising networks (Google AdSense and Monetag) operate strictly under clear disclosures and never influence task approvals, auction winners, or Pay-Per-View settlements.
+          </p>
+          <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
             <a
               href="https://support.google.com/adsense/answer/48182"
               target="_blank"
@@ -141,7 +149,7 @@ export const AboutUsView: React.FC = () => {
               rel="noopener noreferrer"
               className="text-brand-600 hover:text-brand-700 underline font-medium"
             >
-              W3C Web Standards ↗
+              W3C Accessibility Standards ↗
             </a>
             <span className="text-slate-300">·</span>
             <a
@@ -150,58 +158,49 @@ export const AboutUsView: React.FC = () => {
               rel="noopener noreferrer"
               className="text-brand-600 hover:text-brand-700 underline font-medium"
             >
-              EU General Data Protection Regulation (GDPR) ↗
-            </a>
-            <span className="text-slate-300">·</span>
-            <a
-              href="https://wise.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-600 hover:text-brand-700 underline font-medium"
-            >
-              Wise International Payment Rails ↗
+              EU Data Protection Reference ↗
             </a>
           </div>
         </div>
       </div>
 
-      {/* Leadership & Operational Integrity */}
+      {/* Operational & Data Safety */}
       <div className="p-8 bg-slate-100/80 rounded-3xl border border-slate-200 space-y-6">
         <div className="max-w-2xl space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Governance &amp; Editorial Standards</h2>
+          <h2 className="text-xl font-bold text-slate-900">Platform Moderation &amp; Data Protection</h2>
           <p className="text-xs text-slate-600">
-            Adhering to strict international data privacy guidelines, ethical AI development principles, and Google publisher policies.
+            Clear rules protect contributors, marketplace buyers, and advertising partners alike.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs text-slate-600">
           <div className="space-y-1.5">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Zero-Bot Fraud Protection</span>
-            </h4>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Proprietary behavioral telemetry and automated timing audits prevent automated scripts, ensuring requesters receive authentic human intelligence.
+              <span>Human-Only Submissions</span>
+            </h3>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Timing checks, attention traps, and duplicate detection prevent automated scripts from flooding surveys or annotation queues.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Full PII Anonymization</span>
-            </h4>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Contributor responses are cryptographically detached from personal identity credentials before export, preserving worker privacy in compliance with GDPR and CCPA.
+              <span>PII Minimization</span>
+            </h3>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Survey replies and task work product stay separated from personal payout numbers and login credentials, and public leaderboards never expose private emails or phone numbers.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Transparent Fee Guarantees</span>
-            </h4>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              We never take hidden cuts from worker task rewards. Worker passes ({formatCurrencyFromKes(50, selectedCountry)} Starter, {formatCurrencyFromKes(100, selectedCountry)} Pro, {formatCurrencyFromKes(200, selectedCountry)} VIP) cover platform compute while 100% of task rewards go to contributors.
+              <span>100% Free Task Access</span>
+            </h3>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Every member receives 1 vetted daily task dropped at 08:00 AM EAT with zero Worker Pass required—and National ID KYC keeps every PayPal cash-out protected.
             </p>
           </div>
         </div>
@@ -209,13 +208,14 @@ export const AboutUsView: React.FC = () => {
         <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-2 text-slate-600">
             <Lock className="w-4 h-4 text-slate-400" />
-            <span>Corporate Headquarters &amp; Global Inquiries: <strong className="text-slate-900 font-mono">nigideon36@gmail.com</strong></span>
+            <span>Direct Operator Email: <strong className="text-slate-900 font-mono">nigideon36@gmail.com</strong></span>
           </div>
           <button
+            type="button"
             onClick={() => setActiveTab('contact')}
             className="text-brand-600 hover:text-brand-700 font-semibold cursor-pointer underline text-xs"
           >
-            Submit an official media or enterprise inquiry →
+            Contact Support &amp; Corrections Desk →
           </button>
         </div>
       </div>

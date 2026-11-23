@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useTasks } from '../context/TaskContext';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
+import { db, auth } from '../lib/firebase';
+import { type AuctionItem, type AuctionCategory, type AuctionCondition, type AuctionStatus, resolveAuctionImageUrl } from './AuctionsView';
+import { type PpvStatusPostItem, resolvePpvMediaSrc } from './PayPerViewView';
+import fbProfileImg from '../assets/images/fb_profile_logo_1795191798991.jpg';
+import fbCoverImg from '../assets/images/fb_cover_clean_1795191811809.jpg';
+import todayPromoImg from '../assets/images/gideon_daily_promo_1795436280290.jpg';
+import { CANONICAL_PLATFORM_ORIGIN, CANONICAL_PLATFORM_URL } from '../utils/platformUrl';
 import {
   convertKesToLocal,
   convertUsdToLocal,
@@ -9,8 +17,6 @@ import {
   formatCurrencyFromUsd,
   getCountryByCode,
   localAmountToUsd,
-  MAX_TASK_REWARD_KES,
-  MAX_TASK_REWARD_USD,
   WITHDRAWAL_THRESHOLD_USD,
 } from '../lib/eastAfrica';
 import { TaskCategory, TaskDifficulty, CampaignPlatform, CampaignContentFormat } from '../types/tasks';
@@ -49,6 +55,15 @@ import {
   Power,
   Star,
   Save,
+  Gavel,
+  Mail,
+  BellRing,
+  Copy,
+  Check,
+  ExternalLink,
+  Code,
+  Link2,
+  Download,
 } from 'lucide-react';
 
 interface OwnerWithdrawalItem {
@@ -70,10 +85,12 @@ interface OwnerWithdrawalItem {
 
 type TransactionKind =
   | 'withdrawal'
-  | 'pass_purchase'
+  | 'paypal_checkout'
   | 'task_reward'
   | 'referral_commission'
-  | 'investment_deposit';
+  | 'investment_deposit'
+  | 'auction_sale'
+  | 'ppv_payout';
 
 interface PlatformTransactionItem {
   id: string;
@@ -97,51 +114,69 @@ interface TransactionSummary {
   pendingWithdrawalsCount: number;
   pendingWithdrawalsUsd: number;
   approvedWithdrawalsUsd: number;
-  passRevenueUsd: number;
+  paypalVolumeUsd: number;
   taskRewardsUsd: number;
   investmentDepositsUsd?: number;
 }
 
 type ConsoleSectionTab =
   | 'withdrawals'
-  | 'pass-proofs'
+  | 'kyc'
   | 'investments'
+  | 'auctions'
+  | 'ppv'
   | 'testimonials'
   | 'transactions'
   | 'tasks'
   | 'customers'
-  | 'sms';
+  | 'support'
+  | 'sms'
+  | 'admin-alerts'
+  | 'paypal-zapier'
+  | 'brand-kit';
 type TxKindFilter = 'all' | TransactionKind;
 
-interface OwnerPassProofItem {
+interface OwnerSupportTicketItem {
   id: string;
-  transactionId: string;
-  userUid: string;
+  userUid?: string;
   customerName: string;
-  customerPhone: string;
+  contactInfo: string;
+  countryCode: string;
+  category: string;
+  subject: string;
+  message: string;
+  aiConversationSummary?: string;
+  status: 'Open' | 'Resolved';
+  ownerReply?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface OwnerKycItem {
+  uid: string;
+  customerName: string;
+  customerPhone?: string;
   customerEmail?: string;
   countryCode: string;
-  packageId: 'starter' | 'pro' | 'vip';
-  packageName: string;
-  amountKes: number;
-  amountUsd: number;
-  payToNumber: '0758727558';
-  senderPhone: string;
-  mpesaCode: string;
-  screenshotDataUrl: string;
-  screenshotFileName?: string;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Banned';
-  ownerApprovalDetails?: string;
-  rejectionOrBanReason?: string;
+  idDocumentName: string;
+  fullNameOnId: string;
+  idNumber: string;
+  frontImageDataUrl: string;
+  backImageDataUrl: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  rejectionReason?: string;
   reviewedBy?: string;
   reviewedAt?: string;
-  createdAt: string;
+  submittedAt: string;
+  updatedAt: string;
 }
 
 interface SavedCustomerItem {
   uid: string;
   phone: string;
   phoneLocked?: boolean;
+  accountDetailsLocked?: boolean;
+  accountDetailsLockedAt?: string;
   countryCode: string;
   email?: string;
   displayName: string;
@@ -169,7 +204,6 @@ interface SavedCustomerItem {
   deactivated?: boolean;
   deactivatedReason?: string;
   deactivatedAt?: string;
-  adminAssignedPass?: 'free' | 'starter' | 'pro' | 'vip';
   loginCount: number;
   lastLoginAt?: string;
   createdAt: string;
@@ -266,12 +300,9 @@ export const EmployerPortal: React.FC = () => {
     updateTask,
     deleteTask,
     setActiveTab,
-    setDarajaModalOpen,
-    setIntasendModalOpen,
-    setPaystackModalOpen,
     setPublisherModalOpen,
   } = useTasks();
-  const { user, idToken, isOwner, signInWithGoogle } = useAuth();
+  const { user, customerProfile, idToken, getFreshToken, refreshCustomerProfile, isOwner, signInWithGoogle } = useAuth();
   const { selectedCountry } = useRegion();
 
   const [consoleTab, setConsoleTab] = useState<ConsoleSectionTab>('withdrawals');
@@ -282,18 +313,16 @@ export const EmployerPortal: React.FC = () => {
     pendingWithdrawalsCount: 0,
     pendingWithdrawalsUsd: 0,
     approvedWithdrawalsUsd: 0,
-    passRevenueUsd: 0,
+    paypalVolumeUsd: 0,
     taskRewardsUsd: 0,
   });
 
   const [loadingData, setLoadingData] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [receiptInputs, setReceiptInputs] = useState<Record<string, string>>({});
-  const [gatewayMode, setGatewayMode] = useState<'auto' | 'paystack' | 'intasend' | 'daraja' | 'manual'>('auto');
+  const [gatewayMode, setGatewayMode] = useState<'auto' | 'paypal' | 'manual'>('auto');
   const [gatewayStatus, setGatewayStatus] = useState<{
-    paystack?: { configured: boolean; live: boolean; mode: string };
-    intasend?: { configured: boolean; live: boolean; mode: string };
-    darajaB2c?: { configured: boolean; live: boolean; mode: string };
+    paypal?: { configured: boolean; live: boolean; mode: string };
     anyLiveGatewayConfigured?: boolean;
   } | null>(null);
   const [withdrawalFeedback, setWithdrawalFeedback] = useState<string | null>(null);
@@ -314,11 +343,11 @@ export const EmployerPortal: React.FC = () => {
   const [customerFeedback, setCustomerFeedback] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [creatorSubmissions, setCreatorSubmissions] = useState<OwnerCreatorSubmissionItem[]>([]);
-  const [passProofs, setPassProofs] = useState<OwnerPassProofItem[]>([]);
-  const [passProofDetailsInputs, setPassProofDetailsInputs] = useState<Record<string, string>>({});
-  const [processingProofId, setProcessingProofId] = useState<string | null>(null);
-  const [passProofFeedback, setPassProofFeedback] = useState<string | null>(null);
-  const [previewProof, setPreviewProof] = useState<OwnerPassProofItem | null>(null);
+  const [kycSubmissions, setKycSubmissions] = useState<OwnerKycItem[]>([]);
+  const [kycNoteInputs, setKycNoteInputs] = useState<Record<string, string>>({});
+  const [processingKycUid, setProcessingKycUid] = useState<string | null>(null);
+  const [kycFeedback, setKycFeedback] = useState<string | null>(null);
+  const [previewKyc, setPreviewKyc] = useState<OwnerKycItem | null>(null);
 
   // Full Owner Super-Admin state: Customers, Investments, Testimonials, Tasks
   const [investments, setInvestments] = useState<OwnerInvestmentItem[]>([]);
@@ -347,6 +376,52 @@ export const EmployerPortal: React.FC = () => {
   }>({ headline: '', message: '', rating: 5 });
   const [confirmDeleteTestiId, setConfirmDeleteTestiId] = useState<string | null>(null);
 
+  const [auctions, setAuctions] = useState<AuctionItem[]>([]);
+  const [processingAuctionId, setProcessingAuctionId] = useState<string | null>(null);
+  const [auctionFeedback, setAuctionFeedback] = useState<string | null>(null);
+  const [editingAuctionId, setEditingAuctionId] = useState<string | null>(null);
+  const [editAuctionDraft, setEditAuctionDraft] = useState<{
+    title: string;
+    category: AuctionCategory;
+    condition: AuctionCondition;
+    status: AuctionStatus;
+    startingBidKes: string;
+    minIncrementKes: string;
+    buyNowKes: string;
+    featured: boolean;
+  }>({
+    title: '',
+    category: 'Electronics & Phones',
+    condition: 'Like New',
+    status: 'Live',
+    startingBidKes: '1000',
+    minIncrementKes: '100',
+    buyNowKes: '',
+    featured: false,
+  });
+  const [confirmDeleteAuctionId, setConfirmDeleteAuctionId] = useState<string | null>(null);
+
+  const [ppvPosts, setPpvPosts] = useState<PpvStatusPostItem[]>([]);
+  const [ppvFeedback, setPpvFeedback] = useState<string | null>(null);
+  const [processingPpvId, setProcessingPpvId] = useState<string | null>(null);
+  const [previewPpvPost, setPreviewPpvPost] = useState<PpvStatusPostItem | null>(null);
+  const [taskAlertSummary, setTaskAlertSummary] = useState<{
+    activeCount: number;
+    totalCount: number;
+    smtpConfigured: boolean;
+    recentDispatches: Array<{
+      id: string;
+      emailMasked: string;
+      taskTitle: string;
+      taskRewardKes: number;
+      deliveryChannel: string;
+      deliveryStatus: string;
+      createdAt: string;
+    }>;
+  } | null>(null);
+  const [supportTickets, setSupportTickets] = useState<OwnerSupportTicketItem[]>([]);
+  const [processingTicketId, setProcessingTicketId] = useState<string | null>(null);
+
   const [editingCustomerUid, setEditingCustomerUid] = useState<string | null>(null);
   const [customerEditDraft, setCustomerEditDraft] = useState<{
     displayName: string;
@@ -359,10 +434,10 @@ export const EmployerPortal: React.FC = () => {
     withdrawalAccountDetails: string;
     withdrawalAccountHolderName: string;
     phoneLocked: boolean;
+    accountDetailsLocked: boolean;
     withdrawalLocked: boolean;
     phoneVerified: boolean;
     resetTwoFactor: boolean;
-    adminAssignedPass: '' | 'free' | 'starter' | 'pro' | 'vip';
     vipReferralCount: string;
     balanceLocal: string;
   }>({
@@ -372,14 +447,14 @@ export const EmployerPortal: React.FC = () => {
     countryCode: 'KE',
     city: '',
     bio: '',
-    withdrawalMethod: 'M-PESA',
+    withdrawalMethod: 'PayPal',
     withdrawalAccountDetails: '',
     withdrawalAccountHolderName: '',
     phoneLocked: true,
+    accountDetailsLocked: true,
     withdrawalLocked: true,
     phoneVerified: true,
     resetTwoFactor: false,
-    adminAssignedPass: '',
     vipReferralCount: '0',
     balanceLocal: '0',
   });
@@ -417,11 +492,100 @@ export const EmployerPortal: React.FC = () => {
   const [smsTesting, setSmsTesting] = useState(false);
   const [smsFeedback, setSmsFeedback] = useState<string | null>(null);
 
+  // Admin SMTP Email Notifications & Serverless Webhook state
+  const [adminAlertsEnabled, setAdminAlertsEnabled] = useState(true);
+  const [adminAlertEmail, setAdminAlertEmail] = useState(OWNER_EMAIL);
+  const [adminHighRewardKes, setAdminHighRewardKes] = useState('40');
+  const [adminEventToggles, setAdminEventToggles] = useState<Record<string, boolean>>({
+    new_registration: true,
+    high_reward_task: true,
+    kyc_submitted: true,
+    withdrawal_requested: true,
+    investment_deposit: true,
+    support_ticket: true,
+    ppv_status_uploaded: true,
+    auction_activity: true,
+  });
+  const [adminSmtpStatus, setAdminSmtpStatus] = useState<{
+    configured: boolean;
+    host: string;
+    port: number;
+    userMasked: string;
+    fromLabel: string;
+  } | null>(null);
+  const [adminAlertLogs, setAdminAlertLogs] = useState<
+    Array<{
+      id: string;
+      eventType: string;
+      title: string;
+      summary: string;
+      recipientMasked: string;
+      deliveryStatus: 'Sent' | 'Queued' | 'Skipped' | 'Failed';
+      deliveryNote: string;
+      actorLabel?: string;
+      amountLabel?: string;
+      source: string;
+      createdAt: string;
+    }>
+  >([]);
+  const [adminAlertsSaving, setAdminAlertsSaving] = useState(false);
+  const [adminAlertsTesting, setAdminAlertsTesting] = useState(false);
+  const [adminAlertsFeedback, setAdminAlertsFeedback] = useState<string | null>(null);
+
+  // PayPal (International Buyers) & Zapier Automation Workflow state (non-secret fields only)
+  const [paypalEnabled, setPaypalEnabled] = useState(true);
+  const [paypalEmail, setPaypalEmail] = useState('nigideon36@gmail.com');
+  const [paypalMeHandle, setPaypalMeHandle] = useState('nigideon36');
+  const [paypalMode, setPaypalMode] = useState<'live' | 'sandbox'>('live');
+  const [paypalRestReady, setPaypalRestReady] = useState(false);
+  const [zapierWebhookUrl, setZapierWebhookUrl] = useState('');
+  const [inboundZapierUrl, setInboundZapierUrl] = useState('');
+  const [paypalGeneratedLinks, setPaypalGeneratedLinks] = useState<
+    Array<{
+      id: string;
+      itemName: string;
+      amountUsd: number;
+      packageId?: string;
+      checkoutUrl: string;
+      payPalMeUrl: string;
+      htmlButtonSnippet: string;
+      createdAt: string;
+    }>
+  >([]);
+  const [zapierLogs, setZapierLogs] = useState<
+    Array<{
+      id: string;
+      direction: 'outbound' | 'inbound';
+      event: string;
+      status: 'Sent' | 'Received' | 'Skipped' | 'Failed';
+      detail: string;
+      amountUsd?: number;
+      transactionId?: string;
+      createdAt: string;
+    }>
+  >([]);
+  const [paypalGenItemName, setPaypalGenItemName] = useState('Merchant Task Campaign Escrow');
+  const [paypalGenAmountUsd, setPaypalGenAmountUsd] = useState('5.00');
+  const [paypalGenPackageId, setPaypalGenPackageId] = useState('escrow');
+  const [paypalLatestLink, setPaypalLatestLink] = useState<{
+    id: string;
+    itemName: string;
+    amountUsd: number;
+    checkoutUrl: string;
+    payPalMeUrl: string;
+    htmlButtonSnippet: string;
+  } | null>(null);
+  const [paypalSaving, setPaypalSaving] = useState(false);
+  const [paypalGenerating, setPaypalGenerating] = useState(false);
+  const [paypalTestingZapier, setPaypalTestingZapier] = useState(false);
+  const [paypalFeedback, setPaypalFeedback] = useState<string | null>(null);
+  const [copiedPayPalField, setCopiedPayPalField] = useState<string | null>(null);
+
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<TaskCategory>('survey');
   const [description, setDescription] = useState('');
-  const [reward, setReward] = useState<string>(() => String(convertKesToLocal(MAX_TASK_REWARD_KES, selectedCountry)));
+  const [reward, setReward] = useState<string>(() => String(convertKesToLocal(40, selectedCountry)));
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>('4');
   const [difficulty, setDifficulty] = useState<TaskDifficulty>('Beginner');
   const [totalSpots, setTotalSpots] = useState<string>('50');
@@ -463,36 +627,40 @@ export const EmployerPortal: React.FC = () => {
   };
 
   const loadOwnerConsoleData = useCallback(async () => {
-    if (!isOwner || !idToken) return;
+    const token = await getFreshToken();
+    if (!isOwner || !token) return;
     setLoadingData(true);
     try {
-      const [wdRes, txRes, gwRes, smsRes, custRes, creatorRes, proofRes, invRes, testiRes] = await Promise.all([
+      const [wdRes, txRes, gwRes, smsRes, custRes, creatorRes, kycRes, invRes, testiRes, aucRes] = await Promise.all([
         fetch('/api/owner/withdrawals', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/transactions', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/payout-gateways/status', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/sms-config', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/customers', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/creator-submissions', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('/api/owner/pass-proofs', {
-          headers: { Authorization: `Bearer ${idToken}` },
+        fetch('/api/owner/kyc', {
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/investments', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch('/api/owner/testimonials', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/owner/auctions', {
+          headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
@@ -543,10 +711,10 @@ export const EmployerPortal: React.FC = () => {
         }
       }
 
-      if (proofRes.ok) {
-        const proofData = await proofRes.json();
-        if (Array.isArray(proofData?.proofs)) {
-          setPassProofs(proofData.proofs);
+      if (kycRes.ok) {
+        const kycData = await kycRes.json();
+        if (Array.isArray(kycData?.submissions)) {
+          setKycSubmissions(kycData.submissions);
         }
       }
 
@@ -563,12 +731,246 @@ export const EmployerPortal: React.FC = () => {
           setTestimonials(testiData.testimonials);
         }
       }
+
+      if (aucRes.ok) {
+        const aucData = await aucRes.json();
+        if (Array.isArray(aucData?.auctions)) {
+          setAuctions(aucData.auctions);
+        }
+      }
+      const [ppvRes, alertRes, ticketRes, adminNotifRes, paypalRes] = await Promise.all([
+        fetch('/api/ppv', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/owner/task-alerts', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/owner/support-tickets', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/owner/admin-notifications', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/paypal/config'),
+      ]);
+      if (ppvRes.ok) {
+        const ppvData = await ppvRes.json();
+        if (Array.isArray(ppvData?.posts)) {
+          setPpvPosts(ppvData.posts);
+        }
+      }
+      if (alertRes.ok) {
+        const alertData = await alertRes.json();
+        if (alertData?.success) {
+          setTaskAlertSummary({
+            activeCount: Number(alertData.activeCount) || 0,
+            totalCount: Number(alertData.totalCount) || 0,
+            smtpConfigured: Boolean(alertData.smtpConfigured),
+            recentDispatches: Array.isArray(alertData.recentDispatches) ? alertData.recentDispatches.slice(0, 8) : [],
+          });
+        }
+      }
+      if (ticketRes.ok) {
+        const ticketData = await ticketRes.json();
+        if (Array.isArray(ticketData?.tickets)) {
+          setSupportTickets(ticketData.tickets);
+        }
+      }
+      if (adminNotifRes.ok) {
+        const notifData = await adminNotifRes.json();
+        if (notifData?.success) {
+          setAdminAlertsEnabled(notifData.enabled !== false);
+          if (notifData.adminEmail) setAdminAlertEmail(String(notifData.adminEmail));
+          if (notifData.highRewardThresholdKes) {
+            setAdminHighRewardKes(String(notifData.highRewardThresholdKes));
+          }
+          if (notifData.events && typeof notifData.events === 'object') {
+            setAdminEventToggles(notifData.events);
+          }
+          if (notifData.smtp) setAdminSmtpStatus(notifData.smtp);
+          if (Array.isArray(notifData.logs)) setAdminAlertLogs(notifData.logs);
+        }
+      }
+      if (paypalRes.ok) {
+        const ppData = await paypalRes.json();
+        if (ppData?.success) {
+          setPaypalEnabled(ppData.enabled !== false);
+          if (ppData.primaryEmail) setPaypalEmail(String(ppData.primaryEmail));
+          if (ppData.payPalMeHandle !== undefined) setPaypalMeHandle(String(ppData.payPalMeHandle));
+          setPaypalMode(ppData.mode === 'sandbox' ? 'sandbox' : 'live');
+          setPaypalRestReady(Boolean(ppData.restApiConfigured));
+          if (ppData.zapierWebhookUrl !== undefined) setZapierWebhookUrl(String(ppData.zapierWebhookUrl));
+          if (ppData.inboundZapierWebhookUrl) setInboundZapierUrl(String(ppData.inboundZapierWebhookUrl));
+          if (Array.isArray(ppData.generatedLinks)) {
+            setPaypalGeneratedLinks(ppData.generatedLinks);
+            if (!paypalLatestLink && ppData.generatedLinks.length > 0) {
+              setPaypalLatestLink(ppData.generatedLinks[0]);
+            }
+          }
+          if (Array.isArray(ppData.zapierLogs)) setZapierLogs(ppData.zapierLogs);
+        }
+      }
     } catch {
       // ignore transient network errors
     } finally {
       setLoadingData(false);
     }
-  }, [isOwner, idToken]);
+  }, [isOwner, getFreshToken]);
+
+  const handleSaveAdminNotifications = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = await getFreshToken();
+    if (!token) return;
+    setAdminAlertsSaving(true);
+    setAdminAlertsFeedback(null);
+    try {
+      const res = await fetch('/api/owner/admin-notifications', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          adminEmail: adminAlertEmail.trim(),
+          enabled: adminAlertsEnabled,
+          highRewardThresholdKes: Number(adminHighRewardKes) || 40,
+          events: adminEventToggles,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setAdminAlertsFeedback(data?.error || 'Could not update admin notification settings.');
+        return;
+      }
+      if (data.smtp) setAdminSmtpStatus(data.smtp);
+      if (Array.isArray(data.logs)) setAdminAlertLogs(data.logs);
+      setAdminAlertsFeedback(
+        `Saved! Real-time platform alerts will route to ${data.adminEmail} (threshold KES ${data.highRewardThresholdKes}).`
+      );
+    } catch (err: any) {
+      setAdminAlertsFeedback(err?.message || 'Network error saving admin notifications.');
+    } finally {
+      setAdminAlertsSaving(false);
+    }
+  };
+
+  const handleSendTestAdminEmail = async () => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setAdminAlertsTesting(true);
+    setAdminAlertsFeedback(null);
+    try {
+      const res = await fetch('/api/owner/admin-notifications/test', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (Array.isArray(data?.logs)) setAdminAlertLogs(data.logs);
+      if (data?.smtp) setAdminSmtpStatus(data.smtp);
+      const statusLabel = data?.dispatch?.deliveryStatus || (data?.success ? 'Sent' : 'Queued');
+      setAdminAlertsFeedback(
+        `${statusLabel}: ${data?.dispatch?.deliveryNote || data?.error || 'Admin test trigger completed.'}`
+      );
+    } catch (err: any) {
+      setAdminAlertsFeedback(err?.message || 'Failed to send test admin email.');
+    } finally {
+      setAdminAlertsTesting(false);
+    }
+  };
+
+  const handleCopyPayPalValue = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedPayPalField(key);
+      setTimeout(() => setCopiedPayPalField((prev) => (prev === key ? null : prev)), 2000);
+    } catch {}
+  };
+
+  const handleSavePayPalZapier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = await getFreshToken();
+    if (!token) return;
+    setPaypalSaving(true);
+    setPaypalFeedback(null);
+    try {
+      const res = await fetch('/api/paypal/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          enabled: paypalEnabled,
+          primaryEmail: paypalEmail.trim(),
+          payPalMeHandle: paypalMeHandle.trim(),
+          mode: paypalMode,
+          zapierWebhookUrl: zapierWebhookUrl.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setPaypalFeedback(data?.error || 'Could not save PayPal & Zapier configuration.');
+        return;
+      }
+      if (Array.isArray(data.generatedLinks)) setPaypalGeneratedLinks(data.generatedLinks);
+      if (Array.isArray(data.zapierLogs)) setZapierLogs(data.zapierLogs);
+      setPaypalFeedback('Saved! PayPal International Checkout & Zapier workflow settings updated.');
+    } catch (err: any) {
+      setPaypalFeedback(err?.message || 'Network error saving PayPal & Zapier config.');
+    } finally {
+      setPaypalSaving(false);
+    }
+  };
+
+  const handleGeneratePayPalButtonLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = await getFreshToken();
+    setPaypalGenerating(true);
+    setPaypalFeedback(null);
+    try {
+      const res = await fetch('/api/paypal/generate-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          itemName: paypalGenItemName.trim() || 'Gideon Global Tasks Order',
+          amountUsd: Number(paypalGenAmountUsd) || 1.54,
+          packageId: paypalGenPackageId.trim() || 'custom',
+          returnUrl: CANONICAL_PLATFORM_ORIGIN,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.link) {
+        setPaypalFeedback(data?.error || 'Could not generate PayPal checkout button/link.');
+        return;
+      }
+      setPaypalLatestLink(data.link);
+      setPaypalGeneratedLinks((prev) => [data.link, ...prev.filter((l) => l.id !== data.link.id)].slice(0, 20));
+      setPaypalFeedback(`Generated PayPal Checkout Link & HTML Button for $${Number(data.link.amountUsd).toFixed(2)} USD!`);
+    } catch (err: any) {
+      setPaypalFeedback(err?.message || 'Failed to generate PayPal link.');
+    } finally {
+      setPaypalGenerating(false);
+    }
+  };
+
+  const handleTestZapierWorkflow = async () => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setPaypalTestingZapier(true);
+    setPaypalFeedback(null);
+    try {
+      const res = await fetch('/api/paypal/zapier-test', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data?.status?.zapierLogs) {
+        setZapierLogs(data.status.zapierLogs);
+      }
+      setPaypalFeedback(data?.log?.detail || data?.error || 'Zapier workflow test triggered.');
+    } catch (err: any) {
+      setPaypalFeedback(err?.message || 'Network error testing Zapier webhook.');
+    } finally {
+      setPaypalTestingZapier(false);
+    }
+  };
 
   const handleSaveSmsGateway = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -764,7 +1166,7 @@ export const EmployerPortal: React.FC = () => {
         },
         body: JSON.stringify({
           reason:
-            'Permanently banned 🚫 forever (no second chance) by Owner for failing M-PESA Worker Pass proof rules.',
+            'Permanently banned forever by Platform Owner for violating platform KYC or compliance rules.',
         }),
       });
       const data = await res.json();
@@ -854,47 +1256,44 @@ export const EmployerPortal: React.FC = () => {
     }
   };
 
-  const handleApprovePassProof = async (proof: OwnerPassProofItem) => {
+  const handleApproveKyc = async (kyc: OwnerKycItem) => {
     if (!idToken) return;
-    setProcessingProofId(proof.id);
-    setPassProofFeedback(null);
+    setProcessingKycUid(kyc.uid);
+    setKycFeedback(null);
     setErrorMsg(null);
     try {
-      const approvalDetails = (passProofDetailsInputs[proof.id] || '').trim();
-      const res = await fetch(`/api/owner/pass-proofs/${encodeURIComponent(proof.id)}/approve`, {
+      const res = await fetch(`/api/owner/kyc/${encodeURIComponent(kyc.uid)}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          ...(approvalDetails ? { approvalDetails } : {}),
-        }),
       });
       const data = await res.json();
-      if (res.ok && data?.proof) {
-        setPassProofs((prev) => prev.map((p) => (p.id === proof.id ? data.proof : p)));
-        setPassProofFeedback(
-          `Approved ${proof.packageName} for ${proof.customerName} (${proof.mpesaCode})! Customer's Worker Pass is now unlocked with confirmation details.`
+      if (res.ok && data?.submission) {
+        setKycSubmissions((prev) => prev.map((k) => (k.uid === kyc.uid ? data.submission : k)));
+        setKycFeedback(
+          `Approved ${kyc.idDocumentName} KYC for ${kyc.fullNameOnId} (${kyc.idNumber}). Customer PayPal withdrawals are now unlocked.`
         );
         void loadOwnerConsoleData();
       } else {
-        setErrorMsg(data?.error || 'Failed to approve Worker Pass payment.');
+        setErrorMsg(data?.error || 'Failed to approve KYC submission.');
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error approving Worker Pass proof.');
+      setErrorMsg(err?.message || 'Network error approving KYC verification.');
     } finally {
-      setProcessingProofId(null);
+      setProcessingKycUid(null);
     }
   };
 
-  const handleRejectPassProof = async (proof: OwnerPassProofItem) => {
+  const handleRejectKyc = async (kyc: OwnerKycItem) => {
     if (!idToken) return;
-    setProcessingProofId(proof.id);
-    setPassProofFeedback(null);
+    setProcessingKycUid(kyc.uid);
+    setKycFeedback(null);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/owner/pass-proofs/${encodeURIComponent(proof.id)}/reject`, {
+      const customReason = (kycNoteInputs[kyc.uid] || '').trim();
+      const res = await fetch(`/api/owner/kyc/${encodeURIComponent(kyc.uid)}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -902,87 +1301,22 @@ export const EmployerPortal: React.FC = () => {
         },
         body: JSON.stringify({
           reason:
-            (passProofDetailsInputs[proof.id] || '').trim() ||
-            'Payment not verified on 0758727558. Do not submit fake/unverified proof or your account will be banned 🚫 forever.',
+            customReason ||
+            'Front & Back National ID images were blurry, cropped, or did not match your legal name/ID number. Please upload clear photos of both sides.',
         }),
       });
       const data = await res.json();
-      if (res.ok && data?.proof) {
-        setPassProofs((prev) => prev.map((p) => (p.id === proof.id ? data.proof : p)));
-        setPassProofFeedback(`Rejected proof ${proof.id} (${proof.mpesaCode}). Pass remains locked.`);
+      if (res.ok && data?.submission) {
+        setKycSubmissions((prev) => prev.map((k) => (k.uid === kyc.uid ? data.submission : k)));
+        setKycFeedback(`Rejected KYC for ${kyc.customerName}. Customer notified to re-upload clear Front & Back ID photos.`);
         void loadOwnerConsoleData();
       } else {
-        setErrorMsg(data?.error || 'Failed to reject Worker Pass proof.');
+        setErrorMsg(data?.error || 'Failed to reject KYC submission.');
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error rejecting proof.');
+      setErrorMsg(err?.message || 'Network error rejecting KYC submission.');
     } finally {
-      setProcessingProofId(null);
-    }
-  };
-
-  const handleBanPassProof = async (proof: OwnerPassProofItem) => {
-    if (!idToken) return;
-    setProcessingProofId(proof.id);
-    setPassProofFeedback(null);
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`/api/owner/pass-proofs/${encodeURIComponent(proof.id)}/ban`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          reason:
-            (passProofDetailsInputs[proof.id] || '').trim() ||
-            'Failed to provide genuine M-PESA code & screenshot proof for 0758727558 — Banned 🚫 forever (no second chance).',
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.proof) {
-        setPassProofs((prev) => prev.map((p) => (p.id === proof.id ? data.proof : p)));
-        setPassProofFeedback(
-          `BANNED 🚫 FOREVER: ${proof.customerName} (${proof.senderPhone}) has been permanently banned with no second chance.`
-        );
-        void loadOwnerConsoleData();
-      } else {
-        setErrorMsg(data?.error || 'Failed to permanently ban customer.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error banning customer.');
-    } finally {
-      setProcessingProofId(null);
-    }
-  };
-
-  const handleUnbanPassProof = async (proof: OwnerPassProofItem) => {
-    if (!idToken) return;
-    setProcessingProofId(proof.id);
-    setPassProofFeedback(null);
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`/api/owner/pass-proofs/${encodeURIComponent(proof.id)}/unban`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-      const data = await res.json();
-      if (res.ok && data?.proof) {
-        setPassProofs((prev) => prev.map((p) => (p.id === proof.id ? data.proof : p)));
-        setPassProofFeedback(
-          `Recovered & unbanned ${proof.customerName} (${proof.senderPhone}). Pass proof re-opened for review.`
-        );
-        void loadOwnerConsoleData();
-      } else {
-        setErrorMsg(data?.error || 'Failed to unban Worker Pass account.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error unbanning account.');
-    } finally {
-      setProcessingProofId(null);
+      setProcessingKycUid(null);
     }
   };
 
@@ -999,21 +1333,22 @@ export const EmployerPortal: React.FC = () => {
       countryCode: cust.countryCode || 'KE',
       city: cust.city || '',
       bio: cust.bio || '',
-      withdrawalMethod: cust.withdrawalDetails?.method || 'M-PESA',
+      withdrawalMethod: 'PayPal',
       withdrawalAccountDetails: cust.withdrawalDetails?.accountDetails || '',
       withdrawalAccountHolderName: cust.withdrawalDetails?.accountHolderName || cust.displayName || '',
       phoneLocked: cust.phoneLocked ?? Boolean(cust.phone),
+      accountDetailsLocked: Boolean(cust.accountDetailsLocked),
       withdrawalLocked: cust.withdrawalDetails?.locked ?? false,
       phoneVerified: cust.phoneVerified ?? false,
       resetTwoFactor: false,
-      adminAssignedPass: cust.adminAssignedPass || '',
       vipReferralCount: String(summaryRow?.vipReferralCount ?? 0),
       balanceLocal: String(convertUsdToLocal(summaryRow?.balanceUsd ?? 0, custCountry)),
     });
   };
 
   const handleSaveCustomerEdit = async (uid: string) => {
-    if (!idToken) return;
+    const token = await getFreshToken();
+    if (!token) return;
     setSavingCustomerEdit(true);
     setCustomerFeedback(null);
     setErrorMsg(null);
@@ -1022,7 +1357,7 @@ export const EmployerPortal: React.FC = () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           displayName: customerEditDraft.displayName,
@@ -1031,14 +1366,16 @@ export const EmployerPortal: React.FC = () => {
           countryCode: customerEditDraft.countryCode,
           city: customerEditDraft.city,
           bio: customerEditDraft.bio,
-          withdrawalMethod: customerEditDraft.withdrawalMethod,
+          withdrawalMethod: 'PayPal',
+          withdrawalAccount: customerEditDraft.withdrawalAccountDetails,
           withdrawalAccountDetails: customerEditDraft.withdrawalAccountDetails,
+          withdrawalAccountHolder: customerEditDraft.withdrawalAccountHolderName,
           withdrawalAccountHolderName: customerEditDraft.withdrawalAccountHolderName,
           phoneLocked: customerEditDraft.phoneLocked,
+          accountDetailsLocked: customerEditDraft.accountDetailsLocked,
           withdrawalLocked: customerEditDraft.withdrawalLocked,
           phoneVerified: customerEditDraft.phoneVerified,
           resetTwoFactor: customerEditDraft.resetTwoFactor,
-          adminAssignedPass: customerEditDraft.adminAssignedPass || null,
         }),
       });
       const data = await res.json();
@@ -1050,7 +1387,7 @@ export const EmployerPortal: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             setBalanceUsd: desiredBalanceUsd,
@@ -1076,6 +1413,9 @@ export const EmployerPortal: React.FC = () => {
         setCustomers((prev) => prev.map((c) => (c.uid === uid ? data.customer : c)));
         setEditingCustomerUid(null);
         setCustomerFeedback(`Updated full profile, persisted balance & pass settings for ${data.customer.displayName}.`);
+        if (uid === user?.uid || uid === customerProfile?.uid) {
+          await refreshCustomerProfile(token);
+        }
       } else {
         setErrorMsg(data?.error || 'Could not save customer changes.');
       }
@@ -1302,10 +1642,153 @@ export const EmployerPortal: React.FC = () => {
     }
   };
 
+  // --- Owner Auctions Moderation & Management ---
+  const handleOwnerUpdateAuction = async (id: string, patch: Record<string, any>) => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setProcessingAuctionId(id);
+    setAuctionFeedback(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/owner/auctions/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (res.ok && data?.auction) {
+        setAuctions((prev) => prev.map((a) => (a.id === id ? data.auction : a)));
+        setEditingAuctionId(null);
+        setAuctionFeedback(`Updated product auction "${data.auction.title}" (${data.auction.status}).`);
+        if (auth.currentUser?.emailVerified) {
+          setDoc(doc(db, 'auctions', id), JSON.parse(JSON.stringify(data.auction)), { merge: true }).catch(() => {});
+        }
+      } else {
+        setErrorMsg(data?.error || 'Could not update product auction.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Network error updating auction.');
+    } finally {
+      setProcessingAuctionId(null);
+    }
+  };
+
+  const handleOwnerCloseAuction = async (id: string, action: 'accept_highest' | 'cancel') => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setProcessingAuctionId(id);
+    setAuctionFeedback(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/auctions/${encodeURIComponent(id)}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.auction) {
+        setAuctions((prev) => prev.map((a) => (a.id === id ? data.auction : a)));
+        setAuctionFeedback(`Auction ${id} marked as ${data.auction.status}.`);
+        if (auth.currentUser?.emailVerified) {
+          setDoc(doc(db, 'auctions', id), JSON.parse(JSON.stringify(data.auction)), { merge: true }).catch(() => {});
+        }
+        void loadOwnerConsoleData();
+      } else {
+        setErrorMsg(data?.error || 'Could not close auction.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error closing auction.');
+    } finally {
+      setProcessingAuctionId(null);
+    }
+  };
+
+  const handleOwnerDeleteAuction = async (id: string) => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setProcessingAuctionId(id);
+    setAuctionFeedback(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/owner/auctions/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setAuctions((prev) => prev.filter((a) => a.id !== id));
+        setConfirmDeleteAuctionId(null);
+        setAuctionFeedback(`Permanently deleted auction ${id}.`);
+        if (auth.currentUser?.emailVerified) {
+          deleteDoc(doc(db, 'auctions', id)).catch(() => {});
+        }
+      } else {
+        const data = await res.json();
+        setErrorMsg(data?.error || 'Could not delete auction.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Network error deleting auction.');
+    } finally {
+      setProcessingAuctionId(null);
+    }
+  };
+
+  const handleOwnerSettlePpvNow = async (postId: string) => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setProcessingPpvId(postId);
+    setPpvFeedback(null);
+    try {
+      const res = await fetch(`/api/owner/ppv/posts/${encodeURIComponent(postId)}/settle`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        if (Array.isArray(data.posts)) setPpvPosts(data.posts);
+        if (auth.currentUser?.emailVerified && data.post && !data.post.isSeeded) {
+          setDoc(doc(db, 'ppv_posts', postId), JSON.parse(JSON.stringify(data.post)), { merge: true }).catch(() => {});
+        }
+        setPpvFeedback(`Status ${postId} settled immediately & creator wallet credited (${data.post?.paidOutKes || 0} KSh).`);
+      } else {
+        setErrorMsg(data?.error || 'Could not settle Pay-Per-View post.');
+      }
+    } finally {
+      setProcessingPpvId(null);
+    }
+  };
+
+  const handleOwnerDeletePpvPost = async (postId: string) => {
+    const token = await getFreshToken();
+    if (!token) return;
+    setProcessingPpvId(postId);
+    setPpvFeedback(null);
+    try {
+      const res = await fetch(`/api/owner/ppv/posts/${encodeURIComponent(postId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        if (Array.isArray(data.posts)) setPpvPosts(data.posts);
+        if (auth.currentUser?.emailVerified) {
+          deleteDoc(doc(db, 'ppv_posts', postId)).catch(() => {});
+        }
+        setPpvFeedback(`Deleted status ${postId}.`);
+      }
+    } finally {
+      setProcessingPpvId(null);
+    }
+  };
+
   const numRewardLocal = parseFloat(reward) || 0;
-  const maxRewardLocal = convertKesToLocal(MAX_TASK_REWARD_KES, selectedCountry);
   const rawRewardUsd = localAmountToUsd(numRewardLocal, selectedCountry);
-  const numReward = Math.min(MAX_TASK_REWARD_USD, rawRewardUsd);
+  const numReward = Math.max(0.05, rawRewardUsd);
   const numSpots = parseInt(totalSpots, 10) || 0;
   const totalCampaignBudgetFormatted = formatCurrencyFromUsd(numReward * numSpots, selectedCountry);
 
@@ -1325,12 +1808,7 @@ export const EmployerPortal: React.FC = () => {
     }
 
     if (numRewardLocal < convertKesToLocal(10, selectedCountry)) {
-      setErrorMsg(`Minimum reward per task is ${formatCurrencyFromKes(10, selectedCountry)}.`);
-      return;
-    }
-
-    if (numRewardLocal > maxRewardLocal) {
-      setErrorMsg(`Maximum reward per completed task cannot exceed ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)}.`);
+      setErrorMsg(`Minimum merchant reward per task is ${formatCurrencyFromKes(10, selectedCountry)}.`);
       return;
     }
 
@@ -1407,7 +1885,7 @@ export const EmployerPortal: React.FC = () => {
   };
 
   const pendingWithdrawalsCount = withdrawals.filter((w) => w.status === 'Processing').length;
-  const pendingPassProofsCount = passProofs.filter((p) => p.status === 'Pending').length;
+  const pendingKycCount = kycSubmissions.filter((k) => k.status === 'Pending').length;
   const pendingWithdrawalsUsd = withdrawals
     .filter((w) => w.status === 'Processing')
     .reduce((acc, w) => acc + w.amountUsd, 0);
@@ -1481,14 +1959,18 @@ export const EmployerPortal: React.FC = () => {
     switch (kind) {
       case 'withdrawal':
         return 'Withdrawal';
-      case 'pass_purchase':
-        return 'Worker Pass';
+      case 'paypal_checkout':
+        return 'PayPal Checkout';
       case 'task_reward':
         return 'Task Reward';
       case 'referral_commission':
         return 'Referral 20%';
       case 'investment_deposit':
         return 'Investment Deposit';
+      case 'auction_sale':
+        return 'Auction Sale';
+      case 'ppv_payout':
+        return 'Pay-Per-View Payout';
       default:
         return kind;
     }
@@ -1548,7 +2030,7 @@ export const EmployerPortal: React.FC = () => {
             Platform, Payouts &amp; Transactions Console
           </h1>
           <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-            Approve customer withdrawals, audit every M-PESA / Paystack / IntaSend &amp; reward transaction, and monitor every task campaign across East Africa.
+            Approve PayPal withdrawals (150+ KSh after strict KYC), verify Front &amp; Back National ID submissions, audit PayPal &amp; Zapier flows, and set merchant task rewards across East Africa.
           </p>
           <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] font-semibold text-emerald-800">
             <MapPin className="w-3.5 h-3.5 text-emerald-600" />
@@ -1569,38 +2051,29 @@ export const EmployerPortal: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setConsoleTab('brand-kit')}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+          >
+            <ImageIcon className="w-4 h-4 text-blue-700" />
+            <span>FB Brand Kit</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setPublisherModalOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
           >
             <Globe className="w-4 h-4 text-blue-600" />
-            <span>AdSense &amp; SEO</span>
+            <span>Monetag &amp; AdSense</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setPaystackModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0576A0] border border-sky-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            onClick={() => setConsoleTab('paypal-zapier')}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
           >
-            <Zap className="w-4 h-4 text-[#09A5DB]" />
-            <span>Paystack STK &amp; Card</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIntasendModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-          >
-            <Zap className="w-4 h-4 text-indigo-600" />
-            <span>IntaSend Gateway</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDarajaModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>M-PESA Daraja</span>
+            <Globe className="w-4 h-4 text-sky-700" />
+            <span>PayPal &amp; Zapier</span>
           </button>
 
           <button
@@ -1653,11 +2126,11 @@ export const EmployerPortal: React.FC = () => {
           className="p-4 rounded-2xl border border-blue-200 bg-blue-50/70 cursor-pointer hover:border-blue-300 transition-colors"
         >
           <div className="flex items-center justify-between text-xs font-semibold text-blue-800">
-            <span>Pass &amp; Gateway Volume</span>
+            <span>PayPal Gateway Volume</span>
             <DollarSign className="w-4 h-4 text-blue-600" />
           </div>
           <div className="mt-2 text-2xl font-extrabold font-mono text-slate-900 tabular-nums">
-            {formatCurrencyFromUsd(summary.passRevenueUsd, selectedCountry)}
+            {formatCurrencyFromUsd(summary.paypalVolumeUsd, selectedCountry)}
           </div>
           <div className="mt-1 text-[11px] font-medium text-blue-900">
             {summary.totalTransactions} total platform transactions
@@ -1877,13 +2350,12 @@ export const EmployerPortal: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Reward ({selectedCountry.symbol} · Max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)})
+                  Merchant Task Reward ({selectedCountry.symbol})
                 </label>
                 <input
                   type="number"
                   step="1"
                   min={convertKesToLocal(10, selectedCountry)}
-                  max={maxRewardLocal}
                   value={reward}
                   onChange={(e) => setReward(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white text-slate-900 font-mono font-semibold focus:border-blue-600 outline-hidden"
@@ -1994,25 +2466,25 @@ export const EmployerPortal: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setConsoleTab('pass-proofs')}
+          onClick={() => setConsoleTab('kyc')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            consoleTab === 'pass-proofs'
+            consoleTab === 'kyc'
               ? 'bg-blue-700 text-white shadow-xs'
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          <ImageIcon className="w-4 h-4" />
-          <span>Pass Approvals (0758727558)</span>
+          <ShieldCheck className="w-4 h-4" />
+          <span>National ID KYC (Front &amp; Back)</span>
           <span
             className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
-              consoleTab === 'pass-proofs'
+              consoleTab === 'kyc'
                 ? 'bg-white/20 text-white'
-                : pendingPassProofsCount > 0
-                ? 'bg-rose-100 text-rose-800'
+                : pendingKycCount > 0
+                ? 'bg-amber-100 text-amber-800'
                 : 'bg-slate-200 text-slate-700'
             }`}
           >
-            {pendingPassProofsCount} Pending
+            {pendingKycCount} Pending
           </span>
         </button>
 
@@ -2108,6 +2580,52 @@ export const EmployerPortal: React.FC = () => {
 
         <button
           type="button"
+          onClick={() => setConsoleTab('auctions')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'auctions'
+              ? 'bg-blue-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Gavel className="w-4 h-4" />
+          <span>Auctions</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'auctions'
+                ? 'bg-white/20 text-white'
+                : auctions.filter((a) => a.status === 'Live').length > 0
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {auctions.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setConsoleTab('ppv')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'ppv'
+              ? 'bg-blue-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Eye className="w-4 h-4" />
+          <span>Pay-Per-View</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'ppv'
+                ? 'bg-white/20 text-white'
+                : 'bg-indigo-100 text-indigo-800'
+            }`}
+          >
+            {ppvPosts.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setConsoleTab('testimonials')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
             consoleTab === 'testimonials'
@@ -2125,6 +2643,30 @@ export const EmployerPortal: React.FC = () => {
             }`}
           >
             {testimonials.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setConsoleTab('support')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'support'
+              ? 'bg-blue-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>Support Inbox</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'support'
+                ? 'bg-white/20 text-white'
+                : supportTickets.some((t) => t.status === 'Open')
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {supportTickets.filter((t) => t.status === 'Open').length} Open
           </span>
         </button>
 
@@ -2151,6 +2693,76 @@ export const EmployerPortal: React.FC = () => {
             {smsLiveReady ? 'Live SMS' : 'Setup Needed'}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setConsoleTab('admin-alerts')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'admin-alerts'
+              ? 'bg-blue-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <BellRing className="w-4 h-4" />
+          <span>Admin Email Alerts</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'admin-alerts'
+                ? 'bg-white/20 text-white'
+                : adminSmtpStatus?.configured
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {adminSmtpStatus?.configured ? 'SMTP Live' : `${adminAlertLogs.length} Logs`}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setConsoleTab('paypal-zapier')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'paypal-zapier'
+              ? 'bg-sky-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          <span>PayPal &amp; Zapier</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'paypal-zapier'
+                ? 'bg-white/20 text-white'
+                : paypalEnabled
+                ? 'bg-sky-100 text-sky-900'
+                : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {zapierWebhookUrl ? 'Zapier Live' : 'Global USD'}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setConsoleTab('brand-kit')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            consoleTab === 'brand-kit'
+              ? 'bg-blue-700 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <ImageIcon className="w-4 h-4" />
+          <span>FB Brand Kit</span>
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono ${
+              consoleTab === 'brand-kit'
+                ? 'bg-white/20 text-white'
+                : 'bg-emerald-100 text-emerald-800'
+            }`}
+          >
+            Download Ready
+          </span>
+        </button>
       </div>
 
       {/* TAB: INVESTMENTS MANAGEMENT (APPROVE / SETTLE / EDIT / DELETE) */}
@@ -2158,7 +2770,7 @@ export const EmployerPortal: React.FC = () => {
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-emerald-950">
             <div>
-              <strong className="font-extrabold">Full Owner Control Over Investment Deposits (KES 50+):</strong> Verify manual M-PESA (<strong>0758727558</strong>) or Paystack deposits, activate pools, edit principal/yield %, settle matured payouts, or permanently delete entries.
+              <strong className="font-extrabold">Full Owner Control Over Investment Deposits (KES 50+):</strong> Verify PayPal deposits, activate pools, edit principal/yield %, settle matured payouts, or permanently delete entries.
             </div>
             <div className="font-mono font-bold whitespace-nowrap">
               {investments.filter((i) => i.status === 'Pending Owner Approval').length} Pending · {investments.filter((i) => i.status === 'Active').length} Active
@@ -2384,6 +2996,431 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: PRODUCT AUCTIONS MODERATION & SUPER-ADMIN CONTROLS */}
+      {consoleTab === 'auctions' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900 text-white text-xs flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <strong className="font-extrabold">Full Owner Control Over Customer Product Auctions:</strong>{' '}
+              Feature top products, edit prices or status, suspend suspicious listings, accept highest bids, or permanently delete auctions.
+            </div>
+            <span className="font-mono font-bold">
+              {auctions.filter((a) => a.status === 'Live').length} Live · {auctions.filter((a) => a.status === 'Sold').length} Sold
+            </span>
+          </div>
+
+          {auctionFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{auctionFeedback}</span>
+            </div>
+          )}
+
+          {auctions.length === 0 ? (
+            <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+              No customer product auctions listed yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {auctions.map((auc) => {
+                const busy = processingAuctionId === auc.id;
+                const isEditing = editingAuctionId === auc.id;
+                const thumb = resolveAuctionImageUrl(auc.imageUrls?.[0]);
+                return (
+                  <div key={auc.id} className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3 text-xs">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {thumb && (
+                          <img src={thumb} alt={auc.title} className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0" />
+                        )}
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-extrabold text-slate-900">{auc.title}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${
+                                auc.status === 'Live'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : auc.status === 'Sold'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : auc.status === 'Suspended'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {auc.status}
+                            </span>
+                            {auc.featured && (
+                              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px]">
+                                Featured
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-600">
+                            ID: <strong>{auc.id}</strong> · Seller: <strong>{auc.sellerName}</strong> ({auc.sellerPhone || auc.sellerCountryCode}) · Category: <strong>{auc.category}</strong>
+                          </div>
+                          <div className="font-mono text-xs text-slate-900">
+                            Current Bid: <strong className="font-black text-emerald-700">KES {auc.currentBidKes.toLocaleString()}</strong> · Bids: <strong>{auc.bidCount}</strong>
+                            {auc.highestBidderName ? ` · Leading: ${auc.highestBidderName}` : ''}
+                            {auc.buyNowKes ? ` · Buy Now: KES ${auc.buyNowKes.toLocaleString()}` : ''}
+                          </div>
+                          <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex flex-wrap items-center gap-2">
+                            <span className="font-bold">50% Escrow: {auc.escrowStatus || 'Held in Escrow'}</span>
+                            <span className="font-mono">
+                              Deposit: KES {(auc.escrowDepositKes || Math.round(auc.startingBidKes * 0.5)).toLocaleString()} · Seller PayPal Ref: {auc.sellerDepositPaypalRef || 'Verified'} · Buyer Deposits: {Object.keys(auc.bidderDeposits || {}).length}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleOwnerUpdateAuction(auc.id, { featured: !auc.featured })}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold cursor-pointer ${
+                            auc.featured ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-900 border border-amber-200'
+                          }`}
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                          <span>{auc.featured ? 'Unfeature' : 'Feature'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditing) {
+                              setEditingAuctionId(null);
+                            } else {
+                              setEditingAuctionId(auc.id);
+                              setEditAuctionDraft({
+                                title: auc.title,
+                                category: auc.category,
+                                condition: auc.condition,
+                                status: auc.status,
+                                startingBidKes: String(auc.startingBidKes),
+                                minIncrementKes: String(auc.minIncrementKes),
+                                buyNowKes: auc.buyNowKes ? String(auc.buyNowKes) : '',
+                                featured: Boolean(auc.featured),
+                              });
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>{isEditing ? 'Close Edit' : 'Edit'}</span>
+                        </button>
+
+                        {auc.status === 'Live' && auc.bidCount > 0 && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void handleOwnerCloseAuction(auc.id, 'accept_highest')}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Close &amp; Award Highest
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void handleOwnerUpdateAuction(auc.id, {
+                              escrowStatus: 'Released to Seller',
+                              escrowResolutionNote: 'Verified real item handover — escrow released.',
+                            })
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-900 font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          Release Escrow
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void handleOwnerUpdateAuction(auc.id, {
+                              escrowStatus: 'Compensated Buyer',
+                              escrowResolutionNote: '50% security escrow paid to buyer for item issue.',
+                            })
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          Compensate Buyer
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void handleOwnerUpdateAuction(auc.id, {
+                              escrowStatus: 'Compensated Seller',
+                              escrowResolutionNote: '50% security escrow paid to seller for buyer default.',
+                            })
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          Compensate Seller
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void handleOwnerUpdateAuction(auc.id, {
+                              status: auc.status === 'Suspended' ? 'Live' : 'Suspended',
+                            })
+                          }
+                          className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer ${
+                            auc.status === 'Suspended'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          {auc.status === 'Suspended' ? 'Restore Live' : 'Suspend'}
+                        </button>
+
+                        {confirmDeleteAuctionId === auc.id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void handleOwnerDeleteAuction(auc.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-700 text-white font-bold cursor-pointer"
+                            >
+                              Confirm Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteAuctionId(null)}
+                              className="px-2 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteAuctionId(auc.id)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing && (
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Title</label>
+                          <input
+                            type="text"
+                            value={editAuctionDraft.title}
+                            onChange={(e) => setEditAuctionDraft((d) => ({ ...d, title: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Status</label>
+                          <select
+                            value={editAuctionDraft.status}
+                            onChange={(e) => setEditAuctionDraft((d) => ({ ...d, status: e.target.value as AuctionStatus }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          >
+                            <option value="Live">Live</option>
+                            <option value="Sold">Sold</option>
+                            <option value="Ended">Ended</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Suspended">Suspended</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Starting Bid (KES)</label>
+                          <input
+                            type="number"
+                            value={editAuctionDraft.startingBidKes}
+                            onChange={(e) => setEditAuctionDraft((d) => ({ ...d, startingBidKes: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Min Increment (KES)</label>
+                          <input
+                            type="number"
+                            value={editAuctionDraft.minIncrementKes}
+                            onChange={(e) => setEditAuctionDraft((d) => ({ ...d, minIncrementKes: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Buy Now Price (KES)</label>
+                          <input
+                            type="number"
+                            value={editAuctionDraft.buyNowKes}
+                            onChange={(e) => setEditAuctionDraft((d) => ({ ...d, buyNowKes: e.target.value }))}
+                            placeholder="Optional"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
+                          />
+                        </div>
+                        <div className="sm:col-span-2 flex items-end justify-end">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              void handleOwnerUpdateAuction(auc.id, {
+                                title: editAuctionDraft.title,
+                                status: editAuctionDraft.status,
+                                startingBidKes: Number(editAuctionDraft.startingBidKes),
+                                minIncrementKes: Number(editAuctionDraft.minIncrementKes),
+                                buyNowKes: editAuctionDraft.buyNowKes.trim() ? Number(editAuctionDraft.buyNowKes) : null,
+                                featured: editAuctionDraft.featured,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-700 text-white font-bold cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save Auction Changes</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: PAY-PER-VIEW STATUS FEED & 24H AUTO-PAYOUT MANAGEMENT */}
+      {consoleTab === 'ppv' && (
+        <div className="space-y-5">
+          <div className="p-4 rounded-2xl bg-slate-900 text-white text-xs flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <strong className="font-extrabold">Pay-Per-View Status Feed Authority:</strong>{' '}
+              Uploads are 100% free (0 purchase needed). Registered members view statuses inside the platform, earning creators <strong>KSh 5 / view</strong>. The server automatically settles views to creator wallets after 24 hours; Owner can inspect media, force early settlement, or moderate posts below.
+            </div>
+            <div className="font-mono font-bold">
+              Live: {ppvPosts.filter((p) => !p.paidOut).length} · Paid: {ppvPosts.filter((p) => p.paidOut).length}
+            </div>
+          </div>
+
+          {ppvFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{ppvFeedback}</span>
+            </div>
+          )}
+
+          {previewPpvPost && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-4" onClick={() => setPreviewPpvPost(null)}>
+              <div className="bg-white rounded-2xl max-w-2xl w-full p-4 space-y-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-900">
+                    {previewPpvPost.authorName} · {previewPpvPost.category} · {previewPpvPost.viewsCount} views
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPpvPost(null)}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                {previewPpvPost.mediaType === 'video' ? (
+                  <video
+                    src={resolvePpvMediaSrc(previewPpvPost)}
+                    controls
+                    playsInline
+                    className="w-full max-h-[60vh] rounded-xl bg-black"
+                  />
+                ) : (
+                  <img
+                    src={resolvePpvMediaSrc(previewPpvPost)}
+                    alt={previewPpvPost.caption}
+                    className="w-full max-h-[60vh] object-contain rounded-xl border border-slate-200 bg-slate-900"
+                  />
+                )}
+                <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                  {previewPpvPost.caption}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2.5">
+            {ppvPosts.map((post) => (
+              <div key={post.id} className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPpvPost(post)}
+                    className="w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-900 shrink-0 cursor-pointer"
+                    title="Preview uploaded media"
+                  >
+                    {post.mediaType === 'video' ? (
+                      <video src={resolvePpvMediaSrc(post)} muted className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={resolvePpvMediaSrc(post)} alt={post.caption} className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-bold text-[10px]">
+                        {post.category}
+                      </span>
+                      <strong className="text-slate-900">{post.authorName}</strong>
+                      <span className="text-slate-500">· {post.city} ({post.countryCode})</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          post.paidOut ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {post.status}
+                      </span>
+                    </div>
+                    <div className="text-slate-600 truncate max-w-xl">{post.caption}</div>
+                    <div className="font-mono text-[11px] text-slate-500">
+                      Views: <strong>{post.viewsCount}</strong> · Value: <strong>{post.paidOut ? post.paidOutKes : post.pendingEarningsKes} KSh</strong> · Expires: {new Date(post.expiresAt).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPpvPost(post)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    Preview
+                  </button>
+                  {!post.paidOut && !post.isSeeded && (
+                    <button
+                      type="button"
+                      disabled={processingPpvId === post.id}
+                      onClick={() => void handleOwnerSettlePpvNow(post.id)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                    >
+                      Settle 24h Payout Now
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={processingPpvId === post.id}
+                    onClick={() => void handleOwnerDeletePpvPost(post.id)}
+                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* TAB: TESTIMONIALS MODERATION & MANAGEMENT */}
       {consoleTab === 'testimonials' && (
         <div className="space-y-4">
@@ -2589,174 +3626,161 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 1B: WORKER PASS MANUAL M-PESA (0758727558) PROOFS & APPROVALS */}
-      {consoleTab === 'pass-proofs' && (
+      {/* TAB 1B: STRICT NATIONAL ID KYC VERIFICATIONS (FRONT & BACK PHOTOS) */}
+      {consoleTab === 'kyc' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-400 text-rose-950 text-xs flex items-start gap-3">
-            <Ban className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
             <div className="space-y-1 leading-relaxed">
-              <div className="font-black uppercase tracking-wide text-rose-900">
-                Worker Pass Manual Payment Verification Rule (0758727558)
+              <div className="font-black uppercase tracking-wide text-blue-900">
+                Strict PayPal Withdrawal KYC Rule (Front &amp; Back National ID Required)
               </div>
               <p>
-                Every customer paying manually for a Worker Pass MUST submit <strong>BOTH their M-PESA confirmation code AND a payment screenshot</strong>. Failed to submit valid proof ={' '}
-                <strong className="font-black text-rose-900">BANNED 🚫 FOREVER (NO SECOND CHANCE)</strong>. Worker Passes remain <strong>LOCKED</strong> and DO NOT open automatically until you verify payment on <strong>0758727558</strong>, enter optional confirmation details, and click <strong>Approve &amp; Send Details</strong>.
+                Every worker requesting a PayPal withdrawal (from <strong>KSh 150 / {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong>) must first upload clear photos of{' '}
+                <strong>BOTH the Front AND Back</strong> of their country&apos;s official National ID (e.g., Kenyan Kitambulisho, Uganda NIRA, Tanzania NIDA, Rwanda Indangamuntu, Burundi CNI, South Sudan ID, Ethiopia Fayda/Kebele, Somalia NIRA). Withdrawals stay locked until you approve their KYC below.
               </p>
             </div>
           </div>
 
-          {passProofFeedback && (
+          {kycFeedback && (
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{passProofFeedback}</span>
+              <span>{kycFeedback}</span>
             </div>
           )}
 
-          {passProofs.length === 0 ? (
+          {kycSubmissions.length === 0 ? (
             <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
-              No manual M-PESA Worker Pass proofs submitted yet. Submissions to <strong>0758727558</strong> with confirmation code &amp; screenshot will appear here for your approval.
+              No National ID KYC submissions received yet. Front &amp; Back ID uploads will appear here for your verification.
             </div>
           ) : (
             <div className="space-y-4">
-              {passProofs.map((prf) => {
-                const isBusy = processingProofId === prf.id;
+              {kycSubmissions.map((kyc) => {
+                const isBusy = processingKycUid === kyc.uid;
                 return (
                   <div
-                    key={prf.id}
-                    className={`p-5 rounded-2xl border bg-white shadow-xs flex flex-col lg:flex-row gap-5 ${
-                      prf.status === 'Banned'
-                        ? 'border-rose-400 bg-rose-50/30'
-                        : prf.status === 'Approved'
+                    key={kyc.uid}
+                    className={`p-5 rounded-2xl border bg-white shadow-xs flex flex-col xl:flex-row gap-5 ${
+                      kyc.status === 'Rejected'
+                        ? 'border-rose-300 bg-rose-50/20'
+                        : kyc.status === 'Approved'
                         ? 'border-emerald-300'
                         : 'border-slate-200'
                     }`}
                   >
-                    {/* Screenshot Proof Preview */}
-                    <div className="w-full lg:w-56 shrink-0 space-y-2">
-                      <div className="relative rounded-xl border border-slate-300 overflow-hidden bg-slate-100 aspect-[4/3] flex items-center justify-center">
-                        {prf.screenshotDataUrl && prf.screenshotDataUrl.startsWith('data:image') ? (
-                          <img
-                            src={prf.screenshotDataUrl}
-                            alt={`M-PESA Proof ${prf.mpesaCode}`}
-                            className="w-full h-full object-cover cursor-pointer"
-                            onClick={() => setPreviewProof(prf)}
-                          />
-                        ) : (
-                          <span className="text-[11px] text-slate-500 px-2 text-center">Screenshot Stored</span>
-                        )}
+                    {/* Front & Back ID Photo Previews */}
+                    <div className="w-full xl:w-80 shrink-0 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Front of ID</div>
+                          <div className="rounded-xl border border-slate-300 overflow-hidden bg-slate-100 aspect-[4/3] flex items-center justify-center">
+                            {kyc.frontImageDataUrl && kyc.frontImageDataUrl.startsWith('data:image') ? (
+                              <img
+                                src={kyc.frontImageDataUrl}
+                                alt={`${kyc.idDocumentName} Front`}
+                                className="w-full h-full object-cover cursor-pointer"
+                                onClick={() => setPreviewKyc(kyc)}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-slate-500 px-2 text-center">Front Missing</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Back of ID</div>
+                          <div className="rounded-xl border border-slate-300 overflow-hidden bg-slate-100 aspect-[4/3] flex items-center justify-center">
+                            {kyc.backImageDataUrl && kyc.backImageDataUrl.startsWith('data:image') ? (
+                              <img
+                                src={kyc.backImageDataUrl}
+                                alt={`${kyc.idDocumentName} Back`}
+                                className="w-full h-full object-cover cursor-pointer"
+                                onClick={() => setPreviewKyc(kyc)}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-slate-500 px-2 text-center">Back Missing</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setPreviewProof(prf)}
+                        onClick={() => setPreviewKyc(kyc)}
                         className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>View Full Screenshot</span>
+                        <span>Inspect Full Front &amp; Back ID</span>
                       </button>
                     </div>
 
-                    {/* Details & Owner Approval Controls */}
+                    {/* Details & Owner Controls */}
                     <div className="flex-1 space-y-3 text-xs">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <div className="text-sm font-extrabold text-slate-900 flex flex-wrap items-center gap-2">
-                            <span>{prf.customerName}</span>
-                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-200 font-mono text-xs">
-                              {prf.packageName} · KES {prf.amountKes}
+                            <span>{kyc.fullNameOnId || kyc.customerName}</span>
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 font-mono text-xs">
+                              {kyc.idDocumentName} ({kyc.countryCode})
                             </span>
                           </div>
-                          <div className="text-[11px] font-mono text-slate-600 mt-1">
-                            M-PESA Code: <strong className="text-slate-950 font-black text-xs">{prf.mpesaCode}</strong> · From:{' '}
-                            <strong className="text-slate-900">{prf.senderPhone}</strong> → Paid To:{' '}
-                            <strong className="text-emerald-800">0758727558</strong> ({prf.countryCode})
+                          <div className="text-[11px] font-mono text-slate-700 mt-1">
+                            ID Number: <strong className="text-slate-950 font-black">{kyc.idNumber}</strong> · Account:{' '}
+                            <strong>{kyc.customerName}</strong> ({kyc.customerPhone || kyc.customerEmail || kyc.uid})
                           </div>
                           <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                            Proof ID: {prf.id} · Submitted: {new Date(prf.createdAt).toLocaleString()}
-                            {prf.customerEmail ? ` · Email: ${prf.customerEmail}` : ''}
+                            Submitted: {new Date(kyc.submittedAt).toLocaleString()}
+                            {kyc.reviewedAt ? ` · Reviewed: ${new Date(kyc.reviewedAt).toLocaleString()}` : ''}
                           </div>
                         </div>
 
                         <span
                           className={`px-2.5 py-1 rounded-lg font-extrabold text-[11px] uppercase ${
-                            prf.status === 'Approved'
+                            kyc.status === 'Approved'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : prf.status === 'Banned'
-                              ? 'bg-rose-900 text-white'
-                              : prf.status === 'Rejected'
+                              : kyc.status === 'Rejected'
                               ? 'bg-rose-100 text-rose-800 border border-rose-300'
                               : 'bg-amber-100 text-amber-900 border border-amber-300'
                           }`}
                         >
-                          {prf.status === 'Banned' ? 'Banned 🚫 Forever' : prf.status}
+                          {kyc.status}
                         </span>
                       </div>
 
-                      {prf.ownerApprovalDetails && (
-                        <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950 font-medium">
-                          Sent Approval Details: {prf.ownerApprovalDetails}
-                        </div>
-                      )}
-
-                      {prf.rejectionOrBanReason && (
+                      {kyc.rejectionReason && (
                         <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 font-semibold">
-                          Reason: {prf.rejectionOrBanReason}
+                          Rejection Reason: {kyc.rejectionReason}
                         </div>
                       )}
 
-                      {prf.status === 'Banned' && (
-                        <div className="pt-2 border-t border-rose-200 flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => void handleUnbanPassProof(prf)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-                          >
-                            <Unlock className="w-3.5 h-3.5" />
-                            <span>{isBusy ? 'Restoring...' : 'Owner Recovery: Unban & Re-open'}</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {prf.status !== 'Approved' && prf.status !== 'Banned' && (
+                      {kyc.status !== 'Approved' && (
                         <div className="pt-2 border-t border-slate-100 space-y-2.5">
                           <input
                             type="text"
-                            value={passProofDetailsInputs[prf.id] || ''}
+                            value={kycNoteInputs[kyc.uid] || ''}
                             onChange={(e) =>
-                              setPassProofDetailsInputs((prev) => ({ ...prev, [prf.id]: e.target.value }))
+                              setKycNoteInputs((prev) => ({ ...prev, [kyc.uid]: e.target.value }))
                             }
-                            placeholder="Optional approval details to send customer (or ban/reject reason)..."
+                            placeholder="Optional rejection reason if Front/Back ID photos are unclear..."
                             className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white text-slate-900 focus:border-blue-600 outline-hidden"
                           />
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               disabled={isBusy}
-                              onClick={() => void handleApprovePassProof(prf)}
+                              onClick={() => void handleApproveKyc(kyc)}
                               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{isBusy ? 'Processing...' : 'Approve Payment & Send Details'}</span>
+                              <span>{isBusy ? 'Approving...' : 'Approve KYC & Unlock PayPal Withdrawals'}</span>
                             </button>
 
                             <button
                               type="button"
                               disabled={isBusy}
-                              onClick={() => void handleRejectPassProof(prf)}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-bold cursor-pointer disabled:opacity-50"
+                              onClick={() => void handleRejectKyc(kyc)}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold cursor-pointer disabled:opacity-50"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              <span>Reject</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => void handleBanPassProof(prf)}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                              <span>Ban 🚫 Forever (No 2nd Chance)</span>
+                              <span>Reject &amp; Request Clear ID</span>
                             </button>
                           </div>
                         </div>
@@ -2777,10 +3801,10 @@ export const EmployerPortal: React.FC = () => {
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-emerald-600" />
-                <span>Customer Withdrawal Approvals ({pendingWithdrawalsCount} Pending)</span>
+                <span>PayPal Withdrawal Approvals ({pendingWithdrawalsCount} Pending)</span>
               </h2>
               <p className="text-xs text-slate-600">
-                <strong>Approve &amp; Pay</strong> sends real mobile money via your live Paystack, IntaSend B2C, or Daraja B2C balance—or enter a manual M-PESA/Bank receipt code.
+                <strong>Approve &amp; Pay</strong> dispatches payouts exclusively via PayPal (REST API v2 Payouts or manual PayPal transaction confirmation). Strict Front &amp; Back National ID KYC is verified prior to withdrawal submission.
               </p>
             </div>
 
@@ -2802,57 +3826,36 @@ export const EmployerPortal: React.FC = () => {
             </div>
           </div>
 
-          {/* Outbound Payout Gateway Status & Execution Rail Selector */}
+          {/* Outbound PayPal Payout Gateway Status */}
           <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-800">Outbound Payout Gateways:</span>
+              <span className="font-bold text-slate-800">Active Payout Rail:</span>
               <span
                 className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${
-                  gatewayStatus?.paystack?.live
+                  gatewayStatus?.paypal?.live
                     ? 'bg-emerald-100 text-emerald-800'
-                    : gatewayStatus?.paystack?.configured
+                    : gatewayStatus?.paypal?.configured
                     ? 'bg-amber-100 text-amber-800'
-                    : 'bg-slate-200 text-slate-600'
+                    : 'bg-sky-100 text-sky-900'
                 }`}
               >
-                Paystack: {gatewayStatus?.paystack?.mode || 'checking'}
+                PayPal Only ({gatewayStatus?.paypal?.mode || 'manual_ready'})
               </span>
-              <span
-                className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${
-                  gatewayStatus?.intasend?.live
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : gatewayStatus?.intasend?.configured
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                IntaSend B2C: {gatewayStatus?.intasend?.mode || 'checking'}
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${
-                  gatewayStatus?.darajaB2c?.live
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : gatewayStatus?.darajaB2c?.configured
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                Daraja B2C: {gatewayStatus?.darajaB2c?.mode || 'checking'}
+              <span className="px-2 py-0.5 rounded-md font-mono text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                Min Withdrawal: KSh 150 + Front/Back ID KYC
               </span>
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-700 whitespace-nowrap">Disbursement Rail:</label>
+              <label className="font-bold text-slate-700 whitespace-nowrap">PayPal Dispatch Mode:</label>
               <select
                 value={gatewayMode}
                 onChange={(e) => setGatewayMode(e.target.value as any)}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs font-semibold outline-hidden focus:border-blue-600"
               >
-                <option value="auto">Auto (Configured Live Gateway)</option>
-                <option value="paystack">Paystack Live Transfer</option>
-                <option value="intasend">IntaSend Send Money (M-PESA B2C)</option>
-                <option value="daraja">Safaricom Daraja B2C</option>
-                <option value="manual">Manual Payment (Enter Receipt)</option>
+                <option value="auto">Auto (PayPal Payouts API)</option>
+                <option value="paypal">PayPal REST v2 Payout</option>
+                <option value="manual">Manual PayPal Transfer (Enter TXN Receipt)</option>
               </select>
             </div>
           </div>
@@ -3008,7 +4011,7 @@ export const EmployerPortal: React.FC = () => {
                 <span>Complete Transaction Ledger ({filteredTransactions.length})</span>
               </h2>
               <p className="text-xs text-slate-600">
-                Real-time audit trail of every Worker Pass checkout, M-PESA/Paystack/IntaSend payment, withdrawal request/approval, task reward, and referral commission.
+                Real-time audit trail of every PayPal checkout, PayPal withdrawal request/approval, task reward, investment deposit, and referral commission.
               </p>
             </div>
 
@@ -3028,8 +4031,8 @@ export const EmployerPortal: React.FC = () => {
             {(
               [
                 { key: 'all', label: `All (${transactions.length})` },
-                { key: 'withdrawal', label: 'Withdrawals' },
-                { key: 'pass_purchase', label: 'Worker Passes' },
+                { key: 'withdrawal', label: 'PayPal Withdrawals' },
+                { key: 'paypal_checkout', label: 'PayPal Checkouts' },
                 { key: 'investment_deposit', label: 'Investments (KES 50+)' },
                 { key: 'task_reward', label: 'Task Rewards' },
                 { key: 'referral_commission', label: 'Referrals' },
@@ -3128,6 +4131,26 @@ export const EmployerPortal: React.FC = () => {
       {/* TAB 3: ALL TASKS & SUBMISSION TRACKER */}
       {consoleTab === 'tasks' && (
         <div className="space-y-8">
+          {taskAlertSummary && (
+            <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="font-extrabold text-indigo-950 flex items-center gap-2">
+                  <span>High-Reward Task Email Alert Subscribers:</span>
+                  <span className="px-2 py-0.5 rounded bg-indigo-700 text-white font-mono">
+                    {taskAlertSummary.activeCount} Active ({taskAlertSummary.totalCount} Total)
+                  </span>
+                </div>
+                <p className="text-indigo-900/80 text-[11px]">
+                  SMTP Delivery:{' '}
+                  <strong>{taskAlertSummary.smtpConfigured ? 'Configured (Live Emails Enabled)' : 'Not configured in env — dispatches saved to Subscriber In-App Alert Feed'}</strong>
+                  {taskAlertSummary.recentDispatches.length > 0 && (
+                    <> · Latest dispatch: {taskAlertSummary.recentDispatches[0].taskTitle} ({taskAlertSummary.recentDispatches[0].deliveryStatus})</>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* All Platform Task Campaigns */}
           <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -3279,13 +4302,12 @@ export const EmployerPortal: React.FC = () => {
                                 </div>
                                 <div>
                                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                    Reward ({selectedCountry.symbol} · Max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)})
+                                    Merchant Reward ({selectedCountry.symbol})
                                   </label>
                                   <input
                                     type="number"
                                     step="1"
                                     min={convertKesToLocal(10, selectedCountry)}
-                                    max={maxRewardLocal}
                                     value={editTaskDraft.reward}
                                     onChange={(e) => setEditTaskDraft((d) => ({ ...d, reward: e.target.value }))}
                                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
@@ -3313,10 +4335,10 @@ export const EmployerPortal: React.FC = () => {
                                     type="button"
                                     onClick={() => {
                                       const parsedUsd = localAmountToUsd(Number(editTaskDraft.reward) || 0, selectedCountry);
-                                      const cappedReward = Math.min(MAX_TASK_REWARD_USD, Math.max(0.05, parsedUsd || task.reward));
+                                      const nextReward = Math.max(0.05, parsedUsd || task.reward);
                                       updateTask(task.id, {
                                         title: editTaskDraft.title.trim() || task.title,
-                                        reward: cappedReward,
+                                        reward: nextReward,
                                         totalSpots: Math.max(1, Number(editTaskDraft.totalSpots) || task.totalSpots),
                                         spotsRemaining: Math.max(0, Number(editTaskDraft.spotsRemaining) || 0),
                                       });
@@ -3569,6 +4591,15 @@ export const EmployerPortal: React.FC = () => {
                         <td className="py-3.5 px-4 max-w-[260px]">
                           <div className="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
                             <span>{cust.displayName}</span>
+                            {cust.accountDetailsLocked && (
+                              <span
+                                title="All My Account profile details permanently locked"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold"
+                              >
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>Profile Locked</span>
+                              </span>
+                            )}
                             {cust.banned && (
                               <span className="px-1.5 py-0.5 rounded bg-rose-700 text-white text-[10px] font-black uppercase">
                                 Banned 🚫 Forever
@@ -3577,11 +4608,6 @@ export const EmployerPortal: React.FC = () => {
                             {cust.deactivated && (
                               <span className="px-1.5 py-0.5 rounded bg-amber-700 text-white text-[10px] font-black uppercase">
                                 Deactivated
-                              </span>
-                            )}
-                            {cust.adminAssignedPass && (
-                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold uppercase">
-                                Pass: {cust.adminAssignedPass}
                               </span>
                             )}
                           </div>
@@ -3880,46 +4906,28 @@ export const EmployerPortal: React.FC = () => {
                                   <select
                                     value={customerEditDraft.withdrawalMethod}
                                     onChange={(e) => setCustomerEditDraft((d) => ({ ...d, withdrawalMethod: e.target.value }))}
-                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
                                   >
-                                    <option value="M-PESA">M-PESA</option>
-                                    <option value="Airtel / MTN MoMo">Airtel / MTN MoMo</option>
-                                    <option value="East Africa Bank">East Africa Bank</option>
-                                    <option value="Wise">Wise</option>
-                                    <option value="Crypto USDT">Crypto USDT</option>
+                                    <option value="PayPal">PayPal (Exclusive Gateway)</option>
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Payout Account Number</label>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">PayPal Account Email</label>
                                   <input
-                                    type="text"
+                                    type="email"
                                     value={customerEditDraft.withdrawalAccountDetails}
                                     onChange={(e) => setCustomerEditDraft((d) => ({ ...d, withdrawalAccountDetails: e.target.value }))}
                                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Payout Account Holder</label>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">PayPal Account Holder</label>
                                   <input
                                     type="text"
                                     value={customerEditDraft.withdrawalAccountHolderName}
                                     onChange={(e) => setCustomerEditDraft((d) => ({ ...d, withdrawalAccountHolderName: e.target.value }))}
                                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
                                   />
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Owner Override Worker Pass</label>
-                                  <select
-                                    value={customerEditDraft.adminAssignedPass}
-                                    onChange={(e) => setCustomerEditDraft((d) => ({ ...d, adminAssignedPass: e.target.value as any }))}
-                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
-                                  >
-                                    <option value="">No Override (Normal Flow)</option>
-                                    <option value="free">Free Tier (1 Task / Max 50 Shillings)</option>
-                                    <option value="starter">Starter Pass (2 Tasks / Max 50 Shillings)</option>
-                                    <option value="pro">Second Pass Pro (3 Tasks / Max 50 Shillings)</option>
-                                    <option value="vip">VIP Pass (4 Surveys / Max 50 Shillings)</option>
-                                  </select>
                                 </div>
                                 <div>
                                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -3936,7 +4944,7 @@ export const EmployerPortal: React.FC = () => {
                                 </div>
                                 <div>
                                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                    VIP Referrals Count (200-Shilling Pass)
+                                    Partner Referrals Count (20% Commission)
                                   </label>
                                   <input
                                     type="number"
@@ -3974,6 +4982,14 @@ export const EmployerPortal: React.FC = () => {
                                       onChange={(e) => setCustomerEditDraft((d) => ({ ...d, withdrawalLocked: e.target.checked }))}
                                     />
                                     <span>Lock Payout Details</span>
+                                  </label>
+                                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-blue-800">
+                                    <input
+                                      type="checkbox"
+                                      checked={customerEditDraft.accountDetailsLocked}
+                                      onChange={(e) => setCustomerEditDraft((d) => ({ ...d, accountDetailsLocked: e.target.checked }))}
+                                    />
+                                    <span>Lock All My Account Details</span>
                                   </label>
                                   <label className="inline-flex items-center gap-1.5 cursor-pointer text-rose-700">
                                     <input
@@ -4015,6 +5031,110 @@ export const EmployerPortal: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* TAB: CUSTOMER SUPPORT TICKETS (COLLECTED BY AI HELPDESK & CONTACT FORM) */}
+      {consoleTab === 'support' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-800">
+            <div>
+              <strong className="font-extrabold">Customer Support Inbox (24/7 AI Escalation):</strong>{' '}
+              Tickets left inside the AI Support Chat or Contact Us form appear here automatically whenever customers need manual follow-up while you are away.
+            </div>
+            <div className="font-mono font-bold whitespace-nowrap">
+              {supportTickets.filter((t) => t.status === 'Open').length} Open · {supportTickets.length} Total
+            </div>
+          </div>
+
+          {supportTickets.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
+              No support tickets submitted yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {supportTickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="font-mono font-bold text-slate-900">{ticket.id}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="font-bold text-slate-900">{ticket.customerName}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="font-mono text-blue-700">{ticket.contactInfo}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="text-slate-600">{ticket.category}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        {new Date(ticket.createdAt).toLocaleString()} · {ticket.countryCode}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
+                          ticket.status === 'Open'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}
+                      >
+                        {ticket.status}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={processingTicketId === ticket.id}
+                        onClick={async () => {
+                          const token = await getFreshToken();
+                          if (!token) return;
+                          setProcessingTicketId(ticket.id);
+                          try {
+                            const nextStatus = ticket.status === 'Open' ? 'Resolved' : 'Open';
+                            const res = await fetch(
+                              `/api/owner/support-tickets/${encodeURIComponent(ticket.id)}`,
+                              {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({ status: nextStatus }),
+                              }
+                            );
+                            const data = await res.json();
+                            if (res.ok && data?.ticket) {
+                              setSupportTickets((prev) =>
+                                prev.map((t) => (t.id === ticket.id ? data.ticket : t))
+                              );
+                            }
+                          } finally {
+                            setProcessingTicketId(null);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        {ticket.status === 'Open' ? 'Mark Resolved' : 'Reopen'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    {ticket.message}
+                  </p>
+
+                  {ticket.aiConversationSummary && (
+                    <div className="text-[11px] text-slate-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100 whitespace-pre-wrap">
+                      <strong className="text-blue-900 block mb-1">AI Chat Context:</strong>
+                      {ticket.aiConversationSummary}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -4278,34 +5398,978 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Full Screenshot Proof Viewer Modal */}
-      {previewProof && (
+      {/* TAB: REAL-TIME ADMIN EMAIL ALERTS & SERVERLESS SMTP NOTIFIER */}
+      {consoleTab === 'admin-alerts' && (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-700" />
+                <span>Real-Time Admin Email Notifications &amp; Serverless SMTP Trigger</span>
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Automatically emails <strong>{adminAlertEmail}</strong> whenever new customers register, high-reward tasks launch, Front &amp; Back National ID KYC submissions arrive, PayPal withdrawals are requested, or support tickets open.
+              </p>
+            </div>
+
+            <div
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                adminSmtpStatus?.configured
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900'
+              }`}
+            >
+              {adminSmtpStatus?.configured
+                ? `SMTP Ready (${adminSmtpStatus.host}:${adminSmtpStatus.port})`
+                : 'SMTP Env Variables Needed (SMTP_HOST / SMTP_USER / SMTP_PASS)'}
+            </div>
+          </div>
+
+          {adminAlertsFeedback && (
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-900">
+              {adminAlertsFeedback}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <form
+              onSubmit={handleSaveAdminNotifications}
+              className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-900">Admin Alert Preferences</h3>
+                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={adminAlertsEnabled}
+                    onChange={(e) => setAdminAlertsEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
+                  />
+                  <span>Enable Real-Time Alerts</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Admin Recipient Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={adminAlertEmail}
+                    onChange={(e) => setAdminAlertEmail(e.target.value)}
+                    placeholder="nigideon36@gmail.com"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    High-Reward Task Threshold (KES)
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={10000}
+                    value={adminHighRewardKes}
+                    onChange={(e) => setAdminHighRewardKes(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <div className="text-xs font-bold text-slate-800">Trigger Email Alerts On:</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {(
+                    [
+                      { key: 'new_registration', label: 'New Customer Registrations' },
+                      { key: 'high_reward_task', label: 'High-Reward Task Published' },
+                      { key: 'kyc_submitted', label: 'National ID KYC (Front & Back)' },
+                      { key: 'withdrawal_requested', label: 'PayPal Withdrawals' },
+                      { key: 'investment_deposit', label: 'Investment Deposits' },
+                      { key: 'support_ticket', label: 'Customer Support Tickets' },
+                      { key: 'ppv_status_uploaded', label: 'Free PPV Status Uploads' },
+                      { key: 'auction_activity', label: 'Live Auction Listings' },
+                    ] as const
+                  ).map((item) => (
+                    <label
+                      key={item.key}
+                      className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 cursor-pointer hover:border-blue-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(adminEventToggles[item.key])}
+                        onChange={(e) =>
+                          setAdminEventToggles((prev) => ({
+                            ...prev,
+                            [item.key]: e.target.checked,
+                          }))
+                        }
+                        className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
+                      />
+                      <span className="font-semibold text-slate-800">{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={adminAlertsSaving}
+                  className="flex-1 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60"
+                >
+                  {adminAlertsSaving ? 'Saving...' : 'Save Admin Alert Settings'}
+                </button>
+                <button
+                  type="button"
+                  disabled={adminAlertsTesting}
+                  onClick={handleSendTestAdminEmail}
+                  className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{adminAlertsTesting ? 'Sending...' : 'Send Test Admin Email'}</span>
+                </button>
+              </div>
+            </form>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2 text-xs">
+                <div className="font-bold text-slate-900">Server-Side SMTP Environment Status</div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-3 rounded-xl border border-slate-200 font-mono">
+                  <div>
+                    <span className="text-slate-500 block">SMTP_HOST</span>
+                    <strong className="text-slate-900">{adminSmtpStatus?.host || 'Not set'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">SMTP_PORT</span>
+                    <strong className="text-slate-900">{adminSmtpStatus?.port || 587}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">SMTP_USER</span>
+                    <strong className="text-slate-900">{adminSmtpStatus?.userMasked || 'Not set'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">SMTP_FROM</span>
+                    <strong className="text-slate-900 truncate block">{adminSmtpStatus?.fromLabel || 'Not set'}</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Configure <code className="bg-slate-100 px-1 rounded">SMTP_HOST</code>, <code className="bg-slate-100 px-1 rounded">SMTP_PORT</code>, <code className="bg-slate-100 px-1 rounded">SMTP_USER</code>, and <code className="bg-slate-100 px-1 rounded">SMTP_PASS</code> securely in your project environment / Secrets. Serverless webhook endpoint: <code className="bg-slate-100 px-1 rounded font-mono">POST /api/serverless/admin-notify</code>.
+                </p>
+              </div>
+
+              <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-800">
+                    Admin Activity Email Dispatch Log ({adminAlertLogs.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={loadOwnerConsoleData}
+                    className="text-[11px] text-blue-700 font-semibold hover:underline cursor-pointer"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {adminAlertLogs.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">
+                    No admin notifications logged yet. Trigger a test email above or wait for live customer activity.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                    {adminAlertLogs.map((log) => (
+                      <div key={log.id} className="p-3 text-[11px] flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="font-bold text-slate-900 break-words">
+                            {log.title}
+                            {log.amountLabel && (
+                              <span className="ml-1.5 font-mono text-emerald-700">({log.amountLabel})</span>
+                            )}
+                          </div>
+                          <div className="text-slate-600 break-words">{log.summary}</div>
+                          <div className="text-[10px] font-mono text-slate-500">
+                            {log.deliveryNote} · {new Date(log.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-bold text-[10px] shrink-0 ${
+                            log.deliveryStatus === 'Sent'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : log.deliveryStatus === 'Failed'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : log.deliveryStatus === 'Skipped'
+                              ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                              : 'bg-amber-50 text-amber-800 border border-amber-200'
+                          }`}
+                        >
+                          {log.deliveryStatus}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: PAYPAL INTERNATIONAL CHECKOUT & ZAPIER AUTOMATION WORKFLOWS */}
+      {consoleTab === 'paypal-zapier' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-sky-700" />
+                <span>PayPal (International Buyers) &amp; Zapier Automation Workflows</span>
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Accept international USD payments via PayPal checkout links &amp; HTML buttons, and automate receipts with Zapier + Google AI Studio workflows.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+              <span
+                className={`px-3 py-1.5 rounded-xl border ${
+                  paypalRestReady
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : 'bg-sky-50 border-sky-300 text-sky-900'
+                }`}
+              >
+                {paypalRestReady ? 'PayPal REST API v2 Ready' : 'PayPal Direct Checkout & PayPal.Me Ready'}
+              </span>
+              <span
+                className={`px-3 py-1.5 rounded-xl border ${
+                  zapierWebhookUrl
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : 'bg-amber-50 border-amber-300 text-amber-900'
+                }`}
+              >
+                {zapierWebhookUrl ? 'Zapier Outbound Active' : 'Add Zapier Catch Hook'}
+              </span>
+            </div>
+          </div>
+
+          {paypalFeedback && (
+            <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-semibold text-sky-950 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-sky-700 shrink-0" />
+              <span>{paypalFeedback}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Non-secret PayPal & Zapier Configuration */}
+            <form
+              onSubmit={handleSavePayPalZapier}
+              className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-900">1. PayPal Account &amp; Zapier Catch Hook</h3>
+                <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={paypalEnabled}
+                    onChange={(e) => setPaypalEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-sky-700 rounded cursor-pointer"
+                  />
+                  <span>Enable PayPal Checkout</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    PayPal Business Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={paypalEmail}
+                    onChange={(e) => setPaypalEmail(e.target.value)}
+                    placeholder="nigideon36@gmail.com"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    PayPal.Me Username / Handle
+                  </label>
+                  <input
+                    type="text"
+                    value={paypalMeHandle}
+                    onChange={(e) => setPaypalMeHandle(e.target.value)}
+                    placeholder="nigideon36"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Environment Mode
+                  </label>
+                  <select
+                    value={paypalMode}
+                    onChange={(e) => setPaypalMode(e.target.value === 'sandbox' ? 'sandbox' : 'live')}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
+                  >
+                    <option value="live">Live (Production)</option>
+                    <option value="sandbox">Sandbox (Testing)</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Zapier Outbound Catch Hook URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={zapierWebhookUrl}
+                    onChange={(e) => setZapierWebhookUrl(e.target.value)}
+                    placeholder="https://hooks.zapier.com/hooks/catch/..."
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 text-[11px]">
+                <div className="font-bold text-slate-800 flex items-center justify-between gap-2">
+                  <span>Inbound Zapier → Google AI Studio Webhook Endpoint:</span>
+                  {inboundZapierUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyPayPalValue('inbound-zap', inboundZapierUrl)}
+                      className="inline-flex items-center gap-1 text-sky-700 font-bold hover:underline cursor-pointer"
+                    >
+                      {copiedPayPalField === 'inbound-zap' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedPayPalField === 'inbound-zap' ? 'Copied' : 'Copy Endpoint'}</span>
+                    </button>
+                  )}
+                </div>
+                <code className="block p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-slate-900 break-all">
+                  {inboundZapierUrl && !/run\.app/i.test(inboundZapierUrl)
+                    ? inboundZapierUrl
+                    : `${CANONICAL_PLATFORM_ORIGIN}/api/paypal/zapier-webhook`}
+                </code>
+                <p className="text-slate-600 leading-relaxed">
+                  In Zapier, connect <strong>PayPal (New Sale / IPN)</strong> → <strong>Webhooks by Zapier (POST)</strong> to this URL. Optional API keys (<code className="bg-slate-100 px-1 rounded">PAYPAL_CLIENT_ID</code>, <code className="bg-slate-100 px-1 rounded">PAYPAL_CLIENT_SECRET</code>, <code className="bg-slate-100 px-1 rounded">ZAPIER_WEBHOOK_SECRET</code>) stay encrypted in server environment secrets.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={paypalSaving}
+                  className="flex-1 py-2.5 px-4 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60"
+                >
+                  {paypalSaving ? 'Saving Settings...' : 'Save PayPal & Zapier Settings'}
+                </button>
+                <button
+                  type="button"
+                  disabled={paypalTestingZapier}
+                  onClick={handleTestZapierWorkflow}
+                  className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{paypalTestingZapier ? 'Testing...' : 'Send Test Zapier Webhook'}</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Right: Instant PayPal Checkout Link & HTML Button Generator */}
+            <form
+              onSubmit={handleGeneratePayPalButtonLink}
+              className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-sky-700" />
+                  <span>2. PayPal Checkout Link &amp; HTML Button Generator</span>
+                </h3>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                {[
+                  { label: 'Client Escrow ($10.00)', item: 'Enterprise Task Escrow Deposit', usd: '10.00', pkg: 'escrow' },
+                  { label: 'Merchant Campaign ($25.00)', item: 'Custom Survey & Creator Campaign Funding', usd: '25.00', pkg: 'campaign' },
+                  { label: 'Growth Pool ($2.00)', item: 'Growth Pool Deposit via PayPal', usd: '2.00', pkg: 'pool' },
+                  { label: 'Auction Settlement ($15.00)', item: 'Community Auction Product Purchase', usd: '15.00', pkg: 'auction' },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setPaypalGenItemName(preset.item);
+                      setPaypalGenAmountUsd(preset.usd);
+                      setPaypalGenPackageId(preset.pkg);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-bold cursor-pointer"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Checkout Item / Order Description
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={paypalGenItemName}
+                    onChange={(e) => setPaypalGenItemName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Amount (USD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.50"
+                    step="0.01"
+                    required
+                    value={paypalGenAmountUsd}
+                    onChange={(e) => setPaypalGenAmountUsd(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={paypalGenerating}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                <Code className="w-4 h-4 text-sky-300" />
+                <span>{paypalGenerating ? 'Generating...' : 'Generate PayPal Checkout Link & Button Code'}</span>
+              </button>
+
+              {paypalLatestLink && (
+                <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200 space-y-2.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-slate-900">
+                      {paypalLatestLink.itemName} (${Number(paypalLatestLink.amountUsd).toFixed(2)} USD)
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <a
+                        href={paypalLatestLink.checkoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0070ba] text-white font-bold text-[11px]"
+                      >
+                        <span>Open Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyPayPalValue('checkout-url', paypalLatestLink.checkoutUrl)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-800 font-bold text-[11px] cursor-pointer"
+                      >
+                        {copiedPayPalField === 'checkout-url' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedPayPalField === 'checkout-url' ? 'Copied URL' : 'Copy Link'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyPayPalValue('paypal-me', paypalLatestLink.payPalMeUrl)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-800 font-bold text-[11px] cursor-pointer"
+                      >
+                        {copiedPayPalField === 'paypal-me' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedPayPalField === 'paypal-me' ? 'Copied PayPal.Me' : 'Copy PayPal.Me'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1">
+                      <span>Embeddable PayPal HTML Checkout Button Snippet:</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyPayPalValue('html-btn', paypalLatestLink.htmlButtonSnippet)}
+                        className="text-sky-700 hover:underline cursor-pointer"
+                      >
+                        {copiedPayPalField === 'html-btn' ? 'Copied HTML!' : 'Copy HTML Code'}
+                      </button>
+                    </div>
+                    <pre className="p-2.5 rounded-lg bg-slate-900 text-sky-100 text-[10px] font-mono overflow-x-auto max-h-28">
+                      {paypalLatestLink.htmlButtonSnippet}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
+
+          {/* Bottom: Generated Links History & Zapier Automation Event Logs */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800">
+                  Generated PayPal Checkout Links ({paypalGeneratedLinks.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={loadOwnerConsoleData}
+                  className="text-[11px] text-blue-700 font-semibold hover:underline cursor-pointer"
+                >
+                  Refresh
+                </button>
+              </div>
+              {paypalGeneratedLinks.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500">
+                  No PayPal checkout links generated yet. Use the generator above to create one for international buyers.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {paypalGeneratedLinks.map((lnk) => (
+                    <div key={lnk.id} className="p-3 text-xs flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 truncate">
+                          {lnk.itemName}{' '}
+                          <span className="font-mono text-sky-700">(${Number(lnk.amountUsd).toFixed(2)})</span>
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500">
+                          {lnk.id} · {new Date(lnk.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyPayPalValue(lnk.id, lnk.checkoutUrl)}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-800 cursor-pointer"
+                        >
+                          {copiedPayPalField === lnk.id ? 'Copied' : 'Copy URL'}
+                        </button>
+                        <a
+                          href={lnk.checkoutUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[11px] font-bold text-sky-800"
+                        >
+                          Open
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800">
+                  PayPal &amp; Zapier Workflow Automation Logs ({zapierLogs.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={loadOwnerConsoleData}
+                  className="text-[11px] text-blue-700 font-semibold hover:underline cursor-pointer"
+                >
+                  Refresh
+                </button>
+              </div>
+              {zapierLogs.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500">
+                  No Zapier or PayPal webhook events logged yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {zapierLogs.map((zlog) => (
+                    <div key={zlog.id} className="p-3 text-[11px] flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="font-bold text-slate-900">
+                          <span className="uppercase font-mono text-[10px] text-sky-700 mr-1.5">
+                            [{zlog.direction}]
+                          </span>
+                          {zlog.event}
+                          {zlog.amountUsd !== undefined && (
+                            <span className="ml-1.5 font-mono text-emerald-700">
+                              (${Number(zlog.amountUsd).toFixed(2)} USD)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-slate-600 break-words">{zlog.detail}</div>
+                        <div className="text-[10px] font-mono text-slate-500">
+                          {zlog.transactionId ? `${zlog.transactionId} · ` : ''}
+                          {new Date(zlog.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-bold text-[10px] shrink-0 ${
+                          zlog.status === 'Sent' || zlog.status === 'Received'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : zlog.status === 'Failed'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {zlog.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: FACEBOOK PAGE BRAND KIT (PROFILE PHOTO, COVER PHOTO, BIO & WELCOME POST) */}
+      {consoleTab === 'brand-kit' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-blue-700" />
+                <span>Gideon Global Tasks — Facebook Page Brand Kit</span>
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Download your custom clean Profile Photo and Cover Photo below, then copy your Bio and Welcome Post straight to Facebook.
+              </p>
+            </div>
+          </div>
+
+          {/* Live Facebook Page Mockup Preview */}
+          <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+            <div className="px-4 py-2.5 bg-white border-b border-slate-200 text-xs font-bold text-slate-700">
+              Live Facebook Page Preview
+            </div>
+            <div className="relative bg-slate-900">
+              <img
+                src={fbCoverImg}
+                alt="Gideon Global Tasks Facebook Cover Photo"
+                referrerPolicy="no-referrer"
+                className="w-full h-44 sm:h-64 object-cover"
+              />
+            </div>
+            <div className="px-6 pb-6 pt-0 bg-white">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-14 relative z-10">
+                <div className="flex items-end gap-4">
+                  <img
+                    src={fbProfileImg}
+                    alt="Gideon Global Tasks Facebook Profile Photo"
+                    referrerPolicy="no-referrer"
+                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg object-cover bg-blue-900"
+                  />
+                  <div className="pb-1">
+                    <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">Gideon Global Tasks</h3>
+                    <p className="text-xs text-slate-600">
+                      1 verified task drops daily at 8:00 AM EAT. Merchant-set rewards &amp; KES 150+ PayPal payouts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Direct Download Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">1. Clean Profile Photo (1:1 Square / Circle Safe)</h3>
+                  <p className="text-[11px] text-slate-500">Centered cobalt &amp; emerald vector logo sized for Facebook avatar crop.</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-center">
+                <img
+                  src={fbProfileImg}
+                  alt="Profile Photo Full Preview"
+                  referrerPolicy="no-referrer"
+                  className="w-44 h-44 rounded-full object-cover shadow-md border-4 border-white"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/brand/facebook-profile.jpg?download=1"
+                  download="gideon-facebook-profile.jpg"
+                  className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Profile Photo (.JPG)</span>
+                </a>
+                <a
+                  href="/brand/facebook-profile.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Full</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">2. Full-Bleed Cover Photo (16:9 Banner)</h3>
+                  <p className="text-[11px] text-slate-500">High-contrast navy/emerald corporate header for Desktop &amp; Mobile.</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <img
+                  src={fbCoverImg}
+                  alt="Cover Photo Full Preview"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-44 object-cover rounded-lg shadow-xs"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/brand/facebook-cover.jpg?download=1"
+                  download="gideon-facebook-cover.jpg"
+                  className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Cover Photo (.JPG)</span>
+                </a>
+                <a
+                  href="/brand/facebook-cover.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Full</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Copyable Bio & Welcome Post */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-xs font-bold text-slate-900">Facebook Bio (101-Character Limit)</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleCopyPayPalValue(
+                        'fb-bio',
+                        '1 daily task at 8:00 AM EAT. Merchant-set rewards & KES 150+ PayPal payouts after ID KYC.'
+                      )
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                  >
+                    {copiedPayPalField === 'fb-bio' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedPayPalField === 'fb-bio' ? 'Copied Bio!' : 'Copy Bio'}</span>
+                  </button>
+                </div>
+                <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 leading-relaxed">
+                  1 daily task at 8:00 AM EAT. Merchant-set rewards &amp; KES 150+ PayPal payouts after ID KYC.
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-xs font-bold text-slate-900">Extended Page Intro / About</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleCopyPayPalValue(
+                        'fb-about',
+                        'Gideon Global Tasks is an East Africa & international crowdsourced digital work marketplace. Access is 100% free (no Worker Pass required) with 1 verified task dropped daily at 8:00 AM EAT and rewards set per task and merchant budget. Withdrawals start from KES 150 via PayPal after uploading clear Front & Back photos of your National ID.'
+                      )
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                  >
+                    {copiedPayPalField === 'fb-about' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedPayPalField === 'fb-about' ? 'Copied Intro!' : 'Copy Intro'}</span>
+                  </button>
+                </div>
+                <div className="p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                  Gideon Global Tasks is an East Africa &amp; international crowdsourced digital work marketplace. Access is 100% free (no Worker Pass required) with 1 verified task dropped daily at 8:00 AM EAT and rewards set per task and merchant budget. Withdrawals start from KES 150 via PayPal after uploading clear Front &amp; Back photos of your National ID.
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-900">Pinned Welcome Post (Ready to Publish)</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleCopyPayPalValue(
+                      'fb-post',
+                      `Welcome to the official Facebook page for Gideon Global Tasks!\n\nWe connect hardworking digital contributors across East Africa and global merchants through simple, verifiable online tasks you can complete right from your smartphone or computer.\n\nHow You Can Earn on Gideon Global Tasks:\n- Daily 8:00 AM EAT Task Drop: Access is 100% free with no Worker Pass fees. One task drops every day at exactly 8:00 AM EAT — keep time and complete it while spots remain! Task rewards depend on the task type and merchant budget.\n- Free Pay-Per-View (PPV) Status Feed: Upload your own original photos or funny short videos at zero cost and earn 5 shillings per verified view, automatically settled to your wallet after 24 hours.\n- 20% Partner Referrals: Share tasks or invite colleagues using your referral link to earn commissions on verified activity.\n- Growth Pools & Auctions: Explore live community product auctions and verified short-term yield pools.\n\nTrusted PayPal Payouts & KYC:\nWithdrawals start from just KES 150 exclusively via PayPal, subject to strict National ID KYC (upload clear Front & Back photos of your country's National ID in My Account).\n\nGet Started Today:\n${CANONICAL_PLATFORM_URL}\n\nSupport: nigideon36@gmail.com | +254 712 727 558`
+                    )
+                  }
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                >
+                  {copiedPayPalField === 'fb-post' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedPayPalField === 'fb-post' ? 'Copied Welcome Post!' : 'Copy Welcome Post'}</span>
+                </button>
+              </div>
+              <pre className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 font-sans whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+{`Welcome to the official Facebook page for Gideon Global Tasks!
+
+We connect hardworking digital contributors across East Africa and global merchants through simple, verifiable online tasks you can complete right from your smartphone or computer.
+
+How You Can Earn on Gideon Global Tasks:
+- Daily 8:00 AM EAT Task Drop: Access is 100% free with no Worker Pass fees. One task drops every day at exactly 8:00 AM EAT — keep time and complete it while spots remain! Task rewards depend on the task type and merchant budget.
+- Free Pay-Per-View (PPV) Status Feed: Upload your own original photos or funny short videos at zero cost and earn 5 shillings per verified view, automatically settled to your wallet after 24 hours.
+- 20% Partner Referrals: Share tasks or invite colleagues using your referral link to earn commissions on verified activity.
+- Growth Pools & Auctions: Explore live community product auctions and verified short-term yield pools.
+
+Trusted PayPal Payouts & KYC:
+Withdrawals start from just KES 150 exclusively via PayPal, subject to strict National ID KYC (upload clear Front & Back photos of your country's National ID in My Account).
+
+Get Started Today:
+${CANONICAL_PLATFORM_URL}
+
+Support: nigideon36@gmail.com | +254 712 727 558`}
+              </pre>
+            </div>
+          </div>
+
+          {/* 3. Today's Promotional Post & Clean Photo */}
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  3. Today&apos;s Promotional Post &amp; Clean Photo (Ready to Publish)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Clean, distraction-free promotional photo paired with high-converting copy covering every way to earn and withdraw on {CANONICAL_PLATFORM_URL}.
+                </p>
+              </div>
+              <a
+                href={todayPromoImg}
+                download="gideon-today-promo-post.jpg"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Clean Promo Photo (.JPG)</span>
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                <img
+                  src={todayPromoImg}
+                  alt="Gideon Global Tasks Today Promotional Photo"
+                  referrerPolicy="no-referrer"
+                  className="w-full rounded-xl object-cover shadow-xs"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={todayPromoImg}
+                    download="gideon-today-promo-post.jpg"
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Save Promo Image (.JPG)</span>
+                  </a>
+                  <a
+                    href={todayPromoImg}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>View Full</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-900">Today&apos;s Social Post Caption (Copy &amp; Paste)</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleCopyPayPalValue(
+                        'today-promo-post',
+                        `Earn Online Every Day with Gideon Global Tasks — 100% Free to Join (Zero Worker Pass Fees)!\n\nLooking for transparent digital work, creator rewards, and protected online trading across East Africa & globally? Join Gideon Global Tasks today:\n\n1. Daily 8:00 AM EAT Task Drop\nOne verified task drops daily at exactly 8:00 AM EAT — keep time and tap "Open Task" as soon as the live countdown hits zero! Task rewards depend on the specific task and sponsoring merchant budget.\n\n2. Free Pay-Per-View (PPV) Status Feed\nPost your own original photos or short comedy clips for free and earn 5 Shillings per verified view, automatically credited to your wallet after 24 hours.\n\n3. Escrow-Protected Real Auctions (50% Deposit)\nBid or auction real physical items with confidence — every auction requires a mandatory 50% PayPal escrow deposit first to protect both buyers and sellers.\n\n4. Growth Pools (From KES 50) & 20% Partner Referrals\nParticipate in short-term growth pools starting from KES 50 and earn 20% recurring commission from every referred contributor.\n\n5. Fast PayPal Payouts from KES 150 + Strict KYC\nWithdraw your earnings exclusively via PayPal starting from just 150 Shillings (KES 150) once your account completes strict Front & Back National ID KYC verification.\n\nStart earning now:\n${CANONICAL_PLATFORM_URL}\n\nSupport: nigideon36@gmail.com | Call: +254 712 727 558 | WhatsApp: 0785909543`
+                      )
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                  >
+                    {copiedPayPalField === 'today-promo-post' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    <span>{copiedPayPalField === 'today-promo-post' ? "Copied Today's Post!" : "Copy Today's Post"}</span>
+                  </button>
+                </div>
+                <pre className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 font-sans whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+{`Earn Online Every Day with Gideon Global Tasks — 100% Free to Join (Zero Worker Pass Fees)!
+
+Looking for transparent digital work, creator rewards, and protected online trading across East Africa & globally? Join Gideon Global Tasks today:
+
+1. Daily 8:00 AM EAT Task Drop
+One verified task drops daily at exactly 8:00 AM EAT — keep time and tap "Open Task" as soon as the live countdown hits zero! Task rewards depend on the specific task and sponsoring merchant budget.
+
+2. Free Pay-Per-View (PPV) Status Feed
+Post your own original photos or short comedy clips for free and earn 5 Shillings per verified view, automatically credited to your wallet after 24 hours.
+
+3. Escrow-Protected Real Auctions (50% Deposit)
+Bid or auction real physical items with confidence — every auction requires a mandatory 50% PayPal escrow deposit first to protect both buyers and sellers.
+
+4. Growth Pools (From KES 50) & 20% Partner Referrals
+Participate in short-term growth pools starting from KES 50 and earn 20% recurring commission from every referred contributor.
+
+5. Fast PayPal Payouts from KES 150 + Strict KYC
+Withdraw your earnings exclusively via PayPal starting from just 150 Shillings (KES 150) once your account completes strict Front & Back National ID KYC verification.
+
+Start earning now:
+${CANONICAL_PLATFORM_URL}
+
+Support: nigideon36@gmail.com | Call: +254 712 727 558 | WhatsApp: 0785909543`}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full National ID KYC Front & Back Viewer Modal */}
+      {previewKyc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
-          onClick={() => setPreviewProof(null)}
+          onClick={() => setPreviewKyc(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl border border-slate-200"
+            className="bg-white rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="text-xs font-bold text-slate-900">
-                M-PESA Proof: <span className="font-mono">{previewProof.mpesaCode}</span> · {previewProof.customerName} ({previewProof.senderPhone})
+                {previewKyc.idDocumentName} ({previewKyc.countryCode}) · {previewKyc.fullNameOnId} · ID: <span className="font-mono">{previewKyc.idNumber}</span>
               </div>
               <button
                 type="button"
-                onClick={() => setPreviewProof(null)}
+                onClick={() => setPreviewKyc(null)}
                 className="p-1 text-slate-500 hover:text-slate-900 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 bg-slate-900 flex items-center justify-center max-h-[75vh] overflow-auto">
-              <img
-                src={previewProof.screenshotDataUrl}
-                alt={`Full M-PESA Screenshot ${previewProof.mpesaCode}`}
-                className="max-w-full max-h-[68vh] object-contain rounded-lg"
-              />
+            <div className="p-4 bg-slate-900 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[75vh] overflow-auto">
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-300 uppercase">Front of {previewKyc.idDocumentName}</div>
+                <img
+                  src={previewKyc.frontImageDataUrl}
+                  alt={`Front ID ${previewKyc.idNumber}`}
+                  className="w-full max-h-[60vh] object-contain rounded-lg bg-slate-800"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-300 uppercase">Back of {previewKyc.idDocumentName}</div>
+                <img
+                  src={previewKyc.backImageDataUrl}
+                  alt={`Back ID ${previewKyc.idNumber}`}
+                  className="w-full max-h-[60vh] object-contain rounded-lg bg-slate-800"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -5,12 +5,7 @@ import { EAST_AFRICA_COUNTRIES, isEastAfricaCountryCode, isEastAfricaPhone } fro
 import { dispatchSmsViaGateway } from './smsGateway.ts';
 import { adminDb } from './firebase-admin.ts';
 
-export type CustomerWithdrawalMethod =
-  | 'M-PESA'
-  | 'Airtel / MTN MoMo'
-  | 'East Africa Bank'
-  | 'Wise'
-  | 'Crypto USDT';
+export type CustomerWithdrawalMethod = 'PayPal';
 
 export interface CustomerWithdrawalDetails {
   method: CustomerWithdrawalMethod;
@@ -44,6 +39,8 @@ export interface CustomerRecord {
   totpSecret?: string;
   pendingTotpSecret?: string;
   phoneVerified: boolean;
+  accountDetailsLocked?: boolean;
+  accountDetailsLockedAt?: string;
   banned?: boolean;
   bannedReason?: string;
   bannedAt?: string;
@@ -52,7 +49,6 @@ export interface CustomerRecord {
   deactivatedReason?: string;
   deactivatedAt?: string;
   deactivatedBy?: string;
-  adminAssignedPass?: 'free' | 'starter' | 'pro' | 'vip';
   referredByCode?: string;
   referredByUid?: string;
   loginCount?: number;
@@ -65,6 +61,8 @@ export interface PublicCustomerProfile {
   uid: string;
   phone: string;
   phoneLocked: boolean;
+  accountDetailsLocked: boolean;
+  accountDetailsLockedAt?: string;
   countryCode: string;
   email?: string;
   displayName: string;
@@ -82,7 +80,6 @@ export interface PublicCustomerProfile {
   deactivated?: boolean;
   deactivatedReason?: string;
   deactivatedAt?: string;
-  adminAssignedPass?: 'free' | 'starter' | 'pro' | 'vip';
   referredByCode?: string;
   loginCount: number;
   lastLoginAt?: string;
@@ -99,11 +96,33 @@ interface OtpEntry {
 
 const DATA_DIR = path.resolve(process.cwd(), '.data');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const SESSION_SECRET_FILE = path.join(DATA_DIR, 'session-secret.key');
 const FIRESTORE_CUSTOMER_COLLECTION = 'customer_accounts';
-const SESSION_SECRET =
-  process.env.CUSTOMER_AUTH_SECRET ||
-  process.env.PAYSTACK_SECRET_KEY ||
-  'gideon-global-east-africa-customer-auth-secret-v1';
+
+function loadOrCreateSessionSecret(): string {
+  const envSecret = process.env.CUSTOMER_AUTH_SECRET;
+  if (envSecret && envSecret.trim().length >= 16) {
+    return envSecret.trim();
+  }
+  try {
+    if (fs.existsSync(SESSION_SECRET_FILE)) {
+      const existing = fs.readFileSync(SESSION_SECRET_FILE, 'utf8').trim();
+      if (existing.length >= 32) {
+        return existing;
+      }
+    }
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const generated = crypto.randomBytes(32).toString('hex');
+    fs.writeFileSync(SESSION_SECRET_FILE, generated, 'utf8');
+    return generated;
+  } catch {
+    return crypto.randomBytes(32).toString('hex');
+  }
+}
+
+const SESSION_SECRET = loadOrCreateSessionSecret();
 
 const customersByUid = new Map<string, CustomerRecord>();
 const uidByPhone = new Map<string, string>();
@@ -195,7 +214,7 @@ function indexCustomerRecord(rec: CustomerRecord) {
   if (rec.banned) {
     const reason =
       rec.bannedReason ||
-      'Permanently banned 🚫 forever (no second chance): failed manual M-PESA Worker Pass proof requirement.';
+      'Account permanently banned for violating platform verification and payout integrity rules.';
     bannedReasonsByKey.set(`uid:${rec.uid}`, reason);
     if (rec.phone) bannedReasonsByKey.set(`phone:${rec.phone}`, reason);
     if (rec.email) bannedReasonsByKey.set(`email:${rec.email.trim().toLowerCase()}`, reason);
@@ -430,6 +449,8 @@ export function toPublicCustomerProfile(rec: CustomerRecord): PublicCustomerProf
     uid: rec.uid,
     phone: rec.phone,
     phoneLocked: Boolean(rec.phone && (rec.phoneLocked ?? true)),
+    accountDetailsLocked: Boolean(rec.accountDetailsLocked),
+    accountDetailsLockedAt: rec.accountDetailsLockedAt,
     countryCode: rec.countryCode,
     email: rec.email,
     displayName: rec.displayName,
@@ -447,7 +468,6 @@ export function toPublicCustomerProfile(rec: CustomerRecord): PublicCustomerProf
     deactivated: Boolean(rec.deactivated),
     deactivatedReason: rec.deactivatedReason,
     deactivatedAt: rec.deactivatedAt,
-    adminAssignedPass: rec.adminAssignedPass,
     referredByCode: rec.referredByCode,
     loginCount: rec.loginCount || 0,
     lastLoginAt: rec.lastLoginAt,
@@ -552,16 +572,10 @@ export function validateRegistrationInputs(params: {
   return { normalizedPhone, trimmedEmail };
 }
 
-const VALID_WITHDRAWAL_METHODS: readonly CustomerWithdrawalMethod[] = [
-  'M-PESA',
-  'Airtel / MTN MoMo',
-  'East Africa Bank',
-  'Wise',
-  'Crypto USDT',
-];
+const VALID_WITHDRAWAL_METHODS: readonly CustomerWithdrawalMethod[] = ['PayPal'];
 
 export function validateWithdrawalInput(params: {
-  method: string;
+  method?: string;
   accountDetails: string;
   accountHolderName?: string;
   countryCode?: string;
@@ -570,31 +584,21 @@ export function validateWithdrawalInput(params: {
   accountDetails: string;
   accountHolderName: string;
 } {
-  const method = params.method as CustomerWithdrawalMethod;
+  const method = (params.method || 'PayPal') as CustomerWithdrawalMethod;
   if (!VALID_WITHDRAWAL_METHODS.includes(method)) {
-    throw new Error('Select a valid withdrawal method (M-PESA, Airtel / MTN MoMo, East Africa Bank, Wise, or Crypto USDT).');
+    throw new Error('Only PayPal is supported as a payout gateway on Gideon Global Tasks.');
   }
-  let cleanAccount = String(params.accountDetails || '').trim().slice(0, 160);
+  const cleanAccount = String(params.accountDetails || '').trim().toLowerCase().slice(0, 160);
   if (!cleanAccount) {
-    throw new Error('Withdrawal account details or mobile number are required.');
+    throw new Error('A valid PayPal email address is required for withdrawals.');
   }
-  if (method === 'M-PESA' || method === 'Airtel / MTN MoMo') {
-    const normalized = normalizeEastAfricaPhone(cleanAccount, params.countryCode);
-    if (!isEastAfricaPhone(normalized)) {
-      throw new Error('Mobile money withdrawal details must be a valid East Africa phone number (+254, +256, +255, +250, +257, +211, +251, or +252).');
-    }
-    cleanAccount = normalized;
-  } else if (method === 'Wise') {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanAccount)) {
-      throw new Error('Wise withdrawal details must be a valid email address.');
-    }
-  } else if (cleanAccount.length < 6) {
-    throw new Error('Enter complete bank account or crypto wallet details (at least 6 characters).');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanAccount)) {
+    throw new Error('PayPal withdrawal details must be a valid PayPal email address.');
   }
 
   const cleanHolder = String(params.accountHolderName || '').trim().slice(0, 120);
   return {
-    method,
+    method: 'PayPal',
     accountDetails: cleanAccount,
     accountHolderName: cleanHolder,
   };
@@ -622,16 +626,23 @@ export function registerCustomerAccount(params: {
   const now = new Date().toISOString();
   const uid = `cust_${crypto.randomBytes(10).toString('hex')}`;
 
-  const defaultMethod: CustomerWithdrawalMethod =
-    resolvedCountry === 'KE' ? 'M-PESA' : 'Airtel / MTN MoMo';
-  const chosenMethod = params.withdrawalMethod || defaultMethod;
-  const chosenAccount = (params.withdrawalAccount || '').trim() || normalizedPhone;
-  const validatedWithdrawal = validateWithdrawalInput({
-    method: chosenMethod,
-    accountDetails: chosenAccount,
-    accountHolderName: params.withdrawalAccountHolder || cleanName,
-    countryCode: resolvedCountry,
-  });
+  const rawPayPalAccount = (params.withdrawalAccount || '').trim() || trimmedEmail || '';
+  let boundWithdrawalDetails: CustomerWithdrawalDetails | undefined;
+  if (rawPayPalAccount) {
+    const validatedWithdrawal = validateWithdrawalInput({
+      method: 'PayPal',
+      accountDetails: rawPayPalAccount,
+      accountHolderName: params.withdrawalAccountHolder || cleanName,
+      countryCode: resolvedCountry,
+    });
+    boundWithdrawalDetails = {
+      method: 'PayPal',
+      accountDetails: validatedWithdrawal.accountDetails,
+      accountHolderName: validatedWithdrawal.accountHolderName || cleanName,
+      locked: true,
+      lockedAt: now,
+    };
+  }
 
   const cleanRefCode = params.referralCode ? String(params.referralCode).trim().toUpperCase().slice(0, 40) : undefined;
 
@@ -643,13 +654,7 @@ export function registerCustomerAccount(params: {
     email: trimmedEmail || undefined,
     displayName: cleanName,
     city: params.city ? String(params.city).trim().slice(0, 80) : undefined,
-    withdrawalDetails: {
-      method: validatedWithdrawal.method,
-      accountDetails: validatedWithdrawal.accountDetails,
-      accountHolderName: validatedWithdrawal.accountHolderName || cleanName,
-      locked: true,
-      lockedAt: now,
-    },
+    ...(boundWithdrawalDetails ? { withdrawalDetails: boundWithdrawalDetails } : {}),
     passwordHash: hashPassword(params.password),
     twoFactorEnabled: false,
     twoFactorMethod: 'none',
@@ -766,6 +771,7 @@ export function updateCustomerProfileDetails(
     withdrawalMethod?: string;
     withdrawalAccount?: string;
     withdrawalAccountHolder?: string;
+    bypassLock?: boolean;
   }
 ): CustomerRecord {
   const record = customersByUid.get(uid);
@@ -773,10 +779,22 @@ export function updateCustomerProfileDetails(
     throw new Error('Customer account not found.');
   }
 
-  // 1. Strict Phone Immutability Enforcement
+  const canBypassLock = Boolean(
+    updates.bypassLock ||
+      isProtectedAdminIdentifier({ phone: record.phone, email: record.email, countryCode: record.countryCode })
+  );
+
+  // Strict Account-Wide Permanent Lock Enforcement for My Account section
+  if (record.accountDetailsLocked && !canBypassLock) {
+    throw new ImmutableFieldError(
+      'Your My Account details (Full Name, Email, City, Bio, Social Handles, Phone & PayPal Payout Details) are permanently locked and cannot be changed. Contact Support (+254712727558 / WhatsApp 0785909543) for verified account recovery.'
+    );
+  }
+
+  // 1. Strict Phone Immutability Enforcement (Platform Owner may update freely)
   if (updates.phone !== undefined) {
     const incomingPhoneRaw = String(updates.phone || '').trim();
-    if (record.phone) {
+    if (record.phone && !canBypassLock) {
       const normalizedIncoming = normalizeEastAfricaPhone(incomingPhoneRaw, record.countryCode);
       if (incomingPhoneRaw && normalizedIncoming !== record.phone) {
         throw new ImmutableFieldError(
@@ -784,7 +802,6 @@ export function updateCustomerProfileDetails(
         );
       }
     } else if (incomingPhoneRaw) {
-      // Allow Google-authenticated accounts with no phone yet to bind & lock their phone once
       const normalized = normalizeEastAfricaPhone(incomingPhoneRaw, record.countryCode);
       if (!isEastAfricaPhone(normalized)) {
         throw new Error('Enter a valid East Africa mobile number (+254, +256, +255, +250, +257, +211, +251, or +252).');
@@ -793,13 +810,17 @@ export function updateCustomerProfileDetails(
       if (existingOwner && existingOwner !== uid) {
         throw new Error('This mobile number is already registered to another portal account.');
       }
+      if (record.phone && record.phone !== normalized && uidByPhone.get(record.phone) === uid) {
+        uidByPhone.delete(record.phone);
+      }
       record.phone = normalized;
+      uidByPhone.set(normalized, uid);
       record.phoneLocked = true;
       record.countryCode = inferCountryCodeFromPhone(normalized, record.countryCode);
     }
   }
 
-  // 2. Strict Withdrawal Details Immutability Enforcement
+  // 2. Strict Withdrawal Details Immutability Enforcement (Platform Owner may update freely)
   const hasWithdrawalInput = Boolean(
     updates.withdrawalMethod !== undefined ||
       updates.withdrawalAccount !== undefined ||
@@ -807,46 +828,43 @@ export function updateCustomerProfileDetails(
   );
 
   if (hasWithdrawalInput) {
-    if (record.withdrawalDetails?.locked) {
+    if (record.withdrawalDetails?.locked && !canBypassLock) {
       const incomingMethod = String(updates.withdrawalMethod || record.withdrawalDetails.method).trim();
-      const incomingAccount = String(updates.withdrawalAccount || record.withdrawalDetails.accountDetails).trim();
-      const normalizedIncomingAcct =
-        incomingMethod === 'M-PESA' || incomingMethod === 'Airtel / MTN MoMo'
-          ? normalizeEastAfricaPhone(incomingAccount, record.countryCode)
-          : incomingAccount;
-
+      const incomingAccount = String(updates.withdrawalAccount || record.withdrawalDetails.accountDetails)
+        .trim()
+        .toLowerCase();
       const incomingHolder = String(
         updates.withdrawalAccountHolder ?? record.withdrawalDetails.accountHolderName
       ).trim();
 
       if (
         incomingMethod !== record.withdrawalDetails.method ||
-        normalizedIncomingAcct !== record.withdrawalDetails.accountDetails ||
+        incomingAccount !== record.withdrawalDetails.accountDetails.toLowerCase() ||
         incomingHolder !== record.withdrawalDetails.accountHolderName
       ) {
         throw new ImmutableFieldError(
-          'Your withdrawal details are locked after registration and cannot be changed by customers. Contact the Owner/Support (+254712727558 / WhatsApp 0785909543) for verified payout changes.'
+          'Your PayPal payout details are locked after setup and cannot be changed by customers. Contact the Owner/Support (+254712727558 / WhatsApp 0785909543) for verified payout changes.'
         );
       }
-    } else if (updates.withdrawalAccount && updates.withdrawalMethod) {
-      // First-time one-time lock for legacy/Google accounts without withdrawal details yet
+    } else if (updates.withdrawalAccount) {
       const validated = validateWithdrawalInput({
-        method: updates.withdrawalMethod,
+        method: updates.withdrawalMethod || 'PayPal',
         accountDetails: updates.withdrawalAccount,
-        accountHolderName: updates.withdrawalAccountHolder || record.displayName,
+        accountHolderName:
+          updates.withdrawalAccountHolder || record.withdrawalDetails?.accountHolderName || record.displayName,
         countryCode: record.countryCode,
       });
       record.withdrawalDetails = {
-        method: validated.method,
+        method: 'PayPal',
         accountDetails: validated.accountDetails,
         accountHolderName: validated.accountHolderName || record.displayName,
         locked: true,
-        lockedAt: new Date().toISOString(),
+        lockedAt: record.withdrawalDetails?.lockedAt || new Date().toISOString(),
       };
     }
   }
 
-  // 3. Allowed Editable Customer Fields
+  // 3. One-Time Set & Permanently Lock Customer Fields (Full Name, Email, City, Bio, Social Handles)
   if (updates.displayName !== undefined) {
     const cleanName = String(updates.displayName || '').trim().slice(0, 120);
     if (cleanName.length < 2) {
@@ -900,6 +918,14 @@ export function updateCustomerProfileDetails(
     if (tt) cleanedHandles.tiktok = tt;
     if (wa) cleanedHandles.whatsapp = wa;
     record.socialHandles = Object.keys(cleanedHandles).length > 0 ? cleanedHandles : undefined;
+  }
+
+  if (!canBypassLock) {
+    record.accountDetailsLocked = true;
+    record.accountDetailsLockedAt = record.accountDetailsLockedAt || new Date().toISOString();
+    if (record.phone) {
+      record.phoneLocked = true;
+    }
   }
 
   saveCustomerRecord(record);
@@ -1029,12 +1055,15 @@ export function ownerUpdateCustomerRecord(
     bio?: string;
     phoneLocked?: boolean;
     phoneVerified?: boolean;
+    accountDetailsLocked?: boolean;
     withdrawalMethod?: string;
     withdrawalAccount?: string;
+    withdrawalAccountDetails?: string;
     withdrawalAccountHolder?: string;
+    withdrawalAccountHolderName?: string;
     withdrawalLocked?: boolean;
-    adminAssignedPass?: 'free' | 'starter' | 'pro' | 'vip' | null;
     reset2FA?: boolean;
+    resetTwoFactor?: boolean;
   }
 ): CustomerRecord {
   const record = customersByUid.get(uid);
@@ -1113,19 +1142,35 @@ export function ownerUpdateCustomerRecord(
     record.phoneLocked = updates.phoneLocked;
   }
 
+  if (typeof updates.accountDetailsLocked === 'boolean') {
+    record.accountDetailsLocked = updates.accountDetailsLocked;
+    if (updates.accountDetailsLocked && !record.accountDetailsLockedAt) {
+      record.accountDetailsLockedAt = new Date().toISOString();
+    } else if (!updates.accountDetailsLocked) {
+      delete record.accountDetailsLockedAt;
+    }
+  }
+
   if (typeof updates.phoneVerified === 'boolean') {
     record.phoneVerified = updates.phoneVerified;
   }
 
+  const incomingWithdrawalAccount =
+    updates.withdrawalAccount !== undefined ? updates.withdrawalAccount : updates.withdrawalAccountDetails;
+  const incomingWithdrawalHolder =
+    updates.withdrawalAccountHolder !== undefined
+      ? updates.withdrawalAccountHolder
+      : updates.withdrawalAccountHolderName;
+
   if (
     updates.withdrawalMethod !== undefined ||
-    updates.withdrawalAccount !== undefined ||
-    updates.withdrawalAccountHolder !== undefined
+    incomingWithdrawalAccount !== undefined ||
+    incomingWithdrawalHolder !== undefined
   ) {
-    const methodToUse = updates.withdrawalMethod || record.withdrawalDetails?.method || 'M-PESA';
-    const accountToUse = updates.withdrawalAccount ?? record.withdrawalDetails?.accountDetails ?? '';
+    const methodToUse = updates.withdrawalMethod || 'PayPal';
+    const accountToUse = incomingWithdrawalAccount ?? record.withdrawalDetails?.accountDetails ?? '';
     const holderToUse =
-      updates.withdrawalAccountHolder ??
+      incomingWithdrawalHolder ??
       record.withdrawalDetails?.accountHolderName ??
       record.displayName;
     if (String(accountToUse).trim()) {
@@ -1136,7 +1181,7 @@ export function ownerUpdateCustomerRecord(
         countryCode: record.countryCode,
       });
       record.withdrawalDetails = {
-        method: validated.method,
+        method: 'PayPal',
         accountDetails: validated.accountDetails,
         accountHolderName: validated.accountHolderName || record.displayName,
         locked:
@@ -1153,15 +1198,7 @@ export function ownerUpdateCustomerRecord(
     };
   }
 
-  if (updates.adminAssignedPass !== undefined) {
-    if (updates.adminAssignedPass === null) {
-      delete record.adminAssignedPass;
-    } else if (['free', 'starter', 'pro', 'vip'].includes(updates.adminAssignedPass)) {
-      record.adminAssignedPass = updates.adminAssignedPass;
-    }
-  }
-
-  if (updates.reset2FA) {
+  if (updates.reset2FA || updates.resetTwoFactor) {
     record.twoFactorEnabled = false;
     record.twoFactorMethod = 'none';
     record.totpSecret = undefined;
@@ -1172,6 +1209,129 @@ export function ownerUpdateCustomerRecord(
   indexCustomerRecord(record);
   persistCustomersToDisk();
   syncCustomerRecordToFirestore(record, true);
+  return record;
+}
+
+export function hydrateCustomerFromClientFirestore(params: {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  incoming: {
+    displayName?: string;
+    phone?: string;
+    phoneLocked?: boolean;
+    phoneVerified?: boolean;
+    accountDetailsLocked?: boolean;
+    accountDetailsLockedAt?: string;
+    countryCode?: string;
+    city?: string;
+    bio?: string;
+    socialHandles?: CustomerSocialHandles;
+    withdrawalDetails?: CustomerWithdrawalDetails;
+    twoFactorEnabled?: boolean;
+    twoFactorMethod?: 'none' | 'sms' | 'totp';
+    totpSecret?: string;
+    updatedAt?: string;
+  };
+}): CustomerRecord {
+  const record =
+    customersByUid.get(params.uid) ||
+    ensureShadowCustomerForGoogleUid({
+      uid: params.uid,
+      email: params.email,
+      displayName: params.incoming.displayName || params.displayName,
+      phone: params.incoming.phone,
+      countryCode: params.incoming.countryCode,
+    });
+
+  const inc = params.incoming || {};
+  const serverUpdatedMs = Date.parse(record.updatedAt || record.createdAt || '') || 0;
+  const incUpdatedMs = Date.parse(inc.updatedAt || '') || 0;
+  const incomingIsNewer = incUpdatedMs > serverUpdatedMs;
+
+  if (inc.displayName && (!record.displayName || incomingIsNewer)) {
+    const cleanName = String(inc.displayName).trim().slice(0, 120);
+    if (cleanName.length >= 2) record.displayName = cleanName;
+  }
+
+  if (inc.countryCode && isEastAfricaCountryCode(inc.countryCode) && (!record.countryCode || incomingIsNewer)) {
+    record.countryCode = String(inc.countryCode).toUpperCase();
+  }
+
+  if (inc.phone && (!record.phone || incomingIsNewer)) {
+    const normalized = normalizeEastAfricaPhone(String(inc.phone), record.countryCode);
+    if (isEastAfricaPhone(normalized)) {
+      const ownerOfPhone = uidByPhone.get(normalized);
+      if (!ownerOfPhone || ownerOfPhone === record.uid) {
+        if (record.phone && record.phone !== normalized && uidByPhone.get(record.phone) === record.uid) {
+          uidByPhone.delete(record.phone);
+        }
+        record.phone = normalized;
+        uidByPhone.set(normalized, record.uid);
+        record.phoneLocked = Boolean(inc.phoneLocked ?? true);
+      }
+    }
+  }
+
+  if (typeof inc.phoneVerified === 'boolean' && inc.phoneVerified) {
+    record.phoneVerified = true;
+  }
+
+  if (inc.city && (!record.city || incomingIsNewer)) {
+    record.city = String(inc.city).trim().slice(0, 80);
+  }
+  if (inc.bio && (!record.bio || incomingIsNewer)) {
+    record.bio = String(inc.bio).trim().slice(0, 300);
+  }
+  if (inc.socialHandles && (!record.socialHandles || incomingIsNewer)) {
+    record.socialHandles = inc.socialHandles;
+  }
+  if (typeof inc.accountDetailsLocked === 'boolean' && inc.accountDetailsLocked && !record.accountDetailsLocked) {
+    record.accountDetailsLocked = true;
+    record.accountDetailsLockedAt = inc.accountDetailsLockedAt || new Date().toISOString();
+  }
+
+  if (inc.withdrawalDetails?.accountDetails && (!record.withdrawalDetails?.accountDetails || incomingIsNewer)) {
+    try {
+      const validated = validateWithdrawalInput({
+        method: 'PayPal',
+        accountDetails: inc.withdrawalDetails.accountDetails,
+        accountHolderName: inc.withdrawalDetails.accountHolderName || record.displayName,
+        countryCode: record.countryCode,
+      });
+      record.withdrawalDetails = {
+        method: 'PayPal',
+        accountDetails: validated.accountDetails,
+        accountHolderName: validated.accountHolderName || record.displayName,
+        locked: Boolean(inc.withdrawalDetails.locked ?? true),
+        lockedAt: inc.withdrawalDetails.lockedAt || new Date().toISOString(),
+      };
+    } catch {
+      // Ignore malformed legacy payload
+    }
+  }
+
+  if (typeof inc.twoFactorEnabled === 'boolean' && (!record.twoFactorEnabled || incomingIsNewer)) {
+    if (inc.twoFactorEnabled) {
+      if (inc.twoFactorMethod === 'totp' && inc.totpSecret) {
+        record.twoFactorEnabled = true;
+        record.twoFactorMethod = 'totp';
+        record.totpSecret = String(inc.totpSecret).trim();
+      } else if (inc.twoFactorMethod === 'sms' && record.phone) {
+        record.twoFactorEnabled = true;
+        record.twoFactorMethod = 'sms';
+      }
+    } else if (incomingIsNewer) {
+      record.twoFactorEnabled = false;
+      record.twoFactorMethod = 'none';
+      record.totpSecret = undefined;
+    }
+  }
+
+  record.updatedAt = new Date().toISOString();
+  indexCustomerRecord(record);
+  persistCustomersToDisk();
+  syncCustomerRecordToFirestore(record);
   return record;
 }
 
@@ -1194,7 +1354,7 @@ export function isIdentifierOrAccountBanned(params: {
         banned: true,
         reason:
           rec.bannedReason ||
-          'Permanently banned 🚫 forever (no second chance): failed manual M-PESA Worker Pass proof requirement.',
+          'Account permanently banned for violating platform verification and payout integrity rules.',
       };
     }
     const uidBan = bannedReasonsByKey.get(`uid:${params.uid}`);
@@ -1254,7 +1414,7 @@ export function banCustomerPermanently(params: {
 
   const cleanReason =
     String(params.reason || '').trim().slice(0, 240) ||
-    'Failed to submit valid M-PESA code & screenshot proof for manual Worker Pass payment.';
+    'Violated platform KYC verification or payout integrity policy.';
   const now = new Date().toISOString();
 
   if (params.uid) bannedReasonsByKey.set(`uid:${params.uid}`, cleanReason);

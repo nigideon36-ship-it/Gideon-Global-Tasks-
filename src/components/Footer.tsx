@@ -54,7 +54,7 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 text-emerald-300">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                <span>East Africa Exclusive · M-PESA &amp; Mobile Money Active</span>
+                <span>PayPal Payouts Active · 50% Escrow Protection</span>
               </div>
             </div>
 
@@ -131,18 +131,6 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="/packages"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveTab('packages');
-                  }}
-                  className="hover:text-white transition-colors"
-                >
-                  Worker Passes ({formatCurrencyFromKes(50, selectedCountry)}, {formatCurrencyFromKes(100, selectedCountry)}, {formatCurrencyFromKes(200, selectedCountry)})
-                </a>
-              </li>
-              <li>
-                <a
                   href="/investments"
                   onClick={(e) => {
                     e.preventDefault();
@@ -150,7 +138,31 @@ export const Footer: React.FC = () => {
                   }}
                   className="hover:text-white transition-colors"
                 >
-                  Investments ({formatCurrencyFromKes(50, selectedCountry)}+ Deposit Only)
+                  Investments ({formatCurrencyFromKes(50, selectedCountry)}+ PayPal Deposit)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/auctions"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('auctions');
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Product Auctions (50% PayPal Escrow)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/pay-per-view"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('pay-per-view');
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Pay-Per-View Status Feed (Free · {formatCurrencyFromKes(5, selectedCountry)}/View · 24h Auto-Pay)
                 </a>
               </li>
               <li>
@@ -236,38 +248,58 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="/guides#ai-data-annotation-manual"
+                  href="/guides?guide=ai-data-annotation-manual"
                   onClick={(e) => {
                     e.preventDefault();
                     setActiveTab('guides');
+                    window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=ai-data-annotation-manual');
+                    window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'ai-data-annotation-manual' }));
                   }}
                   className="hover:text-white transition-colors"
                 >
-                  AI Computer Vision Manual (2026)
+                  Labeling Street Scenes Guide
                 </a>
               </li>
               <li>
                 <a
-                  href="/guides#consumer-surveys-guide"
+                  href="/guides?guide=consumer-surveys-guide"
                   onClick={(e) => {
                     e.preventDefault();
                     setActiveTab('guides');
+                    window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=consumer-surveys-guide');
+                    window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'consumer-surveys-guide' }));
                   }}
                   className="hover:text-white transition-colors"
                 >
-                  Market Research & Surveys
+                  Passing East African Surveys
                 </a>
               </li>
               <li>
                 <a
-                  href="/guides#ocr-digitization-guide"
+                  href="/guides?guide=local-auctions-handbook"
                   onClick={(e) => {
                     e.preventDefault();
                     setActiveTab('guides');
+                    window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=local-auctions-handbook');
+                    window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'local-auctions-handbook' }));
                   }}
                   className="hover:text-white transition-colors"
                 >
-                  Receipt & Invoice OCR Guide
+                  Product Auctions Safety Guide
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/guides?guide=pay-per-view-status-guide"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab('guides');
+                    window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=pay-per-view-status-guide');
+                    window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'pay-per-view-status-guide' }));
+                  }}
+                  className="hover:text-white transition-colors"
+                >
+                  Pay-Per-View Status &amp; 24h Payout Guide
                 </a>
               </li>
               <li>
@@ -280,7 +312,7 @@ export const Footer: React.FC = () => {
                   className="hover:text-white transition-colors flex items-center gap-1.5"
                 >
                   <HelpCircle className="w-3 h-3 text-sky-300" />
-                  <span>Platform FAQ & Answers</span>
+                  <span>Platform FAQ &amp; Answers</span>
                 </a>
               </li>
             </ul>
@@ -387,7 +419,7 @@ export const Footer: React.FC = () => {
         {/* Bottom Bar: Copyright & Verified Files */}
         <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-blue-200">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-            <span>© {new Date().getFullYear()} Gideon Global Tasks Inc. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Gideon Global Tasks (East Africa). All rights reserved.</span>
             <span aria-hidden="true" className="text-blue-400">·</span>
             <a href="/google2d71976008fafb8e.html" target="_blank" className="hover:text-white underline">Search Console Verification</a>
             <span aria-hidden="true" className="text-blue-400">·</span>

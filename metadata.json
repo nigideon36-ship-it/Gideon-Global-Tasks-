@@ -1,6 +1,6 @@
 {
   "name": "Gideon Global Tasks",
-  "description": "Global crowdsourcing platform for paid surveys, AI data annotation, data entry, copywriting, meme creation, and micro tasks.",
+  "description": "East Africa digital micro-work & trusted commerce platform: 1 vetted task drops daily at 08:00 AM EAT with merchant-set rewards, 50% PayPal escrow auctions, free 5 KSh/view Pay-Per-View statuses, and PayPal withdrawals from KSh 150 with strict National ID KYC.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

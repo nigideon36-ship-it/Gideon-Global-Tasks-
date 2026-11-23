@@ -3,11 +3,11 @@ import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
 import { formatCurrencyFromUsd } from '../lib/eastAfrica';
-import { Wallet, Globe, Flame, LogIn, LogOut, ShieldCheck, Smartphone, Zap, MapPin, Lock, Bot, User } from 'lucide-react';
+import { Wallet, Globe, Flame, LogIn, LogOut, ShieldCheck, MapPin, Lock, Bot, User } from 'lucide-react';
 import { ThemeColorPicker } from './ThemeColorPicker';
 
 export const Navbar: React.FC = () => {
-  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen, setDarajaModalOpen, setIntasendModalOpen, setPaystackModalOpen } = useTasks();
+  const { activeTab, setActiveTab, userStats, setWalletOpen, setStreakModalOpen, setPublisherModalOpen } = useTasks();
   const {
     user,
     customerProfile,
@@ -126,18 +126,6 @@ export const Navbar: React.FC = () => {
             Referrals (20%)
           </a>
           <a
-            href="/packages"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveTab('packages');
-            }}
-            className={`whitespace-nowrap shrink-0 transition-colors ${
-              activeTab === 'packages' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
-            }`}
-          >
-            Passes
-          </a>
-          <a
             href="/investments"
             onClick={(e) => {
               e.preventDefault();
@@ -148,6 +136,30 @@ export const Navbar: React.FC = () => {
             }`}
           >
             Invest (50+)
+          </a>
+          <a
+            href="/auctions"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('auctions');
+            }}
+            className={`whitespace-nowrap shrink-0 transition-colors ${
+              activeTab === 'auctions' ? 'text-white font-semibold underline decoration-sky-300 underline-offset-4' : 'hover:text-white'
+            }`}
+          >
+            Auctions
+          </a>
+          <a
+            href="/pay-per-view"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('pay-per-view');
+            }}
+            className={`whitespace-nowrap shrink-0 transition-colors ${
+              activeTab === 'pay-per-view' ? 'text-white font-semibold underline decoration-emerald-300 underline-offset-4' : 'hover:text-white'
+            }`}
+          >
+            Pay-Per-View (Free)
           </a>
           <a
             href="/testimonials"
@@ -228,47 +240,17 @@ export const Navbar: React.FC = () => {
               </svg>
             </a>
           </div>
-          {/* Owner-Only Website Management & Payment Gateway Controls */}
+          {/* Owner-Only Website Management Controls */}
           {isOwner && (
             <>
               <button
                 type="button"
                 onClick={() => setPublisherModalOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-white/95 hover:bg-white border border-blue-200 rounded-lg transition-colors cursor-pointer"
-                title="Owner Only: Manage Google AdSense & Search Console"
+                title="Owner Only: Manage Monetag, Google AdSense & Search Console"
               >
                 <Globe className="w-3.5 h-3.5 text-blue-600" />
-                <span className="hidden xl:inline">AdSense & SEO</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDarajaModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
-                title="Owner Only: Configure Safaricom Daraja M-PESA API"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden md:inline">Daraja</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaystackModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-[#0576A0] bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                title="Owner Only: Paystack M-PESA STK Push & Card Gateway (No Paybill/Till)"
-              >
-                <Zap className="w-3.5 h-3.5 text-[#09A5DB]" />
-                <span className="hidden md:inline">Paystack</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIntasendModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                title="Owner Only: IntaSend Payment Gateway"
-              >
-                <Zap className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden md:inline">IntaSend</span>
+                <span className="hidden xl:inline">Monetag &amp; SEO</span>
               </button>
 
               <ThemeColorPicker />

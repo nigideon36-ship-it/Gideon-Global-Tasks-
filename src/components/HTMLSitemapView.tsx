@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRegion } from '../context/RegionContext';
 import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
 import { Map, ArrowLeft, ExternalLink, Globe, BookOpen, ShieldCheck, HelpCircle, FileText } from 'lucide-react';
+import { CANONICAL_PLATFORM_URL } from '../utils/platformUrl';
 
 export const HTMLSitemapView: React.FC = () => {
   const { setActiveTab } = useTasks();
@@ -92,16 +93,55 @@ export const HTMLSitemapView: React.FC = () => {
             </li>
             <li>
               <a
-                href="/packages"
+                href="/dashboard"
                 onClick={(e) => {
                   e.preventDefault();
-                  setActiveTab('packages');
+                  setActiveTab('dashboard');
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                Worker Passes ({formatCurrencyFromKes(50, selectedCountry)} Starter, {formatCurrencyFromKes(100, selectedCountry)} Pro, {formatCurrencyFromKes(200, selectedCountry)} VIP)
+                Customer Dashboard &amp; National ID KYC
               </a>
-              <span className="text-slate-400 block text-[11px]">Category gating tiers and allowance quotas.</span>
+              <span className="text-slate-400 block text-[11px]">Upload Front &amp; Back National ID for PayPal withdrawal approval and check 8:00 AM EAT drop status.</span>
+            </li>
+            <li>
+              <a
+                href="/investments"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('investments');
+                }}
+                className="text-brand-600 hover:text-brand-700 font-medium underline"
+              >
+                Growth Investment Pools ({formatCurrencyFromKes(50, selectedCountry)}+ PayPal Deposit)
+              </a>
+              <span className="text-slate-400 block text-[11px]">Deposit-only PayPal pools tracked alongside active daily task earnings.</span>
+            </li>
+            <li>
+              <a
+                href="/auctions"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('auctions');
+                }}
+                className="text-brand-600 hover:text-brand-700 font-medium underline"
+              >
+                Customer Product Auctions (50% PayPal Escrow)
+              </a>
+              <span className="text-slate-400 block text-[11px]">Upload products with photos, 50% PayPal security escrow deposit, and timed live auctions.</span>
+            </li>
+            <li>
+              <a
+                href="/pay-per-view"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('pay-per-view');
+                }}
+                className="text-brand-600 hover:text-brand-700 font-medium underline"
+              >
+                Free Pay-Per-View Status Feed ({formatCurrencyFromKes(5, selectedCountry)} / View · 24h Auto-Pay)
+              </a>
+              <span className="text-slate-400 block text-[11px]">Upload funny videos or photos free inside the platform and receive automatic wallet payouts after 24 hours.</span>
             </li>
             {isOwner && (
               <li>
@@ -142,55 +182,93 @@ export const HTMLSitemapView: React.FC = () => {
             </li>
             <li>
               <a
-                href="/guides#ai-data-annotation-manual"
+                href="/guides?guide=ai-data-annotation-manual"
                 onClick={(e) => {
                   e.preventDefault();
                   setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=ai-data-annotation-manual');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'ai-data-annotation-manual' }));
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                2026 Manual for AI Training Data & Bounding Boxes
+                Labeling East African Street Scenes Without Getting Rejected
               </a>
-              <span className="text-slate-400 block text-[11px]">Detailed guide on autonomous vehicle perception and IoU bounding boxes.</span>
+              <span className="text-slate-400 block text-[11px]">Field guide for matatus, boda-bodas, twilight glare, and clean bounding boxes.</span>
             </li>
             <li>
               <a
-                href="/guides#consumer-surveys-guide"
+                href="/guides?guide=consumer-surveys-guide"
                 onClick={(e) => {
                   e.preventDefault();
                   setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=consumer-surveys-guide');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'consumer-surveys-guide' }));
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                How Global Consumer Surveys Power Billion-Dollar Product Strategy
+                Passing East African Consumer Surveys: Why Rushing Gets You Flagged
               </a>
-              <span className="text-slate-400 block text-[11px]">Qualitative survey techniques and screener question guidelines.</span>
+              <span className="text-slate-400 block text-[11px]">Attention checks, realistic timing, and useful open-ended answers.</span>
             </li>
             <li>
               <a
-                href="/guides#ocr-digitization-guide"
+                href="/guides?guide=receipt-ocr-manual"
                 onClick={(e) => {
                   e.preventDefault();
                   setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=receipt-ocr-manual');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'receipt-ocr-manual' }));
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                Receipt & Invoice OCR Digitization (99.5%+ Precision)
+                Verifying Thermal Receipts &amp; Invoices: Catching Tax &amp; Total Discrepancies
               </a>
-              <span className="text-slate-400 block text-[11px]">Keying receipt headers, line items, and sales tax numbers.</span>
+              <span className="text-slate-400 block text-[11px]">Separating 8/B and 0/O digits and verifying eTIMS / VAT sums.</span>
             </li>
             <li>
               <a
-                href="/guides#micropayments-rails-guide"
+                href="/guides?guide=micropayments-mpesa-momo-guide"
                 onClick={(e) => {
                   e.preventDefault();
                   setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=micropayments-mpesa-momo-guide');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'micropayments-mpesa-momo-guide' }));
                 }}
                 className="text-brand-600 hover:text-brand-700 font-medium underline"
               >
-                Demystifying Remote Micropayments: M-PESA & Wise Rails
+                Understanding the {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} PayPal Cash-Out Threshold &amp; National ID KYC
               </a>
-              <span className="text-slate-400 block text-[11px]">How borderless STK pushes and Wise bank payouts operate.</span>
+              <span className="text-slate-400 block text-[11px]">PayPal payout floor, Front &amp; Back ID verification rules, and separated pool deposits.</span>
+            </li>
+            <li>
+              <a
+                href="/guides?guide=local-auctions-handbook"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=local-auctions-handbook');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'local-auctions-handbook' }));
+                }}
+                className="text-brand-600 hover:text-brand-700 font-medium underline"
+              >
+                Buying &amp; Selling Safely in Auctions: Mandatory 50% PayPal Escrow Deposit
+              </a>
+              <span className="text-slate-400 block text-[11px]">Daylight photos, 50% PayPal escrow security deposit, and dispute compensation.</span>
+            </li>
+            <li>
+              <a
+                href="/guides?guide=pay-per-view-status-guide"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('guides');
+                  window.history.replaceState({ tab: 'guides' }, '', '/guides?guide=pay-per-view-status-guide');
+                  window.dispatchEvent(new CustomEvent('gideon:select-guide', { detail: 'pay-per-view-status-guide' }));
+                }}
+                className="text-brand-600 hover:text-brand-700 font-medium underline"
+              >
+                Free Pay-Per-View Status Uploads: Earning {formatCurrencyFromKes(5, selectedCountry)}/View &amp; 24h Auto-Payouts
+              </a>
+              <span className="text-slate-400 block text-[11px]">How funny photos, personal videos, unique registered views, and automatic 24-hour wallet credits work.</span>
             </li>
           </ul>
         </div>
@@ -278,7 +356,7 @@ export const HTMLSitemapView: React.FC = () => {
               >
                 Frequently Asked Questions (FAQ)
               </a>
-              <span className="text-slate-400 block text-[11px]">8 detailed answers regarding passes, withdrawals, and streaks.</span>
+              <span className="text-slate-400 block text-[11px]">Detailed answers regarding 8:00 AM EAT drops, PayPal KYC withdrawals, and 50% auction escrow.</span>
             </li>
           </ul>
         </div>
@@ -332,7 +410,7 @@ export const HTMLSitemapView: React.FC = () => {
           <span>Return to Tasks Marketplace</span>
         </button>
         <p className="text-xs text-slate-400">
-          Domain: https://gideon-global-tasks.ai.studio · Updated November 2026
+          Domain: {CANONICAL_PLATFORM_URL} · Updated November 2026
         </p>
       </div>
     </article>

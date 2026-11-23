@@ -4,10 +4,12 @@ import path from 'path';
 
 export type TransactionKind =
   | 'withdrawal'
-  | 'pass_purchase'
+  | 'paypal_checkout'
   | 'task_reward'
   | 'referral_commission'
-  | 'investment_deposit';
+  | 'investment_deposit'
+  | 'auction_sale'
+  | 'ppv_payout';
 
 export interface PlatformTransaction {
   id: string;

@@ -1,41 +1,47 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Task, PayoutRecord, MemeItem, LeaderboardUser, TaskHistoryRecord, TaskPackage, ReferralRecord, ReferralStats } from '../types/tasks';
+import { Task, PayoutRecord, MemeItem, LeaderboardUser, TaskHistoryRecord, ReferralRecord, ReferralStats } from '../types/tasks';
 import { INITIAL_TASKS, INITIAL_MEMES, INITIAL_LEADERBOARD } from '../data/mockTasks';
 import confetti from 'canvas-confetti';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, OperationType, handleFirestoreError, isPermissionError } from '../lib/firebase';
 import { OWNER_EMAIL, useAuth } from './AuthContext';
 import { useRegion } from './RegionContext';
 import {
   evaluateTaskEligibility,
-  getQuotaRuleForPackageId,
+  formatCountdownHms,
+  getDailyDroppedTaskId,
+  getEatNowInfo,
   getTodayDateKey,
-  PassQuotaRule,
-  TaskEligibilityResult,
-} from '../lib/passQuotas';
+  OPEN_ACCESS_DAILY_LIMIT,
+  OPEN_ACCESS_QUOTA_RULE,
+  type QuotaRule,
+  type TaskEligibilityResult,
+} from '../lib/taskEligibility';
 import {
-  MAX_TASK_REWARD_KES,
-  MAX_TASK_REWARD_USD,
+  WITHDRAWAL_THRESHOLD_KES,
   WITHDRAWAL_THRESHOLD_USD,
-  VIP_PASS_KES,
+  meetsWithdrawalThreshold,
   convertKesToUsd,
-  formatCurrencyFromKes,
   formatCurrencyFromUsd,
 } from '../lib/eastAfrica';
+import { CANONICAL_PLATFORM_ORIGIN } from '../utils/platformUrl';
 
-export interface CustomerPassProofItem {
-  id: string;
-  packageId: 'starter' | 'pro' | 'vip';
-  packageName: string;
-  amountKes: number;
-  payToNumber: '0758727558';
-  senderPhone: string;
-  mpesaCode: string;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Banned';
-  ownerApprovalDetails?: string;
-  rejectionOrBanReason?: string;
+export type KycVerificationStatus = 'Not Submitted' | 'Pending' | 'Approved' | 'Rejected';
+
+export interface KycRecordClient {
+  uid: string;
+  countryCode: string;
+  idDocumentName: string;
+  fullNameOnId: string;
+  idNumber: string;
+  frontImageDataUrl: string;
+  backImageDataUrl: string;
+  status: Exclude<KycVerificationStatus, 'Not Submitted'>;
+  rejectionReason?: string;
+  reviewedBy?: string;
   reviewedAt?: string;
-  createdAt: string;
+  submittedAt: string;
+  updatedAt: string;
 }
 
 export interface UserStatsType {
@@ -53,62 +59,9 @@ export interface UserStatsType {
   payoutHistory: PayoutRecord[];
 }
 
-export const AVAILABLE_PACKAGES: TaskPackage[] = [
-  {
-    id: 'starter',
-    name: 'Starter Contributor Pass',
-    price: convertKesToUsd(50),
-    priceKes: 50,
-    description: 'Entry Worker Pass (50 Shillings): Complete up to 2 paid tasks daily with payout not exceeding 50 shillings per task.',
-    taskAllowance: '2 Tasks Daily · Max 50 Shillings',
-    unlockedCategories: ['survey', 'micro'],
-    features: [
-      'Up to 2 Paid Tasks Daily',
-      'Task Reward Cap: Not exceeding 50 shillings',
-      'Access to Starter Surveys & Micro Tasks',
-      'Standard Verification Queue'
-    ]
-  },
-  {
-    id: 'pro',
-    name: 'Pro Tasker Pass (2nd Pass)',
-    price: convertKesToUsd(100),
-    priceKes: 100,
-    isPopular: true,
-    description: 'Second Worker Pass (100 Shillings): Complete up to 3 tasks daily with payout not exceeding 50 shillings per task across campaigns & annotations.',
-    taskAllowance: '3 Tasks Daily · Max 50 Shillings',
-    unlockedCategories: ['survey', 'annotation', 'data-entry', 'meme-content', 'creator-campaign', 'micro'],
-    features: [
-      'Up to 3 Paid Tasks Daily',
-      'Task Reward Cap: Not exceeding 50 shillings',
-      'Creator Campaigns (FB, IG, TikTok & WhatsApp)',
-      'Autonomous Driving Annotation & Receipt OCR',
-      'Community Meme Studio Bounties'
-    ]
-  },
-  {
-    id: 'vip',
-    name: 'VIP Taskmaster Pass',
-    price: convertKesToUsd(200),
-    priceKes: 200,
-    description: 'Top-tier VIP Pass (200 Shillings): Complete up to 4 paid surveys daily with payout not exceeding 50 shillings per survey.',
-    taskAllowance: '4 Surveys Daily · Max 50 Shillings',
-    unlockedCategories: ['survey', 'annotation', 'data-entry', 'writing', 'meme-content', 'creator-campaign', 'micro'],
-    features: [
-      'Up to 4 Paid Surveys Daily',
-      'Survey Reward Cap: Not exceeding 50 shillings',
-      'Full Access to High-Value Market Surveys & Writing',
-      '0% Fee Guarantee on Withdrawals',
-      'Instant M-PESA & Mobile Money Priority Disbursement'
-    ]
-  }
-];
-
 const INITIAL_TASK_HISTORY: TaskHistoryRecord[] = [];
-
 const INITIAL_REFERRAL_HISTORY: ReferralRecord[] = [];
-
-const APP_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
+const APP_ORIGIN = CANONICAL_PLATFORM_ORIGIN;
 
 const INITIAL_REFERRAL_STATS: ReferralStats = {
   referralCode: 'GIDEON-EA-894',
@@ -120,7 +73,7 @@ const INITIAL_REFERRAL_STATS: ReferralStats = {
   pendingCommission: 0.00,
   commissionPercentage: 20,
   vipTierBonusPercent: 5,
-  vipReferralCount: 0
+  vipReferralCount: 0,
 };
 
 export type PlatformTab =
@@ -129,6 +82,8 @@ export type PlatformTab =
   | 'task-history'
   | 'referrals'
   | 'investments'
+  | 'auctions'
+  | 'pay-per-view'
   | 'testimonials'
   | 'meme-studio'
   | 'ai-media'
@@ -138,7 +93,6 @@ export type PlatformTab =
   | 'leaderboard'
   | 'employer'
   | 'wallet'
-  | 'packages'
   | 'about'
   | 'contact'
   | 'guides'
@@ -156,31 +110,40 @@ interface TaskContextType {
   taskHistory: TaskHistoryRecord[];
   referralHistory: ReferralRecord[];
   referralStats: ReferralStats;
-  vipReferralCount: number;
-  hasVipReferral: boolean;
   updateReferralCode: (newCode: string) => boolean;
-  simulateReferralPurchase: (passTier?: 'starter' | 'pro' | 'vip', refereeName?: string, country?: string) => void;
-  activePackage: TaskPackage | null;
-  packagesModalOpen: boolean;
-  setPackagesModalOpen: (open: boolean) => void;
-  purchasePackage: (packageId: 'starter' | 'pro' | 'vip', method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Paystack Page', accountOrPhone: string) => boolean;
+  simulateReferralActivity: (refereeName?: string, country?: string) => void;
   dailyQuotaStatus: {
-    rule: PassQuotaRule;
+    rule: QuotaRule;
     usedToday: number;
     surveysUsedToday: number;
     remainingToday: number;
     canDoTask: (task: Task) => TaskEligibilityResult;
   };
-  passProofs: CustomerPassProofItem[];
-  passBannedReason: string | null;
-  refreshPassProofs: () => Promise<void>;
-  submitManualPassProof: (params: {
-    packageId: 'starter' | 'pro' | 'vip';
-    senderPhone: string;
-    mpesaCode: string;
-    screenshotDataUrl: string;
-    screenshotFileName?: string;
-  }) => Promise<{ success: boolean; error?: string; proof?: CustomerPassProofItem }>;
+  dailyDropInfo: {
+    dateKey: string;
+    isDropWindowOpen: boolean;
+    msUntilNextDrop: number;
+    countdownLabel: string;
+    countdownHours: string;
+    countdownMinutes: string;
+    countdownSeconds: string;
+    eatTimeLabel: string;
+    nextDropLabel: string;
+    droppedTaskId: string | null;
+    droppedTask: Task | null;
+    dropRefreshTick: number;
+  };
+  kycStatus: KycVerificationStatus;
+  kycRecord: KycRecordClient | null;
+  kycLoading: boolean;
+  refreshKycStatus: () => Promise<void>;
+  submitKycVerification: (params: {
+    countryCode: string;
+    fullNameOnId: string;
+    idNumber: string;
+    frontImageDataUrl: string;
+    backImageDataUrl: string;
+  }) => Promise<{ success: boolean; error?: string; message?: string }>;
   streakModalOpen: boolean;
   setStreakModalOpen: (open: boolean) => void;
   advanceDailyStreak: () => void;
@@ -212,16 +175,11 @@ interface TaskContextType {
   clearNotification: () => void;
   publisherModalOpen: boolean;
   setPublisherModalOpen: (open: boolean) => void;
-  darajaModalOpen: boolean;
-  setDarajaModalOpen: (open: boolean) => void;
-  intasendModalOpen: boolean;
-  setIntasendModalOpen: (open: boolean) => void;
-  paystackModalOpen: boolean;
-  setPaystackModalOpen: (open: boolean) => void;
   privacyTermsModalOpen: boolean;
   setPrivacyTermsModalOpen: (open: boolean) => void;
   privacyTermsTab: 'privacy' | 'terms';
   openPrivacyTerms: (tab?: 'privacy' | 'terms') => void;
+  syncWalletFromServer: () => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -230,14 +188,77 @@ const LOCAL_STORAGE_KEY_STATS = 'gideon_global_user_stats_v2';
 const LOCAL_STORAGE_KEY_TASKS = 'gideon_global_tasks';
 const LOCAL_STORAGE_KEY_MEMES = 'gideon_global_memes';
 const LOCAL_STORAGE_KEY_HISTORY = 'gideon_global_history_v2';
-const LOCAL_STORAGE_KEY_PACKAGE = 'gideon_global_package_v2';
 const LOCAL_STORAGE_KEY_DAILY_QUOTA = 'gideon_daily_task_usage_v1';
-const LOCAL_STORAGE_KEY_PASS_PROOF_IDS = 'gideon_pass_proof_ids_v1';
-const LOCAL_STORAGE_KEY_UNLOCKED_PROOFS = 'gideon_unlocked_proof_ids_v1';
 const LOCAL_STORAGE_KEY_REF_HISTORY = 'gideon_global_ref_history_v2';
 const LOCAL_STORAGE_KEY_REF_STATS = 'gideon_global_ref_stats_v2';
 const LOCAL_STORAGE_KEY_LAST_STATE_UID = 'gideon_last_state_uid_v1';
 const LOCAL_STORAGE_KEY_PENDING_REF_CODE = 'gideon_pending_ref_code_v1';
+const LOCAL_STORAGE_KEY_KYC_PREFIX = 'gideon_kyc_backup_v1_';
+
+interface KycLocalBackup {
+  status: KycVerificationStatus;
+  record: KycRecordClient | null;
+  savedAt: string;
+}
+
+function readLocalKycBackup(uid?: string | null): KycLocalBackup | null {
+  if (!uid) return null;
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_KEY_KYC_PREFIX}${uid}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.status && parsed.status !== 'Not Submitted') {
+      return parsed as KycLocalBackup;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalKycBackup(
+  uid: string | null | undefined,
+  status: KycVerificationStatus,
+  record: KycRecordClient | null
+) {
+  if (!uid || status === 'Not Submitted') return;
+  try {
+    const existing = readLocalKycBackup(uid);
+    const mergedRecord = record
+      ? {
+          ...record,
+          frontImageDataUrl: record.frontImageDataUrl || existing?.record?.frontImageDataUrl || '',
+          backImageDataUrl: record.backImageDataUrl || existing?.record?.backImageDataUrl || '',
+        }
+      : existing?.record || null;
+    const payload: KycLocalBackup = {
+      status,
+      record: mergedRecord,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_KYC_PREFIX}${uid}`, JSON.stringify(payload));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+async function computeSha256HexClient(text: string): Promise<string> {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const encoded = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', encoded);
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {}
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${Math.abs(hash).toString(16).padStart(8, '0')}_${text.length}`.padEnd(32, '0');
+}
 
 interface DailyUsageState {
   dateKey: string;
@@ -263,25 +284,6 @@ function readTodayUsage(): DailyUsageState {
   return { dateKey: today, count: 0, surveyCount: 0 };
 }
 
-function readStoredIds(key: string): string[] {
-  try {
-    const raw = localStorage.getItem(key);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
-  } catch {
-    return [];
-  }
-}
-
-function appendStoredId(key: string, id: string) {
-  try {
-    const current = readStoredIds(key);
-    if (!current.includes(id)) {
-      localStorage.setItem(key, JSON.stringify([id, ...current].slice(0, 30)));
-    }
-  } catch {}
-}
-
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
@@ -289,7 +291,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!saved) return INITIAL_TASKS;
       const parsed: Task[] = JSON.parse(saved);
       if (!Array.isArray(parsed)) return INITIAL_TASKS;
-      // Sync built-in tasks with updated tier reward caps while keeping spotsRemaining & custom Owner tasks
       const savedById = new Map(parsed.map((t) => [t.id, t]));
       const builtInIds = new Set(INITIAL_TASKS.map((t) => t.id));
       const syncedBuiltIns = INITIAL_TASKS.map((builtIn) => {
@@ -297,14 +298,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return cached
           ? {
               ...builtIn,
-              reward: Math.min(builtIn.reward, MAX_TASK_REWARD_USD),
+              reward: builtIn.reward,
               spotsRemaining: cached.spotsRemaining ?? builtIn.spotsRemaining,
             }
           : builtIn;
       });
       const customTasks = parsed
         .filter((t) => !builtInIds.has(t.id))
-        .map((t) => ({ ...t, reward: Math.min(Number(t.reward) || 0, MAX_TASK_REWARD_USD) }));
+        .map((t) => ({ ...t, reward: Math.max(0.01, Number(t.reward) || 0.25) }));
       return [...syncedBuiltIns, ...customTasks];
     } catch {
       return INITIAL_TASKS;
@@ -313,13 +314,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [userStats, setUserStats] = useState<UserStatsType>(() => {
     try {
-      // Clear legacy pre-funded $114.50 demo wallet cache once
       localStorage.removeItem('gideon_global_user_stats');
+      localStorage.removeItem('gideon_global_package');
+      localStorage.removeItem('gideon_global_package_v2');
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_STATS);
       if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
+    } catch {}
     return {
       balance: 0.00,
       pendingBalance: 0.00,
@@ -345,23 +345,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [activePackage, setActivePackage] = useState<TaskPackage | null>(() => {
-    try {
-      // Clear legacy auto-unlocked default pass cache once so Owner approval gate applies
-      localStorage.removeItem('gideon_global_package');
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PACKAGE);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return AVAILABLE_PACKAGES.find((p) => p.id === parsed?.id) || null;
-      }
-      return null; // Worker Passes stay locked until paid and Owner-approved
-    } catch {
-      return null;
-    }
-  });
   const [dailyUsage, setDailyUsage] = useState<DailyUsageState>(() => readTodayUsage());
-  const [passProofs, setPassProofs] = useState<CustomerPassProofItem[]>([]);
-  const [passBannedReason, setPassBannedReason] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<KycVerificationStatus>('Not Submitted');
+  const [kycRecord, setKycRecord] = useState<KycRecordClient | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
 
   const [memes, setMemes] = useState<MemeItem[]>(() => {
     try {
@@ -397,7 +384,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return saved as ThemeColor;
       }
     } catch {}
-    return 'cobalt'; // Default theme color set to Ocean Cobalt Blue
+    return 'cobalt';
   });
 
   useEffect(() => {
@@ -408,12 +395,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [themeColor]);
 
   const [leaderboard] = useState<LeaderboardUser[]>(INITIAL_LEADERBOARD);
-  
+
   const getTabFromLocation = (): PlatformTab => {
     if (typeof window === 'undefined') return 'tasks';
-    const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-    const hash = window.location.hash.replace(/^#+/, '').toLowerCase();
-    const target = path || hash;
+    const target = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
     if (target === 'about') return 'about';
     if (target === 'contact') return 'contact';
     if (target === 'guides') return 'guides';
@@ -426,8 +411,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (target === 'task-history') return 'task-history';
     if (target === 'referrals') return 'referrals';
     if (target === 'investments') return 'investments';
+    if (target === 'auctions') return 'auctions';
+    if (target === 'pay-per-view' || target === 'ppv') return 'pay-per-view';
     if (target === 'testimonials') return 'testimonials';
-    if (target === 'packages') return 'packages';
     if (target === 'meme-studio') return 'meme-studio';
     if (target === 'ai-media') return 'ai-media';
     if (target === 'three-globe') return 'three-globe';
@@ -459,13 +445,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const { activeToken, isOwner, user, customerProfile } = useAuth();
+  const { activeToken, getFreshToken, isOwner, user, customerProfile, loading: authLoading } = useAuth();
   const { selectedCountry } = useRegion();
 
   const hydratedTokenRef = useRef<string | null>(null);
   const currentUid = user?.uid || customerProfile?.uid || null;
 
-  // Capture referral code from URL (?ref=...) and keep in localStorage for registration
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -476,75 +461,374 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, []);
 
-  // Persist daily usage cleanly and roll over automatically when date changes
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_DAILY_QUOTA, JSON.stringify(dailyUsage));
     } catch {}
   }, [dailyUsage]);
 
-  const currentRule = useMemo(
-    () => getQuotaRuleForPackageId(activePackage?.id || null),
-    [activePackage?.id]
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [dropRefreshTick, setDropRefreshTick] = useState<number>(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const currentEatDate = useMemo(() => new Date(nowMs), [nowMs]);
+  const eatInfo = useMemo(() => getEatNowInfo(currentEatDate), [currentEatDate]);
+
+  const droppedTaskId = useMemo(
+    () => getDailyDroppedTaskId(tasks, currentEatDate),
+    [tasks, eatInfo.dateKey, dropRefreshTick]
+  );
+
+  const droppedTask = useMemo(
+    () => (droppedTaskId ? tasks.find((t) => t.id === droppedTaskId) || null : null),
+    [tasks, droppedTaskId]
+  );
+
+  const countdownParts = useMemo(() => {
+    const formatted = formatCountdownHms(eatInfo.msUntilNextDrop);
+    const [hours = '00', minutes = '00', seconds = '00'] = formatted.split(':');
+    return { formatted, hours, minutes, seconds };
+  }, [eatInfo.msUntilNextDrop]);
+
+  const dailyDropInfo = useMemo(
+    () => ({
+      dateKey: eatInfo.dateKey,
+      isDropWindowOpen: eatInfo.isDropWindowOpen,
+      msUntilNextDrop: eatInfo.msUntilNextDrop,
+      countdownLabel: countdownParts.formatted,
+      countdownHours: countdownParts.hours,
+      countdownMinutes: countdownParts.minutes,
+      countdownSeconds: countdownParts.seconds,
+      eatTimeLabel: eatInfo.eatTimeLabel,
+      nextDropLabel: eatInfo.nextDropLabel,
+      droppedTaskId,
+      droppedTask,
+      dropRefreshTick,
+    }),
+    [eatInfo, countdownParts, droppedTaskId, droppedTask, dropRefreshTick]
   );
 
   const normalizedDailyUsage = useMemo(() => {
-    const today = getTodayDateKey();
+    const today = eatInfo.dateKey;
     return dailyUsage.dateKey === today ? dailyUsage : { dateKey: today, count: 0, surveyCount: 0 };
-  }, [dailyUsage]);
+  }, [dailyUsage, eatInfo.dateKey]);
 
   const dailyQuotaStatus = useMemo(() => {
     const usedToday = normalizedDailyUsage.count;
     const surveysUsedToday = normalizedDailyUsage.surveyCount;
-    const remainingToday = Math.max(0, currentRule.dailyLimit - usedToday);
+    const remainingToday = Math.max(0, OPEN_ACCESS_DAILY_LIMIT - usedToday);
 
     const canDoTask = (task: Task): TaskEligibilityResult =>
       evaluateTaskEligibility({
-        packageId: activePackage?.id || null,
-        unlockedCategories: activePackage?.unlockedCategories,
+        taskId: task.id,
+        droppedTaskId,
+        now: currentEatDate,
         taskReward: task.reward,
         taskCategory: task.category,
         completedTodayCount: usedToday,
-        surveysCompletedTodayCount: surveysUsedToday,
         isOwner,
         country: selectedCountry,
       });
 
     return {
-      rule: currentRule,
+      rule: OPEN_ACCESS_QUOTA_RULE,
       usedToday,
       surveysUsedToday,
       remainingToday,
       canDoTask,
     };
-  }, [activePackage?.id, activePackage?.unlockedCategories, currentRule, normalizedDailyUsage, isOwner, selectedCountry]);
-
-  const vipReferralCount = useMemo(() => {
-    const fromHistory = referralHistory.filter(
-      (r) =>
-        r.packageId === 'vip' ||
-        String(r.passPurchased || '').toLowerCase().includes('vip')
-    ).length;
-    return Math.max(referralStats.vipReferralCount || 0, fromHistory);
-  }, [referralHistory, referralStats.vipReferralCount]);
-
-  const hasVipReferral = vipReferralCount >= 1;
+  }, [normalizedDailyUsage, droppedTaskId, currentEatDate, isOwner, selectedCountry]);
 
   const [workerMode, setWorkerMode] = useState<'worker' | 'requester'>('worker');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
-  const [packagesModalOpen, setPackagesModalOpen] = useState(false);
   const [streakModalOpen, setStreakModalOpen] = useState(false);
   const [postTaskModalOpen, setPostTaskModalOpen] = useState(false);
   const [publisherModalOpen, setPublisherModalOpen] = useState(false);
-  const [darajaModalOpen, setDarajaModalOpen] = useState(false);
-  const [intasendModalOpen, setIntasendModalOpen] = useState(false);
-  const [paystackModalOpen, setPaystackModalOpen] = useState(false);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState(false);
+  const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const showNotification = useCallback((msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification((curr) => (curr === msg ? null : curr));
+    }, 5500);
+  }, []);
+
+  // Automatic UI & quota refresh the exact instant the Daily 8:00 AM EAT countdown hits 00:00:00
+  const prevDropWindowRef = useRef<{ isOpen: boolean; dateKey: string }>({
+    isOpen: eatInfo.isDropWindowOpen,
+    dateKey: eatInfo.dateKey,
+  });
+
+  useEffect(() => {
+    const prev = prevDropWindowRef.current;
+    const hitZeroToOpen = !prev.isOpen && eatInfo.isDropWindowOpen;
+    const rolledDate = prev.dateKey !== eatInfo.dateKey;
+
+    if (hitZeroToOpen || rolledDate) {
+      prevDropWindowRef.current = {
+        isOpen: eatInfo.isDropWindowOpen,
+        dateKey: eatInfo.dateKey,
+      };
+      setDropRefreshTick((t) => t + 1);
+
+      if (rolledDate) {
+        setDailyUsage({ dateKey: eatInfo.dateKey, count: 0, surveyCount: 0 });
+      }
+
+      fetch('/api/user/quota', {
+        headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
+      }).catch(() => {});
+
+      if (hitZeroToOpen) {
+        showNotification(
+          '08:00 AM EAT Task Drop is NOW LIVE! Click "Open Task" to start today\'s dropped task.'
+        );
+      }
+    }
+  }, [eatInfo.isDropWindowOpen, eatInfo.dateKey, activeToken, showNotification]);
+
+  // Immediately hydrate KYC from durable local backup on uid change so UI never resets to Not Submitted
+  useEffect(() => {
+    if (!currentUid) {
+      if (!authLoading && !activeToken) {
+        setKycStatus('Not Submitted');
+        setKycRecord(null);
+      }
+      return;
+    }
+    const backup = readLocalKycBackup(currentUid);
+    if (backup) {
+      setKycStatus(backup.status);
+      setKycRecord(backup.record);
+    }
+  }, [currentUid, authLoading, activeToken]);
+
+  const kycRank = (s: KycVerificationStatus) =>
+    s === 'Approved' ? 4 : s === 'Rejected' ? 3 : s === 'Pending' ? 2 : 0;
+
+  const refreshKycStatus = useCallback(async () => {
+    if (!activeToken && !currentUid) {
+      if (!authLoading) {
+        setKycStatus('Not Submitted');
+        setKycRecord(null);
+      }
+      return;
+    }
+    if (!activeToken) return;
+
+    setKycLoading(true);
+    try {
+      const freshToken = (await getFreshToken()) || activeToken;
+      const localBackup = readLocalKycBackup(currentUid);
+
+      const serverPromise = fetch(
+        `/api/kyc/status?countryCode=${encodeURIComponent(selectedCountry.code)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${freshToken}`,
+            'x-ea-country': selectedCountry.code,
+          },
+        }
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+
+      const firestorePromise =
+        auth.currentUser && auth.currentUser.uid === currentUid && auth.currentUser.emailVerified
+          ? getDoc(doc(db, 'kyc_verifications', auth.currentUser.uid))
+              .then((snap) => (snap.exists() ? snap.data() : null))
+              .catch(() => null)
+          : Promise.resolve(null);
+
+      const [data, fsDoc] = await Promise.all([serverPromise, firestorePromise]);
+
+      const serverStatus: KycVerificationStatus = data?.kycStatus || 'Not Submitted';
+      const serverSub: KycRecordClient | null = data?.submission || null;
+      const fsStatus: KycVerificationStatus = fsDoc?.status || 'Not Submitted';
+
+      let resolvedStatus: KycVerificationStatus = serverStatus;
+      let resolvedRecord: KycRecordClient | null = serverSub;
+
+      if (kycRank(fsStatus) > kycRank(resolvedStatus) && fsDoc) {
+        resolvedStatus = fsStatus;
+        resolvedRecord = {
+          uid: String(fsDoc.uid || currentUid || ''),
+          countryCode: String(fsDoc.countryCode || selectedCountry.code),
+          idDocumentName: String(fsDoc.idDocumentName || selectedCountry.idDocumentName),
+          fullNameOnId: String(fsDoc.fullNameOnId || ''),
+          idNumber: String(fsDoc.idNumber || ''),
+          frontImageDataUrl:
+            resolvedRecord?.frontImageDataUrl || localBackup?.record?.frontImageDataUrl || '',
+          backImageDataUrl:
+            resolvedRecord?.backImageDataUrl || localBackup?.record?.backImageDataUrl || '',
+          status: fsStatus as Exclude<KycVerificationStatus, 'Not Submitted'>,
+          rejectionReason: fsDoc.rejectionReason,
+          reviewedBy: fsDoc.reviewedBy,
+          reviewedAt: fsDoc.reviewedAt,
+          submittedAt: String(fsDoc.submittedAt || new Date().toISOString()),
+          updatedAt: String(fsDoc.updatedAt || new Date().toISOString()),
+        };
+      }
+
+      // Never downgrade submitted/pending/approved KYC back to Not Submitted when server cache cold-started
+      if (resolvedStatus === 'Not Submitted' && localBackup && localBackup.status !== 'Not Submitted') {
+        resolvedStatus = localBackup.status;
+        resolvedRecord = localBackup.record;
+
+        if (
+          localBackup.record?.frontImageDataUrl &&
+          localBackup.record?.backImageDataUrl &&
+          localBackup.record.frontImageDataUrl !== localBackup.record.backImageDataUrl
+        ) {
+          fetch('/api/kyc/hydrate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${freshToken}`,
+              'x-ea-country': localBackup.record.countryCode || selectedCountry.code,
+            },
+            body: JSON.stringify({
+              countryCode: localBackup.record.countryCode,
+              fullNameOnId: localBackup.record.fullNameOnId,
+              idNumber: localBackup.record.idNumber,
+              frontImageDataUrl: localBackup.record.frontImageDataUrl,
+              backImageDataUrl: localBackup.record.backImageDataUrl,
+              submittedAt: localBackup.record.submittedAt,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((hData) => {
+              if (hData?.success && hData?.kycStatus) {
+                setKycStatus(hData.kycStatus as KycVerificationStatus);
+                if (hData.submission) {
+                  setKycRecord(hData.submission);
+                  writeLocalKycBackup(currentUid, hData.kycStatus, hData.submission);
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+
+      if (resolvedRecord && localBackup?.record) {
+        resolvedRecord = {
+          ...resolvedRecord,
+          frontImageDataUrl:
+            resolvedRecord.frontImageDataUrl || localBackup.record.frontImageDataUrl || '',
+          backImageDataUrl:
+            resolvedRecord.backImageDataUrl || localBackup.record.backImageDataUrl || '',
+        };
+      }
+
+      if (resolvedStatus !== 'Not Submitted') {
+        setKycStatus(resolvedStatus);
+        setKycRecord(resolvedRecord);
+        writeLocalKycBackup(currentUid, resolvedStatus, resolvedRecord);
+      } else if (!localBackup) {
+        setKycStatus('Not Submitted');
+        setKycRecord(null);
+      }
+    } catch {
+      // keep existing state instead of resetting on transient network error
+    } finally {
+      setKycLoading(false);
+    }
+  }, [activeToken, authLoading, currentUid, getFreshToken, selectedCountry.code, selectedCountry.idDocumentName]);
+
+  useEffect(() => {
+    void refreshKycStatus();
+  }, [refreshKycStatus]);
+
+  useEffect(() => {
+    if (kycStatus !== 'Pending' && !walletOpen) return;
+    const timer = window.setInterval(() => {
+      void refreshKycStatus();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [kycStatus, walletOpen, refreshKycStatus]);
+
+  const submitKycVerification: TaskContextType['submitKycVerification'] = useCallback(
+    async (params) => {
+      const freshToken = (await getFreshToken()) || activeToken;
+      if (!freshToken) {
+        return { success: false, error: 'Please sign in first to submit your KYC identity documents.' };
+      }
+      try {
+        const res = await fetch('/api/kyc/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-ea-country': params.countryCode || selectedCountry.code,
+            'x-ea-verified': 'true',
+            Authorization: `Bearer ${freshToken}`,
+          },
+          body: JSON.stringify(params),
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          return {
+            success: false,
+            error: data?.error || 'Could not submit KYC documents.',
+          };
+        }
+        const nextStatus = (data?.kycStatus || 'Pending') as KycVerificationStatus;
+        const nextSub = (data?.submission || null) as KycRecordClient | null;
+        setKycStatus(nextStatus);
+        if (nextSub) {
+          setKycRecord(nextSub);
+        }
+        writeLocalKycBackup(currentUid || nextSub?.uid, nextStatus, nextSub);
+
+        if (auth.currentUser && auth.currentUser.emailVerified && nextSub) {
+          Promise.all([
+            computeSha256HexClient(params.frontImageDataUrl),
+            computeSha256HexClient(params.backImageDataUrl),
+          ])
+            .then(([frontHash, backHash]) =>
+              setDoc(doc(db, 'kyc_verifications', auth.currentUser!.uid), {
+                uid: auth.currentUser!.uid,
+                countryCode: nextSub.countryCode,
+                idDocumentName: nextSub.idDocumentName,
+                fullNameOnId: nextSub.fullNameOnId,
+                idNumber: nextSub.idNumber,
+                frontImageUploaded: true,
+                backImageUploaded: true,
+                frontImageSha256: frontHash,
+                backImageSha256: backHash,
+                status: 'Pending',
+                submittedAt: nextSub.submittedAt,
+                updatedAt: nextSub.updatedAt,
+              })
+            )
+            .catch(() => {});
+        }
+
+        showNotification(
+          data.message || 'National ID Front & Back photos submitted for KYC review!'
+        );
+        return { success: true, message: data.message };
+      } catch (err: any) {
+        return {
+          success: false,
+          error: err?.message || 'Network error while uploading KYC identity documents.',
+        };
+      }
+    },
+    [activeToken, currentUid, getFreshToken, selectedCountry.code, showNotification]
+  );
 
   const recordPlatformTransaction = (payload: {
     id?: string;
-    kind: 'withdrawal' | 'pass_purchase' | 'task_reward' | 'referral_commission' | 'investment_deposit';
+    kind: 'withdrawal' | 'task_reward' | 'referral_commission' | 'investment_deposit';
     title: string;
     customerLabel?: string;
     gatewayOrMethod: string;
@@ -570,62 +854,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(() => {});
   };
 
-  // Sync locally-queued Processing withdrawals to the server-side Owner approval queue
-  useEffect(() => {
-    const pendingItems = userStats.payoutHistory.filter((p) => p.status === 'Processing');
-    if (pendingItems.length === 0) return;
-
-    pendingItems.forEach((p) => {
-      fetch('/api/withdrawals/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-ea-country': selectedCountry.code,
-          'x-ea-verified': 'true',
-          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-        },
-        body: JSON.stringify({
-          id: p.id,
-          amountUsd: p.amount,
-          method: p.method,
-          accountDetails: p.accountDetails,
-          countryCode: selectedCountry.code,
-          mpesaReceipt: p.mpesaReceipt,
-        }),
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          const remote = data?.withdrawal;
-          if (!remote || remote.status === p.status) return;
-          setUserStats((prev) => {
-            let refunded = 0;
-            const updatedHistory = prev.payoutHistory.map((item) => {
-              if (item.id !== remote.id) return item;
-              if (item.status === 'Processing' && remote.status === 'Rejected') {
-                refunded += item.amount;
-              }
-              return {
-                ...item,
-                status: remote.status,
-                mpesaReceipt: remote.mpesaReceipt || item.mpesaReceipt,
-              };
-            });
-            return {
-              ...prev,
-              balance: +(prev.balance + refunded).toFixed(2),
-              payoutHistory: updatedHistory,
-            };
-          });
-        })
-        .catch(() => {});
-    });
-  }, [activeToken, walletOpen, activeTab]);
-
   // Sync live Owner withdrawal approvals/rejections whenever Wallet opens
   useEffect(() => {
     if (!walletOpen || !activeToken) return;
     fetch('/api/withdrawals/my', {
-      headers: { Authorization: `Bearer ${activeToken}` }
+      headers: { Authorization: `Bearer ${activeToken}` },
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -654,156 +887,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!changed) return prev;
           return {
             ...prev,
-            balance: +(prev.balance + refunded).toFixed(2),
+            balance: +(prev.balance + refunded).toFixed(4),
             payoutHistory: updatedHistory,
           };
         });
       })
       .catch(() => {});
   }, [walletOpen, activeToken]);
-  const [privacyTermsTab, setPrivacyTermsTab] = useState<'privacy' | 'terms'>('privacy');
-  const [notification, setNotification] = useState<string | null>(null);
-
-  const showNotification = useCallback((msg: string) => {
-    setNotification(msg);
-    setTimeout(() => {
-      setNotification((curr) => (curr === msg ? null : curr));
-    }, 5500);
-  }, []);
-
-  const refreshPassProofs = useCallback(async () => {
-    try {
-      const trackedIds = readStoredIds(LOCAL_STORAGE_KEY_PASS_PROOF_IDS);
-      if (!activeToken && trackedIds.length === 0) {
-        setPassProofs([]);
-        return;
-      }
-      const query = trackedIds.length > 0 ? `?ids=${encodeURIComponent(trackedIds.join(','))}` : '';
-      const res = await fetch(`/api/packages/my-proofs${query}`, {
-        headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data?.proofs)) {
-        setPassProofs(data.proofs);
-      }
-      if (data?.deactivated) {
-        setPassBannedReason(
-          data.deactivatedReason ||
-            'Your account has been temporarily deactivated by Platform Owner. Contact Support (+254712727558) to restore access.'
-        );
-        setActivePackage(null);
-        return;
-      }
-
-      if (data?.banned) {
-        setPassBannedReason(
-          data.bannedReason ||
-            'Permanently banned 🚫 forever (no second chance) for violating M-PESA Worker Pass proof rules.'
-        );
-        setActivePackage(null);
-        return;
-      } else {
-        setPassBannedReason(null);
-      }
-
-      if (data?.adminAssignedPass === 'free') {
-        setActivePackage(null);
-        return;
-      }
-
-      if (data?.adminAssignedPass && ['starter', 'pro', 'vip'].includes(data.adminAssignedPass)) {
-        const assignedPkg = AVAILABLE_PACKAGES.find((p) => p.id === data.adminAssignedPass) || null;
-        if (assignedPkg) {
-          setActivePackage(assignedPkg);
-        }
-      }
-
-      if (data?.approvedPackageId && data?.latestApprovedProof) {
-        const approvedProof: CustomerPassProofItem = data.latestApprovedProof;
-        const pkg = AVAILABLE_PACKAGES.find((p) => p.id === data.approvedPackageId) || null;
-        if (pkg) {
-          const alreadyUnlocked = readStoredIds(LOCAL_STORAGE_KEY_UNLOCKED_PROOFS).includes(approvedProof.id);
-          if (!alreadyUnlocked) {
-            appendStoredId(LOCAL_STORAGE_KEY_UNLOCKED_PROOFS, approvedProof.id);
-            setActivePackage(pkg);
-            try {
-              confetti({ particleCount: 75, spread: 65, origin: { y: 0.6 } });
-            } catch {}
-            showNotification(
-              `Owner Approved Your ${pkg.name}! ${approvedProof.ownerApprovalDetails || `M-PESA ${approvedProof.mpesaCode} confirmed. Tasks are now unlocked!`}`
-            );
-          } else {
-            setActivePackage((curr) => curr || pkg);
-          }
-        }
-      }
-    } catch {
-      // non-blocking network fallback
-    }
-  }, [activeToken, showNotification]);
-
-  const submitManualPassProof: TaskContextType['submitManualPassProof'] = useCallback(
-    async ({ packageId, senderPhone, mpesaCode, screenshotDataUrl, screenshotFileName }) => {
-      try {
-        const res = await fetch('/api/packages/manual-proof', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-ea-country': selectedCountry.code,
-            'x-ea-verified': 'true',
-            ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-          },
-          body: JSON.stringify({
-            packageId,
-            senderPhone,
-            mpesaCode,
-            screenshotDataUrl,
-            screenshotFileName,
-            countryCode: selectedCountry.code,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.success) {
-          if (res.status === 403) {
-            setPassBannedReason(data?.error || 'Account permanently banned 🚫 forever.');
-            setActivePackage(null);
-          }
-          return {
-            success: false,
-            error: data?.error || 'Could not submit M-PESA Worker Pass proof.',
-          };
-        }
-        if (data?.proof?.id) {
-          appendStoredId(LOCAL_STORAGE_KEY_PASS_PROOF_IDS, data.proof.id);
-        }
-        await refreshPassProofs();
-        showNotification(
-          `M-PESA code ${mpesaCode.trim().toUpperCase()} & screenshot submitted! Worker Pass stays locked until the Owner verifies 0758727558 and sends approval details.`
-        );
-        return { success: true, proof: data.proof };
-      } catch (err: any) {
-        return {
-          success: false,
-          error: err?.message || 'Network error submitting M-PESA proof.',
-        };
-      }
-    },
-    [activeToken, selectedCountry.code, refreshPassProofs, showNotification]
-  );
-
-  useEffect(() => {
-    void refreshPassProofs();
-  }, [refreshPassProofs]);
-
-  useEffect(() => {
-    const hasPending = passProofs.some((p) => p.status === 'Pending');
-    if (!packagesModalOpen && !hasPending) return;
-    const timer = window.setInterval(() => {
-      void refreshPassProofs();
-    }, 12000);
-    return () => window.clearInterval(timer);
-  }, [packagesModalOpen, passProofs, refreshPassProofs]);
 
   const openPrivacyTerms = (tab: 'privacy' | 'terms' = 'privacy') => {
     setPrivacyTermsTab(tab);
@@ -813,57 +903,37 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_STATS, JSON.stringify(userStats));
-    } catch (e) {
-      console.error('Error saving user stats', e);
-    }
+    } catch {}
   }, [userStats]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_TASKS, JSON.stringify(tasks));
-    } catch (e) {
-      console.error('Error saving tasks', e);
-    }
+    } catch {}
   }, [tasks]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_HISTORY, JSON.stringify(taskHistory));
-    } catch (e) {
-      console.error('Error saving task history', e);
-    }
+    } catch {}
   }, [taskHistory]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY_PACKAGE, JSON.stringify(activePackage));
-    } catch (e) {
-      console.error('Error saving package', e);
-    }
-  }, [activePackage]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem(LOCAL_STORAGE_KEY_MEMES, JSON.stringify(memes));
-    } catch (e) {
-      console.error('Error saving memes', e);
-    }
+    } catch {}
   }, [memes]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_REF_HISTORY, JSON.stringify(referralHistory));
-    } catch (e) {
-      console.error('Error saving referral history', e);
-    }
+    } catch {}
   }, [referralHistory]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY_REF_STATS, JSON.stringify(referralStats));
-    } catch (e) {
-      console.error('Error saving referral stats', e);
-    }
+    } catch {}
   }, [referralStats]);
 
   useEffect(() => {
@@ -872,15 +942,20 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const token = await currentUser.getIdToken();
           const res = await fetch('/api/user/tasks', {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
+            headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
             const dbTasks = await res.json();
             if (Array.isArray(dbTasks) && dbTasks.length > 0) {
+              const dbCompletedIds = dbTasks.map((d: any) => String(d.taskId || '')).filter(Boolean);
+              if (dbCompletedIds.length > 0) {
+                setUserStats((prev) => ({
+                  ...prev,
+                  completedTaskIds: Array.from(new Set([...(prev.completedTaskIds || []), ...dbCompletedIds])),
+                }));
+              }
               setTaskHistory((prev) => {
-                const existingRefs = new Set(prev.map(p => p.transactionRef));
+                const existingRefs = new Set(prev.map((p) => p.transactionRef));
                 const newItems: TaskHistoryRecord[] = dbTasks
                   .filter((d: any) => !existingRefs.has(d.transactionRef))
                   .map((d: any) => ({
@@ -888,25 +963,23 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     taskId: d.taskId,
                     taskTitle: d.taskTitle,
                     category: d.category,
-                    reward: Math.min(Number(d.reward), MAX_TASK_REWARD_USD),
+                    reward: Math.max(0, Number(d.reward) || 0),
                     status: d.status,
                     completedAt: d.completedAt ? new Date(d.completedAt).toLocaleDateString() : 'Recent',
                     accuracyScore: Number(d.accuracyScore),
-                    transactionRef: d.transactionRef
+                    transactionRef: d.transactionRef,
                   }));
                 return [...newItems, ...prev];
               });
             }
           }
-        } catch (err) {
-          console.warn('Failed to fetch user tasks from Cloud SQL:', err);
-        }
+        } catch {}
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Hydrate persistent server state on login/reload & prevent empty overwrites (Zero-Reset Guarantee)
+  // Hydrate persistent server + Firestore state on login/reload
   useEffect(() => {
     if (!activeToken) {
       hydratedTokenRef.current = null;
@@ -914,235 +987,274 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     let cancelled = false;
-    const tokenForReq = activeToken;
 
-    fetch('/api/user/state', {
-      headers: { Authorization: `Bearer ${tokenForReq}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.state) return;
-        const remote = data.state;
-        const remoteUid = String(remote.uid || currentUid || '');
-        const lastUid = (() => {
-          try {
-            return localStorage.getItem(LOCAL_STORAGE_KEY_LAST_STATE_UID);
-          } catch {
-            return null;
+    const hydrate = async () => {
+      const freshToken = (await getFreshToken()) || activeToken;
+      if (!freshToken || cancelled) return;
+
+      const serverStatePromise = fetch('/api/user/state', {
+        headers: { Authorization: `Bearer ${freshToken}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((d) => d?.state || null)
+        .catch(() => null);
+
+      const firestoreStatePromise =
+        auth.currentUser && auth.currentUser.uid === currentUid && auth.currentUser.emailVerified
+          ? getDoc(doc(db, 'customer_states', auth.currentUser.uid))
+              .then((snap) => (snap.exists() ? snap.data() : null))
+              .catch(() => null)
+          : Promise.resolve(null);
+
+      const [serverRemote, fsRemote] = await Promise.all([serverStatePromise, firestoreStatePromise]);
+      if (cancelled) return;
+
+      const fsHasMoreData =
+        fsRemote &&
+        (!serverRemote ||
+          (Number(fsRemote?.userStats?.balance) || 0) > (Number(serverRemote?.userStats?.balance) || 0) ||
+          (Number(fsRemote?.userStats?.lifetimeEarned) || 0) > (Number(serverRemote?.userStats?.lifetimeEarned) || 0) ||
+          (Array.isArray(fsRemote?.taskHistory) ? fsRemote.taskHistory.length : 0) >
+            (Array.isArray(serverRemote?.taskHistory) ? serverRemote.taskHistory.length : 0));
+
+      const remote = fsHasMoreData ? { ...(serverRemote || {}), ...fsRemote } : serverRemote || fsRemote;
+
+      if (fsHasMoreData && fsRemote) {
+        fetch('/api/user/state', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-ea-country': selectedCountry.code,
+            'x-ea-verified': 'true',
+            Authorization: `Bearer ${freshToken}`,
+          },
+          body: JSON.stringify(fsRemote),
+        }).catch(() => {});
+      }
+
+      if (!remote) {
+        hydratedTokenRef.current = activeToken;
+        return;
+      }
+
+      const remoteUid = String(remote.uid || currentUid || '');
+      const lastUid = (() => {
+        try {
+          return localStorage.getItem(LOCAL_STORAGE_KEY_LAST_STATE_UID);
+        } catch {
+          return null;
+        }
+      })();
+      const isSwitchingDifferentAccount = Boolean(lastUid && remoteUid && lastUid !== remoteUid);
+
+      if (remoteUid) {
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY_LAST_STATE_UID, remoteUid);
+        } catch {}
+      }
+
+      const remoteStats = remote.userStats || {};
+      setUserStats((prev) => {
+        const mergedCompletedIds = isSwitchingDifferentAccount
+          ? Array.from(new Set((remoteStats.completedTaskIds || []).filter(Boolean)))
+          : Array.from(
+              new Set([...(prev.completedTaskIds || []), ...(remoteStats.completedTaskIds || [])].filter(Boolean))
+            );
+
+        const payoutMap = new Map<string, PayoutRecord>();
+        const rank = (s: string) => (s === 'Completed' ? 3 : s === 'Rejected' ? 2 : 1);
+        const payoutSources = isSwitchingDifferentAccount
+          ? remoteStats.payoutHistory || []
+          : [...(prev.payoutHistory || []), ...(remoteStats.payoutHistory || [])];
+        for (const p of payoutSources) {
+          if (!p?.id) continue;
+          const ex = payoutMap.get(p.id);
+          if (!ex || rank(p.status) >= rank(ex.status)) {
+            payoutMap.set(p.id, { ...p, method: 'PayPal' });
           }
-        })();
-        const isSwitchingDifferentAccount = Boolean(lastUid && remoteUid && lastUid !== remoteUid);
-
-        if (remoteUid) {
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY_LAST_STATE_UID, remoteUid);
-          } catch {}
         }
 
-        const remoteStats = remote.userStats || {};
-        setUserStats((prev) => {
-          const mergedCompletedIds = isSwitchingDifferentAccount
-            ? Array.from(new Set((remoteStats.completedTaskIds || []).filter(Boolean)))
-            : Array.from(
-                new Set([...(prev.completedTaskIds || []), ...(remoteStats.completedTaskIds || [])].filter(Boolean))
-              );
+        return {
+          balance: isSwitchingDifferentAccount
+            ? +(Number(remoteStats.balance) || 0).toFixed(4)
+            : +Math.max(prev.balance, Number(remoteStats.balance) || 0).toFixed(4),
+          pendingBalance: isSwitchingDifferentAccount
+            ? +(Number(remoteStats.pendingBalance) || 0).toFixed(4)
+            : +Math.max(prev.pendingBalance, Number(remoteStats.pendingBalance) || 0).toFixed(4),
+          lifetimeEarned: isSwitchingDifferentAccount
+            ? +(Number(remoteStats.lifetimeEarned) || 0).toFixed(4)
+            : +Math.max(prev.lifetimeEarned, Number(remoteStats.lifetimeEarned) || 0).toFixed(4),
+          completedTasksCount: isSwitchingDifferentAccount
+            ? Number(remoteStats.completedTasksCount) || mergedCompletedIds.length
+            : Math.max(prev.completedTasksCount, Number(remoteStats.completedTasksCount) || 0, mergedCompletedIds.length),
+          qualityScore: Number(remoteStats.qualityScore || prev.qualityScore || 100),
+          streakDays: isSwitchingDifferentAccount
+            ? Number(remoteStats.streakDays) || 0
+            : Math.max(prev.streakDays, Number(remoteStats.streakDays) || 0),
+          lastLoginDate: remoteStats.lastLoginDate || prev.lastLoginDate || '',
+          streakBonusMultiplier: Math.max(prev.streakBonusMultiplier || 0, Number(remoteStats.streakBonusMultiplier) || 0),
+          sevenDayBonusAwarded: Boolean(
+            isSwitchingDifferentAccount
+              ? remoteStats.sevenDayBonusAwarded
+              : prev.sevenDayBonusAwarded || remoteStats.sevenDayBonusAwarded
+          ),
+          tier: remoteStats.tier || prev.tier || 'Bronze',
+          completedTaskIds: mergedCompletedIds as string[],
+          payoutHistory: Array.from(payoutMap.values()),
+        };
+      });
 
-          const payoutMap = new Map<string, PayoutRecord>();
-          const rank = (s: string) => (s === 'Completed' ? 3 : s === 'Rejected' ? 2 : 1);
-          const payoutSources = isSwitchingDifferentAccount
-            ? remoteStats.payoutHistory || []
-            : [...(prev.payoutHistory || []), ...(remoteStats.payoutHistory || [])];
-          for (const p of payoutSources) {
-            if (!p?.id) continue;
-            const ex = payoutMap.get(p.id);
-            if (!ex || rank(p.status) >= rank(ex.status)) {
-              payoutMap.set(p.id, p);
+      if (Array.isArray(remote.taskHistory)) {
+        setTaskHistory((prev) => {
+          const byKey = new Map<string, TaskHistoryRecord>();
+          const source = isSwitchingDifferentAccount ? remote.taskHistory : [...prev, ...remote.taskHistory];
+          for (const item of source) {
+            if (!item?.taskId) continue;
+            const k = item.id || `${item.taskId}::${item.completedAt}`;
+            if (!byKey.has(k)) {
+              byKey.set(k, {
+                ...item,
+                reward: Math.max(0, Number(item.reward) || 0),
+              });
             }
           }
-          const mergedPayouts = Array.from(payoutMap.values());
+          return Array.from(byKey.values());
+        });
+      }
 
+      if (Array.isArray(remote.referralHistory)) {
+        setReferralHistory((prev) => {
+          const byId = new Map<string, ReferralRecord>();
+          const source = isSwitchingDifferentAccount ? remote.referralHistory : [...prev, ...remote.referralHistory];
+          for (const r of source) {
+            if (!r?.id) continue;
+            const ex = byId.get(r.id);
+            if (!ex || (Number(r.commissionEarned) || 0) >= (Number(ex.commissionEarned) || 0)) {
+              byId.set(r.id, { ...r, paymentMethod: 'PayPal' });
+            }
+          }
+          return Array.from(byId.values());
+        });
+      }
+
+      if (remote.referralStats) {
+        const rs = remote.referralStats;
+        const origin = CANONICAL_PLATFORM_ORIGIN;
+        setReferralStats((prev) => {
+          const code = (rs.referralCode || prev.referralCode || 'GIDEON-EA-894').toUpperCase();
           return {
-            balance: isSwitchingDifferentAccount
-              ? +(Number(remoteStats.balance) || 0).toFixed(4)
-              : +Math.max(prev.balance, Number(remoteStats.balance) || 0).toFixed(4),
-            pendingBalance: isSwitchingDifferentAccount
-              ? +(Number(remoteStats.pendingBalance) || 0).toFixed(4)
-              : +Math.max(prev.pendingBalance, Number(remoteStats.pendingBalance) || 0).toFixed(4),
-            lifetimeEarned: isSwitchingDifferentAccount
-              ? +(Number(remoteStats.lifetimeEarned) || 0).toFixed(4)
-              : +Math.max(prev.lifetimeEarned, Number(remoteStats.lifetimeEarned) || 0).toFixed(4),
-            completedTasksCount: isSwitchingDifferentAccount
-              ? Number(remoteStats.completedTasksCount) || mergedCompletedIds.length
-              : Math.max(prev.completedTasksCount, Number(remoteStats.completedTasksCount) || 0, mergedCompletedIds.length),
-            qualityScore: Number(remoteStats.qualityScore || prev.qualityScore || 100),
-            streakDays: isSwitchingDifferentAccount
-              ? Number(remoteStats.streakDays) || 0
-              : Math.max(prev.streakDays, Number(remoteStats.streakDays) || 0),
-            lastLoginDate: remoteStats.lastLoginDate || prev.lastLoginDate || '',
-            streakBonusMultiplier: Math.max(prev.streakBonusMultiplier || 0, Number(remoteStats.streakBonusMultiplier) || 0),
-            sevenDayBonusAwarded: Boolean(
-              isSwitchingDifferentAccount
-                ? remoteStats.sevenDayBonusAwarded
-                : prev.sevenDayBonusAwarded || remoteStats.sevenDayBonusAwarded
-            ),
-            tier: remoteStats.tier || prev.tier || 'Bronze',
-            completedTaskIds: mergedCompletedIds as string[],
-            payoutHistory: mergedPayouts,
+            ...prev,
+            referralCode: code,
+            referralLink: `${origin}/?ref=${code}`,
+            totalClicks: isSwitchingDifferentAccount
+              ? Number(rs.totalClicks) || 0
+              : Math.max(prev.totalClicks, Number(rs.totalClicks) || 0),
+            totalSignups: isSwitchingDifferentAccount
+              ? Number(rs.totalSignups) || 0
+              : Math.max(prev.totalSignups, Number(rs.totalSignups) || 0),
+            passesPurchasedCount: isSwitchingDifferentAccount
+              ? Number(rs.passesPurchasedCount) || 0
+              : Math.max(prev.passesPurchasedCount, Number(rs.passesPurchasedCount) || 0),
+            totalCommissionEarned: isSwitchingDifferentAccount
+              ? +(Number(rs.totalCommissionEarned) || 0).toFixed(4)
+              : +Math.max(prev.totalCommissionEarned, Number(rs.totalCommissionEarned) || 0).toFixed(4),
+            pendingCommission: isSwitchingDifferentAccount
+              ? +(Number(rs.pendingCommission) || 0).toFixed(4)
+              : Math.max(prev.pendingCommission, Number(rs.pendingCommission) || 0),
+            vipReferralCount: 0,
           };
         });
+      }
 
-        if (Array.isArray(remote.taskHistory)) {
-          setTaskHistory((prev) => {
-            const byKey = new Map<string, TaskHistoryRecord>();
-            const source = isSwitchingDifferentAccount
-              ? remote.taskHistory
-              : [...prev, ...remote.taskHistory];
-            for (const item of source) {
-              if (!item?.taskId) continue;
-              const k = item.id || `${item.taskId}::${item.completedAt}`;
-              if (!byKey.has(k)) {
-                byKey.set(k, {
-                  ...item,
-                  reward: Math.min(Number(item.reward) || 0, MAX_TASK_REWARD_USD),
-                });
-              }
-            }
-            return Array.from(byKey.values());
-          });
-        }
-
-        if (Array.isArray(remote.referralHistory)) {
-          setReferralHistory((prev) => {
-            const byId = new Map<string, ReferralRecord>();
-            const source = isSwitchingDifferentAccount
-              ? remote.referralHistory
-              : [...prev, ...remote.referralHistory];
-            for (const r of source) {
-              if (!r?.id) continue;
-              const ex = byId.get(r.id);
-              if (!ex || (Number(r.commissionEarned) || 0) >= (Number(ex.commissionEarned) || 0)) {
-                byId.set(r.id, r);
-              }
-            }
-            return Array.from(byId.values());
-          });
-        }
-
-        if (remote.referralStats || typeof remote.vipReferralCount === 'number') {
-          const rs = remote.referralStats || {};
-          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
-          setReferralStats((prev) => {
-            const code = (rs.referralCode || prev.referralCode || 'GIDEON-EA-894').toUpperCase();
+      if (remote.dailyUsage) {
+        const today = getTodayDateKey();
+        if (remote.dailyUsage.dateKey === today) {
+          setDailyUsage((prev) => {
+            const prevCount = prev.dateKey === today ? prev.count : 0;
+            const prevSurveys = prev.dateKey === today ? prev.surveyCount : 0;
             return {
-              ...prev,
-              referralCode: code,
-              referralLink: `${origin}/?ref=${code}`,
-              totalClicks: isSwitchingDifferentAccount
-                ? Number(rs.totalClicks) || 0
-                : Math.max(prev.totalClicks, Number(rs.totalClicks) || 0),
-              totalSignups: isSwitchingDifferentAccount
-                ? Number(rs.totalSignups) || 0
-                : Math.max(prev.totalSignups, Number(rs.totalSignups) || 0),
-              passesPurchasedCount: isSwitchingDifferentAccount
-                ? Number(rs.passesPurchasedCount) || 0
-                : Math.max(prev.passesPurchasedCount, Number(rs.passesPurchasedCount) || 0),
-              totalCommissionEarned: isSwitchingDifferentAccount
-                ? +(Number(rs.totalCommissionEarned) || 0).toFixed(4)
-                : +Math.max(prev.totalCommissionEarned, Number(rs.totalCommissionEarned) || 0).toFixed(4),
-              pendingCommission: isSwitchingDifferentAccount
-                ? +(Number(rs.pendingCommission) || 0).toFixed(4)
-                : Math.max(prev.pendingCommission, Number(rs.pendingCommission) || 0),
-              vipReferralCount: isSwitchingDifferentAccount
-                ? Math.max(Number(remote.vipReferralCount) || 0, Number(rs.vipReferralCount) || 0)
-                : Math.max(
-                    prev.vipReferralCount || 0,
-                    Number(remote.vipReferralCount) || 0,
-                    Number(rs.vipReferralCount) || 0
-                  ),
+              dateKey: today,
+              count: isSwitchingDifferentAccount
+                ? Number(remote.dailyUsage.completedTodayCount) || 0
+                : Math.max(prevCount, Number(remote.dailyUsage.completedTodayCount) || 0),
+              surveyCount: isSwitchingDifferentAccount
+                ? Number(remote.dailyUsage.surveysCompletedTodayCount) || 0
+                : Math.max(prevSurveys, Number(remote.dailyUsage.surveysCompletedTodayCount) || 0),
             };
           });
         }
+      }
 
-        if (remote.dailyUsage) {
-          const today = getTodayDateKey();
-          if (remote.dailyUsage.dateKey === today) {
-            setDailyUsage((prev) => {
-              const prevCount = prev.dateKey === today ? prev.count : 0;
-              const prevSurveys = prev.dateKey === today ? prev.surveyCount : 0;
-              return {
-                dateKey: today,
-                count: isSwitchingDifferentAccount
-                  ? Number(remote.dailyUsage.completedTodayCount) || 0
-                  : Math.max(prevCount, Number(remote.dailyUsage.completedTodayCount) || 0),
-                surveyCount: isSwitchingDifferentAccount
-                  ? Number(remote.dailyUsage.surveysCompletedTodayCount) || 0
-                  : Math.max(prevSurveys, Number(remote.dailyUsage.surveysCompletedTodayCount) || 0),
-              };
-            });
-          }
-        }
+      hydratedTokenRef.current = activeToken;
+    };
 
-        if (remote.activePackageId) {
-          const pkg = AVAILABLE_PACKAGES.find((p) => p.id === remote.activePackageId) || null;
-          if (pkg) {
-            setActivePackage((prev) => (isSwitchingDifferentAccount ? pkg : prev || pkg));
-          }
-        } else if (isSwitchingDifferentAccount) {
-          setActivePackage(null);
-        }
-
-        hydratedTokenRef.current = tokenForReq;
-      })
-      .catch(() => {
-        hydratedTokenRef.current = tokenForReq;
-      });
+    void hydrate().catch(() => {
+      hydratedTokenRef.current = activeToken;
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [activeToken, currentUid]);
+  }, [activeToken, currentUid, getFreshToken, selectedCountry.code]);
 
-  // Debounced background sync to persistent server ledger after hydration
+  // Debounced background sync to persistent server ledger & Firestore after hydration
   useEffect(() => {
     if (!activeToken || hydratedTokenRef.current !== activeToken) return;
 
-    const timer = window.setTimeout(() => {
+    const timer = window.setTimeout(async () => {
+      const freshToken = (await getFreshToken()) || activeToken;
+      if (!freshToken) return;
+
+      const statePayload = {
+        uid: currentUid || undefined,
+        userStats,
+        taskHistory,
+        referralHistory,
+        referralStats,
+        dailyUsage: {
+          dateKey: normalizedDailyUsage.dateKey,
+          completedTodayCount: normalizedDailyUsage.count,
+          surveysCompletedTodayCount: normalizedDailyUsage.surveyCount,
+          earnedTodayUsd: 0,
+        },
+        activePackageId: null,
+        vipReferralCount: 0,
+        updatedAt: new Date().toISOString(),
+      };
+
       fetch('/api/user/state', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'x-ea-country': selectedCountry.code,
           'x-ea-verified': 'true',
-          Authorization: `Bearer ${activeToken}`,
+          Authorization: `Bearer ${freshToken}`,
         },
-        body: JSON.stringify({
-          userStats,
-          taskHistory,
-          referralHistory,
-          referralStats,
-          dailyUsage: {
-            dateKey: normalizedDailyUsage.dateKey,
-            completedTodayCount: normalizedDailyUsage.count,
-            surveysCompletedTodayCount: normalizedDailyUsage.surveyCount,
-            earnedTodayUsd: 0,
-          },
-          activePackageId: activePackage?.id || null,
-          vipReferralCount,
-        }),
+        body: JSON.stringify(statePayload),
       }).catch(() => {});
+
+      if (auth.currentUser && auth.currentUser.uid === currentUid && auth.currentUser.emailVerified) {
+        try {
+          await setDoc(
+            doc(db, 'customer_states', auth.currentUser.uid),
+            JSON.parse(JSON.stringify({ ...statePayload, uid: auth.currentUser.uid })),
+            { merge: true }
+          );
+        } catch {}
+      }
     }, 450);
 
     return () => window.clearTimeout(timer);
   }, [
     activeToken,
+    currentUid,
+    getFreshToken,
     selectedCountry.code,
     userStats,
     taskHistory,
     referralHistory,
     referralStats,
     normalizedDailyUsage,
-    activePackage?.id,
-    vipReferralCount,
   ]);
 
   const clearNotification = () => setNotification(null);
@@ -1157,19 +1269,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let bonusMessage = '';
 
       if (nextStreak === 7) {
-        // 7-Day Streak Milestone Reward: Grant 5-unit bonus + 20% earnings multiplier!
         const bonusAmount = 5.0;
         newBalance = +(newBalance + bonusAmount).toFixed(4);
         newLifetime = +(newLifetime + bonusAmount).toFixed(4);
         newMultiplier = 0.20;
         sevenDayAwarded = true;
-        bonusMessage = ` 🔥 7-DAY STREAK MILESTONE REACHED! Granted ${formatCurrencyFromUsd(bonusAmount, selectedCountry)} bonus + 20% earnings multiplier on all tasks!`;
+        bonusMessage = ` 7-DAY STREAK MILESTONE REACHED! Granted ${formatCurrencyFromUsd(bonusAmount, selectedCountry)} bonus + 20% earnings multiplier on all tasks!`;
         try {
           confetti({ particleCount: 110, spread: 80, origin: { y: 0.5 } });
         } catch {}
       } else if (nextStreak > 7) {
         newMultiplier = 0.20;
-        bonusMessage = ` 🔥 Streak extended to ${nextStreak} Days! (20% bonus active).`;
+        bonusMessage = ` Streak extended to ${nextStreak} Days! (20% bonus active).`;
       } else {
         newMultiplier = 0.10;
         bonusMessage = ` Day ${nextStreak} logged in! Reach Day 7 to earn your ${formatCurrencyFromUsd(5.0, selectedCountry)} bonus!`;
@@ -1184,7 +1295,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lifetimeEarned: newLifetime,
         streakBonusMultiplier: newMultiplier,
         sevenDayBonusAwarded: sevenDayAwarded,
-        lastLoginDate: newDate
+        lastLoginDate: newDate,
       };
     });
   };
@@ -1192,7 +1303,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkInDaily = () => {
     const today = new Date().toISOString().split('T')[0];
     if (userStats.lastLoginDate === today) {
-      showNotification(`Already checked in today! Current Streak: ${userStats.streakDays} Days 🔥`);
+      showNotification(`Already checked in today! Current Streak: ${userStats.streakDays} Days`);
       return;
     }
     processStreakAdvancement(today);
@@ -1203,75 +1314,31 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     processStreakAdvancement(nextDate);
   };
 
-  const purchasePackage = (
-    packageId: 'starter' | 'pro' | 'vip',
-    method: 'M-PESA' | 'Mobile Money' | 'Card' | 'Paystack Page',
-    accountOrPhone: string
-  ): boolean => {
-    const pkg = AVAILABLE_PACKAGES.find((p) => p.id === packageId);
-    if (!pkg) return false;
-
-    if (String(method).toLowerCase().includes('wallet')) {
-      showNotification(
-        'Worker Passes must be purchased strictly by deposit (M-PESA 0758727558, Paystack STK, Card, or Mobile Money) — Wallet balance cannot be used.'
-      );
-      return false;
-    }
-
-    setActivePackage(pkg);
-    recordPlatformTransaction({
-      id: `PASS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-      kind: 'pass_purchase',
-      title: `${pkg.name} (${formatCurrencyFromKes(pkg.priceKes, selectedCountry)})`,
-      customerLabel: accountOrPhone || auth.currentUser?.email || 'East Africa Contributor',
-      gatewayOrMethod: method,
-      currency: selectedCountry.currency,
-      amountLocal: pkg.priceKes,
-      amountUsd: pkg.price,
-      status: 'Completed',
-      reference: `${method.toUpperCase()}-${pkg.id.toUpperCase()}`,
-      metadata: { packageId: pkg.id, accountOrPhone },
-    });
-    try {
-      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-    } catch {}
-
-    showNotification(
-      `Congratulations! ${pkg.name} (${formatCurrencyFromKes(pkg.priceKes, selectedCountry)}) activated via ${method} (${accountOrPhone}). Tasks unlocked!`
-    );
-    return true;
-  };
-
   const completeTask = (taskId: string, rewardEarned: number, summaryTitle: string) => {
     const taskItem = tasks.find((t) => t.id === taskId);
     const taskCategory = taskItem?.category || 'micro';
 
     const eligibility = evaluateTaskEligibility({
-      packageId: activePackage?.id || null,
-      unlockedCategories: activePackage?.unlockedCategories,
+      taskId,
+      droppedTaskId,
+      now: currentEatDate,
       taskReward: rewardEarned,
       taskCategory,
       completedTodayCount: normalizedDailyUsage.count,
-      surveysCompletedTodayCount: normalizedDailyUsage.surveyCount,
       isOwner,
       country: selectedCountry,
     });
 
     if (!eligibility.allowed) {
-      showNotification(eligibility.reason || 'Daily task limit or tier cap reached. Upgrade your Worker Pass!');
-      setPackagesModalOpen(true);
+      showNotification(eligibility.reason || 'Daily 8:00 AM EAT task drop rule active.');
       return;
     }
 
-    // 7-day streak grants a 20% bonus; normal streak grants 10% (strictly capped at 50 shillings / MAX_TASK_REWARD_USD)
     const bonusMultiplier = userStats.streakDays >= 7 ? 0.20 : userStats.streakDays > 0 ? 0.10 : 0;
     const finalBonusAmount = +(rewardEarned * bonusMultiplier).toFixed(4);
-    const rawTotal = +(rewardEarned + finalBonusAmount).toFixed(4);
-    const totalAward = isOwner
-      ? rawTotal
-      : +Math.min(rawTotal, eligibility.rule.maxAmountUsd, MAX_TASK_REWARD_USD).toFixed(4);
+    const totalAward = +(rewardEarned + finalBonusAmount).toFixed(4);
 
-    const todayKey = getTodayDateKey();
+    const todayKey = eatInfo.dateKey;
     setDailyUsage((prev) => {
       const base = prev.dateKey === todayKey ? prev : { dateKey: todayKey, count: 0, surveyCount: 0 };
       return {
@@ -1281,7 +1348,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     });
 
-    // Append to Task History Record table
     const newHistoryRecord: TaskHistoryRecord = {
       id: `hist-${Date.now()}`,
       taskId,
@@ -1291,7 +1357,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       status: 'Approved',
       completedAt: 'Just now',
       accuracyScore: 99.4,
-      transactionRef: `TXN-${Math.floor(100000 + Math.random() * 900000)}`
+      transactionRef: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
     };
 
     setTaskHistory((prev) => [newHistoryRecord, ...prev]);
@@ -1301,7 +1367,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       balance: +(prev.balance + totalAward).toFixed(4),
       lifetimeEarned: +(prev.lifetimeEarned + totalAward).toFixed(4),
       completedTasksCount: prev.completedTasksCount + 1,
-      completedTaskIds: [...prev.completedTaskIds, taskId]
+      completedTaskIds: [...prev.completedTaskIds, taskId],
     }));
 
     setTasks((prev) =>
@@ -1325,29 +1391,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       metadata: { taskId, category: taskCategory, accuracyScore: 99.4 },
     });
 
-    // Persist completed task record to Cloud SQL and Firestore if user is authenticated
     if (auth.currentUser) {
-      const currentUid = auth.currentUser.uid;
+      const uid = auth.currentUser.uid;
       if (auth.currentUser.emailVerified) {
         const fsTaskId = `ct_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
         const fsPath = `completed_tasks/${fsTaskId}`;
         setDoc(doc(db, 'completed_tasks', fsTaskId), {
-          userUid: currentUid.slice(0, 128),
+          userUid: uid.slice(0, 128),
           taskId: String(taskId).slice(0, 128),
           taskTitle: String(summaryTitle).slice(0, 200),
           category: String(taskCategory).slice(0, 64),
           reward: totalAward,
           status: 'Approved',
-          completedAt: serverTimestamp()
+          completedAt: serverTimestamp(),
         }).catch((err) => {
           if (isPermissionError(err)) {
             try {
               handleFirestoreError(err, OperationType.CREATE, fsPath);
-            } catch (logged) {
-              console.warn('Firestore completed task permission check:', logged);
-            }
-          } else {
-            console.warn('Firestore completed task sync deferred (network):', (err as any)?.message || err);
+            } catch {}
           }
         });
       }
@@ -1357,62 +1418,58 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             taskId,
             taskTitle: summaryTitle,
             category: taskCategory,
             reward: totalAward,
-            packageId: activePackage?.id || 'free',
             status: 'Approved',
             accuracyScore: 99.4,
-            transactionRef: newHistoryRecord.transactionRef
-          })
-        }).catch((err) => console.warn('Cloud SQL task record sync deferred:', err));
-      }).catch((err) => console.warn('Could not get auth token for Cloud SQL sync:', err));
-    } else {
-      try {
-        const customerToken = localStorage.getItem('gideon_customer_token_v1');
-        if (customerToken) {
-          fetch('/api/user/tasks', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${customerToken}`
-            },
-            body: JSON.stringify({
-              taskId,
-              taskTitle: summaryTitle,
-              category: taskCategory,
-              reward: totalAward,
-              packageId: activePackage?.id || 'free',
-              status: 'Approved',
-              accuracyScore: 99.4,
-              transactionRef: newHistoryRecord.transactionRef
-            })
-          }).catch(() => {});
-        }
-      } catch {}
+            transactionRef: newHistoryRecord.transactionRef,
+          }),
+        }).catch(() => {});
+      }).catch(() => {});
+    } else if (activeToken) {
+      fetch('/api/user/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeToken}`,
+        },
+        body: JSON.stringify({
+          taskId,
+          taskTitle: summaryTitle,
+          category: taskCategory,
+          reward: totalAward,
+          status: 'Approved',
+          accuracyScore: 99.4,
+          transactionRef: newHistoryRecord.transactionRef,
+        }),
+      }).catch(() => {});
     }
 
     try {
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
     } catch {}
 
-    const cappedNotice =
-      !isOwner && totalAward < rawTotal
-        ? ` (Capped at ${formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} / 50 shillings max)`
-        : '';
     showNotification(
-      `Task Approved! Earned ${formatCurrencyFromUsd(totalAward, selectedCountry)}${cappedNotice} for ${summaryTitle}`
+      `Task Approved! Earned ${formatCurrencyFromUsd(totalAward, selectedCountry)} (merchant reward${bonusMultiplier > 0 ? ' + streak bonus' : ''}) for ${summaryTitle}`
     );
   };
 
   const requestPayout = (amount: number, method: PayoutRecord['method'], details: string): boolean => {
     const minLocal = formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry);
-    if (amount < WITHDRAWAL_THRESHOLD_USD) {
-      showNotification(`Withdrawals start from ${minLocal}. Continue completing tasks to reach ${minLocal}.`);
+    if (method !== 'PayPal') {
+      showNotification('Only PayPal withdrawals are supported on Gideon Global Tasks.');
+      return false;
+    }
+
+    if (!meetsWithdrawalThreshold(amount)) {
+      showNotification(
+        `Minimum withdrawal is ${minLocal} (${WITHDRAWAL_THRESHOLD_KES} shillings). Continue completing free tasks to reach ${minLocal}.`
+      );
       return false;
     }
 
@@ -1423,30 +1480,34 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    if (!isOwner && !hasVipReferral) {
+    if (!isOwner && kycStatus !== 'Approved') {
       showNotification(
-        `Any of your referrals must have purchased the VIP Worker Pass of ${formatCurrencyFromKes(VIP_PASS_KES, selectedCountry)} before requesting a withdrawal.`
+        kycStatus === 'Pending'
+          ? `Your ${selectedCountry.idDocumentName} KYC verification is currently Pending Owner Approval.`
+          : `Strict KYC Required: Upload BOTH Front & Back photos of your ${selectedCountry.idDocumentName} and wait for Owner approval before requesting a PayPal withdrawal.`
       );
       return false;
     }
 
-    const isMpesa = method === 'M-PESA';
-    const mpesaReceipt = isMpesa ? `MP${Math.random().toString(36).substring(2, 9).toUpperCase()}` : undefined;
+    const cleanEmail = String(details || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      showNotification('Please provide a valid PayPal email address for withdrawal.');
+      return false;
+    }
 
     const newRecord: PayoutRecord = {
       id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`,
       amount: +amount.toFixed(4),
-      method,
-      accountDetails: details,
+      method: 'PayPal',
+      accountDetails: cleanEmail,
       status: 'Processing',
       timestamp: 'Just now',
-      mpesaReceipt
     };
 
     setUserStats((prev) => ({
       ...prev,
       balance: +Math.max(0, prev.balance - amount).toFixed(4),
-      payoutHistory: [newRecord, ...prev.payoutHistory]
+      payoutHistory: [newRecord, ...prev.payoutHistory],
     }));
 
     // Submit withdrawal to server-side Owner approval queue
@@ -1461,41 +1522,47 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({
         id: newRecord.id,
         amountUsd: amount,
-        method,
-        accountDetails: details,
+        method: 'PayPal',
+        accountDetails: cleanEmail,
         countryCode: selectedCountry.code,
-        mpesaReceipt,
       }),
-    }).catch(() => {});
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          setUserStats((prev) => ({
+            ...prev,
+            balance: +(prev.balance + newRecord.amount).toFixed(4),
+            payoutHistory: prev.payoutHistory.filter((p) => p.id !== newRecord.id),
+          }));
+          showNotification(errData?.error || 'Withdrawal request was rejected by server policy.');
+          void refreshKycStatus();
+        }
+      })
+      .catch(() => {});
 
     if (auth.currentUser?.emailVerified) {
       const wId = `wd_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       const wPath = `withdrawals/${wId}`;
-      const safeDetails = String(details || '').trim();
-      const paddedDetails = (safeDetails.length >= 3 ? safeDetails : `${safeDetails || method} payout`).slice(0, 200);
       setDoc(doc(db, 'withdrawals', wId), {
         userUid: auth.currentUser.uid.slice(0, 128),
         amount: Number(amount),
-        method,
-        details: paddedDetails,
+        method: 'PayPal',
+        details: cleanEmail.slice(0, 200),
         status: 'Pending',
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       }).catch((err) => {
         if (isPermissionError(err)) {
           try {
             handleFirestoreError(err, OperationType.CREATE, wPath);
-          } catch (logged) {
-            console.warn('Firestore withdrawal permission check:', logged);
-          }
-        } else {
-          console.warn('Firestore withdrawal sync deferred (network):', (err as any)?.message || err);
+          } catch {}
         }
       });
     }
 
     showNotification(
-      `Withdrawal of ${formatCurrencyFromUsd(amount, selectedCountry)} via ${method} initiated! ${isMpesa ? `(M-PESA confirmation code: ${mpesaReceipt})` : 'Processing queued.'}`
+      `PayPal withdrawal of ${formatCurrencyFromUsd(amount, selectedCountry)} queued for ${cleanEmail}! Owner verification in progress.`
     );
     return true;
   };
@@ -1512,11 +1579,40 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: `task-custom-${Date.now()}`,
       spotsRemaining: newTaskData.totalSpots,
       createdAt: 'Just now',
-      requesterVerified: true
+      requesterVerified: true,
     };
 
     setTasks((prev) => [created, ...prev]);
-    showNotification(`Task "${created.title}" published! Available to global contributors.`);
+    showNotification(`Task "${created.title}" published! Matching high-reward alert subscribers...`);
+
+    void (async () => {
+      try {
+        const token = (await getFreshToken()) || activeToken;
+        if (!token) return;
+        const res = await fetch('/api/owner/tasks/notify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            id: created.id,
+            title: created.title,
+            category: created.category,
+            reward: created.reward,
+            description: created.description,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data?.success && data.matchedCount > 0) {
+          showNotification(
+            `Task "${created.title}" published! Notified ${data.matchedCount} high-reward subscriber(s)${
+              data.emailedCount > 0 ? ` (${data.emailedCount} SMTP emails sent)` : ' (queued in alert feed)'
+            }.`
+          );
+        }
+      } catch {}
+    })();
   };
 
   const updateTask = (taskId: string, updates: Partial<Task>): boolean => {
@@ -1525,10 +1621,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showNotification(`Forbidden: Only ${OWNER_EMAIL} can edit platform tasks.`);
       return false;
     }
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
-    );
-    showNotification(`Task updated successfully.`);
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
+    showNotification('Task updated successfully.');
     return true;
   };
 
@@ -1539,7 +1633,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    showNotification(`Task permanently removed from marketplace.`);
+    showNotification('Task permanently removed from marketplace.');
     return true;
   };
 
@@ -1551,7 +1645,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return {
             ...m,
             upvotes: isUpvoted ? m.upvotes - 1 : m.upvotes + 1,
-            userUpvoted: !isUpvoted
+            userUpvoted: !isUpvoted,
           };
         }
         return m;
@@ -1564,20 +1658,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showNotification('Insufficient wallet balance to send tip.');
       return false;
     }
-
     setUserStats((prev) => ({
       ...prev,
-      balance: +(prev.balance - amount).toFixed(4)
+      balance: +(prev.balance - amount).toFixed(4),
     }));
-
     setMemes((prev) =>
       prev.map((m) =>
-        m.id === memeId
-          ? { ...m, tipsEarned: +(m.tipsEarned + amount).toFixed(4) }
-          : m
+        m.id === memeId ? { ...m, tipsEarned: +(m.tipsEarned + amount).toFixed(4) } : m
       )
     );
-
     showNotification(`Sent ${formatCurrencyFromUsd(amount, selectedCountry)} micro-tip to meme creator!`);
     return true;
   };
@@ -1589,9 +1678,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       upvotes: 1,
       tipsEarned: 0,
       createdAt: 'Just now',
-      userUpvoted: true
+      userUpvoted: true,
     };
-
     setMemes((prev) => [createdMeme, ...prev]);
     showNotification('Your meme has been published to the global community feed!');
   };
@@ -1602,106 +1690,101 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showNotification('Referral code must be at least 3 alphanumeric characters.');
       return false;
     }
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://gideonglobal.com';
+    const origin = CANONICAL_PLATFORM_ORIGIN;
     const newLink = `${origin}/?ref=${cleaned}`;
     setReferralStats((prev) => ({
       ...prev,
       referralCode: cleaned,
-      referralLink: newLink
+      referralLink: newLink,
     }));
     showNotification(`Referral code updated to "${cleaned}"! Your unique link is ready to share.`);
     return true;
   };
 
-  const simulateReferralPurchase = (
-    passTier: 'starter' | 'pro' | 'vip' = 'pro',
-    refereeName?: string,
-    country?: string
-  ) => {
+  const simulateReferralActivity = (refereeName?: string, country?: string) => {
     const CANDIDATES = [
-      { name: 'David Kimani', email: 'da***ni@gmail.com', country: 'Kenya', method: 'M-PESA' as const },
-      { name: 'Grace Namukasa', email: 'gr***sa@gmail.com', country: 'Uganda', method: 'Card' as const },
-      { name: 'Asha Mwinyi', email: 'as***yi@gmail.com', country: 'Tanzania', method: 'M-PESA' as const },
-      { name: 'Jean-Paul Habimana', email: 'jp***na@gmail.com', country: 'Rwanda', method: 'Card' as const },
-      { name: 'Chantal Niyonkuru', email: 'ch***ru@gmail.com', country: 'Burundi', method: 'Card' as const },
-      { name: 'Faith Wanjiku', email: 'fa***ku@yahoo.com', country: 'Kenya', method: 'M-PESA' as const },
-      { name: 'Deng Kuol', email: 'de***ol@gmail.com', country: 'South Sudan', method: 'M-PESA' as const }
+      { name: 'David Kimani', email: 'da***ni@gmail.com', country: 'Kenya' },
+      { name: 'Grace Namukasa', email: 'gr***sa@gmail.com', country: 'Uganda' },
+      { name: 'Asha Mwinyi', email: 'as***yi@gmail.com', country: 'Tanzania' },
+      { name: 'Jean-Paul Habimana', email: 'jp***na@gmail.com', country: 'Rwanda' },
+      { name: 'Faith Wanjiku', email: 'fa***ku@yahoo.com', country: 'Kenya' },
     ];
-
     const pick = CANDIDATES[Math.floor(Math.random() * CANDIDATES.length)];
     const chosenName = refereeName || pick.name;
     const chosenCountry = country || pick.country;
-    const chosenEmail = pick.email;
 
-    const passInfo =
-      passTier === 'starter'
-        ? { title: `Starter Contributor Pass (${formatCurrencyFromKes(50, selectedCountry)})`, price: convertKesToUsd(50), method: pick.method }
-        : passTier === 'vip'
-        ? { title: `VIP Taskmaster Pass (${formatCurrencyFromKes(200, selectedCountry)})`, price: convertKesToUsd(200), method: 'Card' as const }
-        : { title: `Pro Tasker Pass (${formatCurrencyFromKes(100, selectedCountry)})`, price: convertKesToUsd(100), method: 'M-PESA' as const };
+    const commissionKes = 30; // 20% commission on referred PayPal activity
+    const earned = convertKesToUsd(commissionKes);
 
-    // Standard 20% commission on worker passes purchased by referred users
-    const rate = referralStats.commissionPercentage / 100;
-    const earned = +(passInfo.price * rate).toFixed(4);
-
-    // Instant credit to user's wallet and lifetime earnings!
     setUserStats((prev) => ({
       ...prev,
       balance: +(prev.balance + earned).toFixed(4),
-      lifetimeEarned: +(prev.lifetimeEarned + earned).toFixed(4)
+      lifetimeEarned: +(prev.lifetimeEarned + earned).toFixed(4),
     }));
 
     const newRecord: ReferralRecord = {
       id: `ref-tx-${Date.now()}`,
-      packageId: passTier,
       refereeName: chosenName,
-      refereeEmailMasked: chosenEmail,
+      refereeEmailMasked: pick.email,
       refereeCountry: chosenCountry,
       dateJoined: 'Just now',
-      passPurchased: passInfo.title,
-      passPrice: passInfo.price,
-      commissionRate: rate,
+      passPurchased: 'Verified Contributor Task Activity',
+      passPrice: convertKesToUsd(150),
+      commissionRate: 0.2,
       commissionEarned: earned,
-      paymentMethod: passInfo.method,
+      paymentMethod: 'PayPal',
       status: 'Credited',
-      transactionId: `${passInfo.method}-REF-${Math.floor(10000 + Math.random() * 90000)}`
+      transactionId: `PAYPAL-REF-${Math.floor(10000 + Math.random() * 90000)}`,
     };
 
     setReferralHistory((prev) => [newRecord, ...prev]);
-
     setReferralStats((prev) => ({
       ...prev,
       totalSignups: prev.totalSignups + 1,
       passesPurchasedCount: prev.passesPurchasedCount + 1,
       totalCommissionEarned: +(prev.totalCommissionEarned + earned).toFixed(4),
-      vipReferralCount: (prev.vipReferralCount || 0) + (passTier === 'vip' ? 1 : 0)
     }));
 
     recordPlatformTransaction({
       id: newRecord.transactionId,
       kind: 'referral_commission',
-      title: `20% Referral Commission · ${passInfo.title}`,
+      title: `20% Referral Commission · ${chosenName}`,
       customerLabel: `${chosenName} (${chosenCountry})`,
-      gatewayOrMethod: passInfo.method,
+      gatewayOrMethod: 'PayPal',
       currency: selectedCountry.currency,
       amountUsd: earned,
       status: 'Completed',
       reference: newRecord.transactionId,
-      metadata: { passTier, refereeCountry: chosenCountry },
+      metadata: { refereeCountry: chosenCountry },
     });
 
     try {
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     } catch {}
 
     showNotification(
-      `🎉 Referral Commission! ${chosenName} bought a ${passInfo.title}. +${formatCurrencyFromUsd(earned, selectedCountry)} added directly to your wallet!`
+      `Referral Commission! ${chosenName} completed verified onboarding. +${formatCurrencyFromUsd(earned, selectedCountry)} added to your wallet!`
     );
   };
+
+  const syncWalletFromServer = useCallback(async () => {
+    try {
+      const freshToken = (await getFreshToken()) || activeToken;
+      if (!freshToken) return;
+      const res = await fetch('/api/user/state', {
+        headers: { Authorization: `Bearer ${freshToken}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const remoteStats = data?.state?.userStats;
+      if (!remoteStats) return;
+      setUserStats((prev) => ({
+        ...prev,
+        balance: +Math.max(prev.balance, Number(remoteStats.balance) || 0).toFixed(4),
+        lifetimeEarned: +Math.max(prev.lifetimeEarned, Number(remoteStats.lifetimeEarned) || 0).toFixed(4),
+      }));
+    } catch {}
+  }, [activeToken, getFreshToken]);
 
   return (
     <TaskContext.Provider
@@ -1711,19 +1794,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         taskHistory,
         referralHistory,
         referralStats,
-        vipReferralCount,
-        hasVipReferral,
         updateReferralCode,
-        simulateReferralPurchase,
-        activePackage,
-        packagesModalOpen,
-        setPackagesModalOpen,
-        purchasePackage,
+        simulateReferralActivity,
         dailyQuotaStatus,
-        passProofs,
-        passBannedReason,
-        refreshPassProofs,
-        submitManualPassProof,
+        dailyDropInfo,
+        kycStatus,
+        kycRecord,
+        kycLoading,
+        refreshKycStatus,
+        submitKycVerification,
         streakModalOpen,
         setStreakModalOpen,
         advanceDailyStreak,
@@ -1755,16 +1834,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearNotification,
         publisherModalOpen,
         setPublisherModalOpen,
-        darajaModalOpen,
-        setDarajaModalOpen,
-        intasendModalOpen,
-        setIntasendModalOpen,
-        paystackModalOpen,
-        setPaystackModalOpen,
         privacyTermsModalOpen,
         setPrivacyTermsModalOpen,
         privacyTermsTab,
-        openPrivacyTerms
+        openPrivacyTerms,
+        syncWalletFromServer,
       }}
     >
       {children}

@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useRegion } from '../context/RegionContext';
-import { formatCurrencyFromKes, formatCurrencyFromUsd, MAX_TASK_REWARD_KES, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
-import { FileText, ShieldAlert, ArrowLeft, CheckCircle2, Wallet } from 'lucide-react';
+import { formatCurrencyFromKes, formatCurrencyFromUsd, WITHDRAWAL_THRESHOLD_USD } from '../lib/eastAfrica';
+import { FileText, ArrowLeft, Wallet } from 'lucide-react';
 
 export const TermsOfServiceView: React.FC = () => {
   const { setActiveTab } = useTasks();
@@ -36,7 +36,7 @@ export const TermsOfServiceView: React.FC = () => {
           Terms of Service & Contributor Operating Rules
         </h1>
         <p className="text-xs md:text-sm text-slate-500">
-          Effective Date: November 11, 2026 · Governing Entity: Gideon Global Tasks Inc.
+          Effective Date: November 18, 2026 · Operated by Gideon Global Tasks (Kenya &amp; East Africa)
         </p>
       </header>
 
@@ -50,55 +50,55 @@ export const TermsOfServiceView: React.FC = () => {
 
       {/* Section 2 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">2. Contributor Worker Passes & Service Fees</h2>
+        <h2 className="text-xl font-bold text-slate-900">2. Daily 8:00 AM EAT Single-Task Drop &amp; Merchant Rewards</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          To maintain high data integrity, deter automated malicious scripts, and finance dedicated server compute, contributors activate an authorized worker pass:
+          Gideon Global Tasks provides 100% free contributor access with no Worker Pass subscriptions or tier fees:
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">Starter Pass ({formatCurrencyFromKes(50, selectedCountry)})</h3>
-            <p className="text-slate-500 text-[11px]">Grants 2 tasks daily (Free tier grants 1 daily task), with each completed task capped at {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} max.</p>
+            <h3 className="font-bold text-slate-900">1 Task Daily at 08:00 AM EAT</h3>
+            <p className="text-slate-500 text-[11px]">Only one vetted task is dropped per day at exactly 8:00 AM East Africa Time. Contributors must keep time to participate in the daily drop.</p>
           </div>
           <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-emerald-950">Pro Pass ({formatCurrencyFromKes(100, selectedCountry)})</h3>
-            <p className="text-emerald-900 text-[11px]">Unlocks 3 tasks daily across AI computer vision annotation, receipt OCR, and meme studio bounties (max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per task).</p>
+            <h3 className="font-bold text-emerald-950">Merchant-Set Task Rewards</h3>
+            <p className="text-emerald-900 text-[11px]">There is no fixed ceiling—task payouts depend directly on which task is dropped and the reward funded by the client/merchant.</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <h3 className="font-bold text-slate-900">VIP Pass ({formatCurrencyFromKes(200, selectedCountry)})</h3>
-            <p className="text-slate-500 text-[11px]">Unlocks 4 surveys daily, technical copywriting, priority queue, and 0% withdrawal transaction fees (max {formatCurrencyFromKes(MAX_TASK_REWARD_KES, selectedCountry)} per task).</p>
+            <h3 className="font-bold text-slate-900">Zero Worker Pass Required</h3>
+            <p className="text-slate-500 text-[11px]">Every verified account accesses the daily drop, Free Pay-Per-View statuses, and Escrow Auctions without pass payments.</p>
           </div>
         </div>
       </section>
 
       {/* Section 3 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">3. Quality Audits, Accuracy Standards & Zero-Bot Policy</h2>
+        <h2 className="text-xl font-bold text-slate-900">3. Quality Audits, Accuracy Standards &amp; Zero-Bot Policy</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
           Enterprise clients rely on ground-truth datasets produced through Gideon Global Tasks. As such:
         </p>
         <ul className="list-disc pl-5 text-xs md:text-sm text-slate-600 space-y-1.5">
-          <li><strong>Automated & Peer Review:</strong> Task submissions undergo automated validation algorithms and human consensus audits.</li>
-          <li><strong>Minimum Accuracy Score:</strong> Contributors must maintain an average accuracy score of at least 85% to retain active pass privileges.</li>
-          <li><strong>Zero-Bot Policy:</strong> The use of headless browser scrapers, macro scripts, artificial intelligence answer generation for human-subject surveys, or multi-accounting is strictly prohibited and results in immediate account forfeiture without refund.</li>
+          <li><strong>Automated &amp; Peer Review:</strong> Task submissions undergo automated validation algorithms and human consensus audits.</li>
+          <li><strong>Minimum Accuracy Score:</strong> Contributors must maintain accurate, genuine submissions and an average quality rating of at least 85%.</li>
+          <li><strong>Zero-Bot Policy:</strong> The use of headless browser scrapers, macro scripts, automated form-fillers, or multi-accounting is strictly prohibited and results in permanent account ban without payout.</li>
         </ul>
       </section>
 
       {/* Section 4 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">4. Withdrawal Thresholds, Milestones & Disbursement Rails</h2>
+        <h2 className="text-xl font-bold text-slate-900">4. KSh 150 Withdrawal Threshold, Strict KYC &amp; PayPal-Only Rails</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          All financial disbursements adhere to transparent milestone economics:
+          All financial disbursements adhere to transparent identity protection rules:
         </p>
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-700">
           <p className="font-semibold text-slate-900 flex items-center gap-1.5">
             <Wallet className="w-4 h-4 text-emerald-600" />
-            <span>Minimum Payout Milestone: {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</span>
+            <span>Minimum Payout Milestone: {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} (150 Shillings eq.)</span>
           </p>
           <p className="text-slate-600 leading-relaxed">
-            Due to fixed banking routing surcharges on cross-border financial transactions, withdrawals start once your approved wallet balance reaches <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong>.
+            Withdrawals start once your approved wallet balance reaches <strong>{formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}</strong> AND your identity passes strict KYC verification (uploading both <strong>Front &amp; Back photos</strong> of your country&apos;s National ID, e.g., Kenyan Kitambulisho, Uganda NIRA, Tanzania NIDA, Rwanda Indangamuntu).
           </p>
           <p className="text-slate-600 leading-relaxed">
-            Disbursements are processed within 24–48 hours via <strong>M-PESA</strong> (direct STK mobile money to verified East African phone numbers) and <strong>Wise</strong> (international bank rails covering 80+ currencies).
+            PayPal is the sole supported payment and withdrawal gateway. Disbursements are sent directly to your verified PayPal email address upon Owner review.
           </p>
         </div>
       </section>
@@ -107,13 +107,13 @@ export const TermsOfServiceView: React.FC = () => {
       <section className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">5. 20% Referral Commission Program</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Contributors receive a dedicated affiliate tracking link. When a new user creates an account via your link and purchases a worker pass, you receive a guaranteed 20% commission ({formatCurrencyFromKes(10, selectedCountry)} on Starter, {formatCurrencyFromKes(20, selectedCountry)} on Pro, {formatCurrencyFromKes(40, selectedCountry)} on VIP) credited directly to your withdrawable wallet balance.
+          Contributors receive a dedicated affiliate tracking link. When referred users join and complete qualified PayPal checkouts or activity, your 20% partner commission is credited directly to your withdrawable wallet balance.
         </p>
       </section>
 
       {/* Section 6 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">6. Intellectual Property & Contributor Work Product</h2>
+        <h2 className="text-xl font-bold text-slate-900">6. Intellectual Property &amp; Contributor Work Product</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
           Upon successful task completion and reward credit, contributors transfer all ownership, copyright, and intellectual property rights in the submitted work product (e.g., bounding boxes, text keying, copywriting) to the requester.
         </p>
@@ -121,9 +121,9 @@ export const TermsOfServiceView: React.FC = () => {
 
       {/* Section 7 */}
       <section className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">7. Independent Contractor Relationship</h2>
+        <h2 className="text-xl font-bold text-slate-900">7. 50% Escrow-Protected Auctions &amp; Free Pay-Per-View Status Feed</h2>
         <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-          Contributors perform tasks as independent contractors and not as employees, agents, or partners of Gideon Global Tasks Inc. Contributors are solely responsible for all local income taxes, withholdings, and reporting applicable in their jurisdiction.
+          In Customer Product Auctions, real physical products require a <strong>mandatory 50% of the product amount paid as an escrow security deposit via PayPal first</strong> by sellers and buyers/bidders so any dispute on real items can be compensated fairly between the buyer and seller. In the free Pay-Per-View Status Feed, contributors upload original funny photos, videos, or personal media with zero upload fee; verified views from registered members earn {formatCurrencyFromKes(5, selectedCountry)} per viewer and settle automatically after 24 hours.
         </p>
       </section>
 

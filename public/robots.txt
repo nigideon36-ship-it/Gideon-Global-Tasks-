@@ -8,4 +8,4 @@ Allow: /
 User-agent: Mediapartners-Google
 Allow: /
 
-Sitemap: https://ais-pre-zdmptijvon5uujsazond3b-435091693224.europe-west3.run.app/sitemap.xml
+Sitemap: https://gideon-global-tasks.ai.studio/sitemap.xml

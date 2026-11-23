@@ -162,7 +162,7 @@ export const TaskHistoryView: React.FC = () => {
             {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            Starting from {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} via M-PESA &amp; Mobile Money
+            From {formatCurrencyFromUsd(WITHDRAWAL_THRESHOLD_USD, selectedCountry)} via PayPal (KYC required)
           </div>
         </div>
       </div>
